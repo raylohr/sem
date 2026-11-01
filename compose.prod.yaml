@@ -1,0 +1,16 @@
+name: sem-prod
+x-prod-env: &prod-env
+  DB_NAME: sem_prod
+  DB_USER: sem_prod_app
+  DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_PROD}
+services:
+  web:
+    environment: *prod-env
+  worker:
+    environment: *prod-env
+  migrate:
+    environment:
+      <<: *prod-env
+      DB_USER: sem_prod_migrate
+      DB_PASSWORD: ${PG_PASSWORD_PROD_MIGRATE}

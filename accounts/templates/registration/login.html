@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><title>SEM — Inloggen</title></head>
+<body><main><h1>Inloggen bij SEM</h1>
+<form method="post">{% csrf_token %}{{ form.as_p }}
+<input type="hidden" name="next" value="{{ next }}"><button type="submit">Inloggen</button>
+</form></main></body></html>
