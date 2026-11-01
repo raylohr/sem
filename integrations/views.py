@@ -96,7 +96,7 @@ def callback(request):
         if not can_manage(request.user, project):
             return JsonResponse({"error": "Geen beheerrechten."}, status=403)
         GSCConnection.objects.create(project=project, owner=request.user, property_url=pending["property"], encrypted_refresh_token=token)
-    response = redirect("projects:connections:gsc-list", project_id=project.pk)
+    response = redirect("ui:connections", project_id=project.pk)
     response["Referrer-Policy"] = "no-referrer"
     return response
 

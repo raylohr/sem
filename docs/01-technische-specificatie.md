@@ -184,3 +184,9 @@ worden atomair gepubliceerd en per batch verwijderd. 94 tests slagen; daarnaast
 is de volledige runtimeketen met één example.com-pagina, documentdownload en
 verwijdering geverifieerd. Tijdelijke gebruiker, doel en project zijn opgeruimd.
 Alleen de testomgeving draait deze code. Zie 03-scans.md voor grenzen en gebruik.
+
+Lokale Bootstrap 5.3.8 geïnstalleerd en HTML-werkplek toegevoegd onder /workspace/:
+login, projecten, dashboard, bronoverzicht/upload, batchdetails, scans en koppelingen.
+Bestaande JSON-API behouden. 104 tests slagen; desktop/mobiel en upload-/verwijderflow
+zijn met Chromium gecontroleerd, zonder externe assetverzoeken. Alleen testomgeving
+bijgewerkt; alle tijdelijke browserdata verwijderd. Google-configuratie blijft open.

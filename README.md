@@ -129,3 +129,22 @@ Projectbeheerders configureren expliciete scandoelen/hosts; bewerkers starten
 sitemapimports en begrensde crawls. Scans gebruiken een eigen worker/queue,
 respecteren robots.txt en blokkeren interne netwerkadressen en onveilige redirects.
 Zie docs/03-scans.md voor endpoints, resultaten, annulering en productlimieten.
+
+## Webinterface en lokale Bootstrap
+
+De startpagina verwijst naar /workspace/. De interface bevat login, projectkaarten,
+projectdashboard, bronfilters/upload/preview, batchdetails/verwijderen, websitescans
+met doel- en startformulieren, en GSC-koppelingen. Bestaande JSON-routes onder
+/projects/ blijven beschikbaar. Projectrechten worden ook voor alle HTML-pagina's
+op de server gecontroleerd. Privépagina's krijgen no-cache-headers.
+
+Bootstrap 5.3.8 staat volledig lokaal in core/static/vendor/bootstrap/5.3.8/,
+inclusief bundle-JavaScript, sourcemaps en MIT-licentie. CSS en JS zijn bij download
+gecontroleerd tegen de officiële SHA-384-hashes. WhiteNoise serveert de bestanden
+met versiehashes; er zijn geen CDN's, webfonts of andere externe runtime-assets.
+Eigen stijlen en formulieren staan in core/static/sem/. Bootstrap-bron:
+https://getbootstrap.com/docs/5.3/getting-started/download/
+
+104 Django-tests slagen. Een geïsoleerde Chromium-controle verifieerde desktop
+(1440px), mobiel (390px), Bootstrap-widgets, nul externe requests en de echte
+preview/upload/verwijderflow. Voorbeeldgegevens en browsersessie zijn opgeruimd.
