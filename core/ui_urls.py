@@ -1,7 +1,9 @@
-from django.urls import path
+from django.urls import include,path
 from . import ui
 app_name='ui'
 urlpatterns=[
+    path("projects/<uuid:project_id>/sources/<uuid:batch_id>/records/<int:record_id>/",ui.source_record,name="record"),
+    path("projects/<uuid:project_id>/urls/",include("catalog.ui_urls")),
     path('',ui.dashboard,name='dashboard'),
     path('projects/<uuid:project_id>/',ui.project_home,name='project'),
     path('projects/<uuid:project_id>/sources/',ui.sources,name='sources'),

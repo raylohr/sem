@@ -3,6 +3,7 @@ from . import views
 
 app_name = "projects"
 urlpatterns = [
+    path("<uuid:project_id>/urls/",include("catalog.api_urls")),
     path("<uuid:project_id>/scans/", include("scans.urls")),
     path("<uuid:project_id>/connections/", include("integrations.project_urls")),
     path("<uuid:project_id>/sources/", include("sources.urls")),

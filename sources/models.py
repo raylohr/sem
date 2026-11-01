@@ -47,6 +47,7 @@ class ImportBatch(models.Model):
     scan_target = models.ForeignKey("scans.ScanTarget", null=True, blank=True, on_delete=models.PROTECT)
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
+    url_index_info = models.JSONField(default=dict, db_default={}, blank=True)
 
     class Meta:
         ordering = ["-imported_at", "-id"]

@@ -11,3 +11,7 @@
 .brand-horizontal{display:block;width:340px;height:auto;max-width:100%}
 .login-story:after{border:0;border-radius:30%;background:url('../brand/avatar_cyan.svg') center/cover no-repeat;width:360px;height:360px;bottom:-110px;right:-90px;opacity:.13;transform:rotate(-12deg)}
 @media(max-width:767px){.brand-menu{width:240px;max-width:64vw}.login-brand{padding:12px 16px}.brand-horizontal{width:280px}.login-story{padding:1.5rem 2rem}.login-story .story-main{margin-top:1.6rem}}
+
+.url-cell{min-width:240px;max-width:460px}.observation-value{white-space:pre-line}.source-record{max-height:65vh}
+
+@media(max-width:575px){.project-heading{display:grid!important;grid-template-columns:46px minmax(0,1fr);gap:12px 16px!important}.project-heading>.badge{grid-column:2;justify-self:start;margin-left:0!important}}

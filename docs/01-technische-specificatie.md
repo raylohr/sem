@@ -196,3 +196,10 @@ favicons/touch-icon en Django-beheer. Merkpalet marineblauw/cyaan toegepast.
 Bronbestanden zijn ongewijzigd lokaal overgenomen uit /home/raymond/data/seo/logo.
 104 tests en desktop-/mobielcontrole slagen; tijdelijke browserdata is verwijderd.
 Technische projectnaam blijft sem; productie is niet bijgewerkt.
+
+Gecombineerd URL-register en bronhistorie geïmplementeerd met conservatieve
+identiteiten, afzonderlijke observaties, filters, exact bronrecord en herkomst.
+Indexering is atomair met publicatie; batchverwijdering ruimt afgeleide waarnemingen
+op zonder andere bronnen te wijzigen. 127 tests slagen. Alle 18 echte voorbeelden
+zijn tijdelijk gevalideerd (10.158 URL's); testdata is teruggedraaid. De testomgeving
+is bijgewerkt; productie niet. Zie 04-url-overzicht.md voor beleid en beperkingen.

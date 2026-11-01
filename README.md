@@ -162,3 +162,15 @@ kleur #0B2D4D en cyaan #00B3E6 zijn doorgevoerd in navigatie, knoppen en accente
 Alle artwork-assets worden lokaal geserveerd; originele bronbestanden zijn ongewijzigd.
 Django-beheertemplates staan in templates/admin/ met voorrang via TEMPLATES.DIRS.
 De technische projectnaam en repository blijven sem.
+
+## Gecombineerd URL-overzicht
+
+Onder de projecttab URL-overzicht staan gegevens uit alle voltooide bronnen per
+URL samen, met filters en een dossier van afzonderlijke metingen. GSC-prestaties,
+Ahrefs-schattingen, technische scans en auditbevindingen blijven gescheiden.
+Bronrecord, gebruiker, importtijd en meetmoment blijven bereikbaar; onbekende datums
+worden niet ingevuld met importtijd. Sitestructuurcijfers zijn een aparte scope.
+
+Indexering en batchverwijdering werken automatisch en transactioneel. Importdetails
+tonen niet-herkende URL-regels zonder brondata weg te gooien. Zie docs/04-url-overzicht.md
+voor normalisatie, filters, API-routes, indexherbouw en praktijktestresultaten.
