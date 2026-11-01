@@ -66,6 +66,10 @@ class ProjectAccessTests(TestCase):
 
     def test_superuser_can_see_all_projects(self):
         self.client.force_login(self.root)
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django_otp import DEVICE_ID_SESSION_KEY
+        device=TOTPDevice.objects.create(user=self.root,name='default')
+        session=self.client.session;session[DEVICE_ID_SESSION_KEY]=device.persistent_id;session.save()
         self.assertEqual(len(self.client.get(reverse("projects:list")).json()["projects"]), 2)
 
     def test_anonymous_is_sent_to_login(self):

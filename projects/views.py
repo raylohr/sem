@@ -31,44 +31,37 @@ def project_detail(request, project_id):
 @login_required
 @require_POST
 def membership_set(request, project_id):
-    # Lock the project so future concurrent membership operations can share this guard.
-    with transaction.atomic():
-        project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=("self",)), pk=project_id)
-        if not can_manage(request.user, project):
-            return JsonResponse({"error": "Geen beheerrechten."}, status=403)
-        try:
-            body = json.loads(request.body)
-            user_id = body["user_id"]
-            role = body["role"]
-            if not isinstance(user_id, int) or isinstance(user_id, bool):
-                raise ValueError
-            if role not in Membership.Role.values:
-                raise ValueError
-        except (ValueError, TypeError, KeyError):
-            return JsonResponse({"error": "Geef user_id en een geldige role op."}, status=400)
-        target = get_user_model().objects.filter(pk=user_id, is_active=True).first()
-        if target is None:
-            return JsonResponse({"error": "Actieve gebruiker niet gevonden."}, status=400)
-        old = project.memberships.filter(user=target).first()
-        if old and old.role == Membership.Role.ADMIN and role != Membership.Role.ADMIN:
-            others = project.memberships.filter(role=Membership.Role.ADMIN, user__is_active=True).exclude(user=target)
-            if not others.exists():
-                return JsonResponse({"error": "Behoud minimaal één actieve projectbeheerder."}, status=409)
-        member, _ = Membership.objects.update_or_create(project=project, user=target, defaults={"role": role})
-        return JsonResponse({"user_id": member.user_id, "role": member.role})
+    from django.core.exceptions import ValidationError
+    from .services import set_membership
+    project=get_object_or_404(Project.objects.visible_to(request.user),pk=project_id)
+    if not can_manage(request.user,project):
+        return JsonResponse({"error":"Geen beheerrechten."},status=403)
+    try:
+        body=json.loads(request.body)
+        user_id,role=body["user_id"],body["role"]
+        if not isinstance(user_id,int) or isinstance(user_id,bool) or role not in Membership.Role.values:
+            raise ValueError
+    except (ValueError,TypeError,KeyError):
+        return JsonResponse({"error":"Geef user_id en een geldige role op."},status=400)
+    try:
+        member=set_membership(actor=request.user,project_id=project.pk,user_id=user_id,role=role)
+    except ValidationError as exc:
+        message=" ".join(exc.messages)
+        return JsonResponse({"error":message},status=409 if "minimaal" in message else 400)
+    return JsonResponse({"user_id":member.user_id,"role":member.role})
 
 
 @login_required
 @require_POST
 def membership_remove(request, project_id, user_id):
-    with transaction.atomic():
-        project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=("self",)), pk=project_id)
-        if not can_manage(request.user, project):
-            return JsonResponse({"error": "Geen beheerrechten."}, status=403)
-        member = get_object_or_404(project.memberships, user_id=user_id)
-        if member.role == Membership.Role.ADMIN:
-            others = project.memberships.filter(role=Membership.Role.ADMIN, user__is_active=True).exclude(pk=member.pk)
-            if not others.exists():
-                return JsonResponse({"error": "Behoud minimaal één actieve projectbeheerder."}, status=409)
-        member.delete()
-        return JsonResponse({"removed": True})
+    from django.core.exceptions import ValidationError
+    from .services import remove_membership
+    project=get_object_or_404(Project.objects.visible_to(request.user),pk=project_id)
+    if not can_manage(request.user,project):
+        return JsonResponse({"error":"Geen beheerrechten."},status=403)
+    get_object_or_404(Membership,project=project,user_id=user_id)
+    try:
+        remove_membership(actor=request.user,project_id=project.pk,user_id=user_id)
+    except ValidationError as exc:
+        return JsonResponse({"error":" ".join(exc.messages)},status=409)
+    return JsonResponse({"removed":True})

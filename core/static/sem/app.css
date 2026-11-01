@@ -15,3 +15,5 @@
 .url-cell{min-width:240px;max-width:460px}.observation-value{white-space:pre-line}.source-record{max-height:65vh}
 
 @media(max-width:575px){.project-heading{display:grid!important;grid-template-columns:46px minmax(0,1fr);gap:12px 16px!important}.project-heading>.badge{grid-column:2;justify-self:start;margin-left:0!important}}
+
+.account-form{max-width:680px}.mfa-qr{max-width:100%;height:auto}.recovery-codes code{font-size:1.05rem;letter-spacing:.12em;color:#0b2d4d}

@@ -78,7 +78,8 @@ class WorkspaceTests(TestCase):
         self.assertContains(response,'/brand/favicon.')
         self.assertNotContains(response,'https://cdn.')
         response=self.client.get(reverse('admin:login'))
-        self.assertContains(response,'/brand/website_menu.')
+        self.assertEqual(response.status_code,302)
+        self.assertIn(reverse('login'),response.url)
 
     def test_anonymous_workspace_requires_login(self):
         self.client.logout()

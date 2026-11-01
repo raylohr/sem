@@ -19,12 +19,13 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "accounts", "core", "projects", "sources", "integrations", "scans", "catalog",
+    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware", "accounts.middleware.AccountPolicyMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
@@ -72,7 +73,19 @@ CSRF_TRUSTED_ORIGINS = ["https://sem.lohr.nl"]
 # Set only once the proxy strips incoming forwarded headers and direct access is blocked.
 if os.environ.get("TRUST_PROXY_HTTPS") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+ACCOUNT_EMAIL_ENABLED = os.environ.get("ACCOUNT_EMAIL_ENABLED", "0") == "1"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend" if ACCOUNT_EMAIL_ENABLED else "django.core.mail.backends.dummy.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "0") == "1"
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://sem.lohr.nl")
+if ACCOUNT_EMAIL_ENABLED and (not EMAIL_HOST or not DEFAULT_FROM_EMAIL or (EMAIL_USE_TLS and EMAIL_USE_SSL)):
+    raise ImproperlyConfigured("Configure SMTP host/from address and exactly the intended TLS mode")
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_BROKER_CONNECTION_TIMEOUT = 3
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -98,3 +111,16 @@ GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integ
 INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")
 
 CELERY_TASK_ROUTES = {"scans.tasks.*": {"queue": "scans"}}
+
+CACHES = {"default": {"BACKEND":"django.core.cache.backends.redis.RedisCache",
+    "LOCATION":os.environ.get("AUTH_CACHE_URL","redis://redis:6379/2"),
+    "KEY_PREFIX":f"sem-{DB_NAME}","OPTIONS":{"socket_connect_timeout":2,"socket_timeout":2}}}
+TWO_FACTOR_PATCH_ADMIN = False
+TWO_FACTOR_REMEMBER_COOKIE_AGE = None
+TWO_FACTOR_LOGIN_TIMEOUT = 600
+OTP_TOTP_ISSUER = "Search Visibility Toolkit"
+OTP_TOTP_THROTTLE_FACTOR = 1
+OTP_STATIC_THROTTLE_FACTOR = 1
+PASSWORD_RESET_TIMEOUT = 3600
+SESSION_COOKIE_AGE = 8 * 60 * 60
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True

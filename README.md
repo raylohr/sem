@@ -1,8 +1,8 @@
 # SEM
 
-Django/Celery/Redis-projectskelet; geen publieke publicatie. Projectrechten, imports,
-2FA en mailflows volgen in de volgende bouwstappen. De admin is daarom nog niet
-bedoeld voor productiegebruik. SMTP staat expliciet uit (dummy backend).
+Django/Celery/Redis-app met projecten, bronimports, scans, URL-overzicht en
+gebruikersbeheer met 2FA. Geen publieke publicatie. SMTP staat standaard uit.
+Beheer en herstel: [gebruikers en beveiliging](docs/05-gebruikers-en-beveiliging.md).
 
 ## Credentials
 
@@ -35,7 +35,7 @@ SEM_PORT=8002 docker compose -f compose.yaml -f compose.prod.yaml up -d web work
 ```
 Gebruik dezelfde bestanden en SEM_PORT voor productie-migraties en beheer.
 Test en productie hebben aparte projectnamen en volumes. Beide binden alleen op
-localhost; reverse proxy en HTTPS volgen later. SMTP staat uit, 2FA volgt nog.
+localhost; reverse proxy en HTTPS volgen later. SMTP staat standaard uit; platformbeheerders gebruiken verplicht 2FA.
 Er worden geen migraties bij containerstart uitgevoerd.
 
 ## Tests
@@ -48,17 +48,15 @@ Specificatie: docs/01-technische-specificatie.md.
 
 ## Projecten en toegang
 
-Platformbeheerders maken projecten en lidmaatschappen in Django-admin aan.
-Projectrollen: admin, editor, viewer. Gewone staffstatus geeft geen toegang.
-Projectoverzicht: GET /projects/; detail: GET /projects/<uuid>/.
-Projectbeheerder kan bestaande actieve gebruikers koppelen of hun rol wijzigen:
-POST /projects/<uuid>/members/ met JSON {"user_id": 1, "role": "viewer"}.
-Intrekken: POST /projects/<uuid>/members/<user_id>/remove/.
-Alle mutaties vereisen een ingelogde sessie en CSRF-token. Minimaal één actieve
-projectbeheerder blijft bij mutaties via deze endpoints behouden. Platformbeheer
-via Django-admin kan dit bewust overrulen. Gewone gebruikers loggen in via
-/accounts/login/. De projectendpoints retourneren voorlopig JSON; een volledige
-projectinterface, 2FA, auditlog van rolwijzigingen en mailflows volgen nog.
+Platformbeheerders beheren accounts via `/workspace/users/`. Projectbeheerders
+koppelen bestaande gebruikers via de projecttab Toegang, met rollen admin, editor
+of viewer. Gewone staffstatus geeft geen toegang. Projecten kunnen in Django-admin
+worden aangemaakt; lidmaatschappen en gebruikers zijn daar alleen-lezen.
+Rolwijzigingen behouden minimaal één actieve projectbeheerder en worden gelogd.
+De JSON-routes `/projects/<uuid>/members/` en `members/<user_id>/remove/` blijven
+beschikbaar met dezelfde rechten en CSRF-controle. Login: `/accounts/login/`.
+Zie [beheer en beveiliging](docs/05-gebruikers-en-beveiliging.md) voor 2FA,
+herstelcodes, tijdelijk wachtwoord, auditlog en latere SMTP-configuratie.
 
 ## Bronnen en importbatches
 
@@ -174,3 +172,11 @@ worden niet ingevuld met importtijd. Sitestructuurcijfers zijn een aparte scope.
 Indexering en batchverwijdering werken automatisch en transactioneel. Importdetails
 tonen niet-herkende URL-regels zonder brondata weg te gooien. Zie docs/04-url-overzicht.md
 voor normalisatie, filters, API-routes, indexherbouw en praktijktestresultaten.
+
+## Accountbeheer en validatie
+
+Gebruikersbeheer, projecttoegang, verplichte of optionele 2FA, herstelcodes en
+beveiligingslog zijn beschikbaar. Alle 157 Django-tests slagen. De nieuwe
+beheerpagina’s zijn tevens met Chromium op desktop en mobiel gecontroleerd.
+E-mailherstel is voorbereid en blijft uitgeschakeld totdat SMTP is ingesteld.
+Zie [beheerinstructies](docs/05-gebruikers-en-beveiliging.md).

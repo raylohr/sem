@@ -8,4 +8,4 @@ COPY --chown=sem:sem . .
 RUN DJANGO_SECRET_KEY=build-only-not-used-at-runtime DB_PASSWORD=build-only python manage.py collectstatic --noinput
 RUN mkdir -p /app/media && chown sem:sem /app/media && chown -R sem:sem /app/staticfiles
 USER sem
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "--access-logformat", "%(h)s %(t)s %(m)s %(U)s %(s)s %(L)s", "--error-logfile", "-"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "--logger-class", "accounts.logging.RedactedAccessLogger", "--access-logformat", "%(h)s %(t)s %(m)s %(U)s %(s)s %(L)s", "--error-logfile", "-"]
