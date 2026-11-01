@@ -66,13 +66,51 @@ GET /projects/<uuid>/sources/ geeft batches met bron, methode, gebruiker,
 importtijd, meetdatum/periode, status en aantallen. POST op sources/create/ maakt
 voorlopig uitsluitend batchmetadata aan (JSON: source, method, label en optionele
 original_filename/measured_at/period_start/period_end). Gebruiker, project, status
-en importtijd worden door de server bepaald. Dit is nog geen bestandsupload of
-API-ophaalactie. De feitelijke importers worden in de volgende stap aangesloten.
+en importtijd worden door de server bepaald. Dit endpoint maakt alleen metadata; gebruik sources/upload/ voor echte bestanden.
+API-ophaalacties volgen later.
 
 POST /projects/<uuid>/sources/<batch-uuid>/remove/ verwijdert als projectbeheerder
 de batch en gekoppelde SourceRecords. Andere batches blijven behouden. Een minimaal
-verwijderlog bewaart project, batch-ID, actor en verwijdertijd. Er zijn in deze stap
-nog geen bronbestanden of afgeleide analyses; hun opslag/opruiming volgen met de
-importers. publish_records is de transactionele toegang voor toekomstige workers:
+verwijderlog bewaart project, batch-ID, actor en verwijdertijd. Bronbestanden worden na batchverwijdering via een duurzame opruimwachtrij
+verwijderd; afgeleide analyses volgen later. publish_records is de transactionele toegang voor toekomstige workers:
 controleert opnieuw projectrechten, publiceert eenmaal en herstelt geen verwijderde
 batch. De bronnenweergave is voorlopig JSON, met read-only inspectie in admin.
+
+
+## Bestandsimports
+
+POST /projects/<uuid>/sources/upload/ ontvangt multipart met veld file.
+Ondersteund: XLS, XLSX, UTF-8 CSV/TSV en UTF-16 CSV/TSV, maximaal 20 MiB,
+100 tabbladen, 100.000 records en 500.000 cellen. Bestandstype en rapportstructuur
+worden gecontroleerd; bronherkenning voor GSC, Ahrefs, Screaming Frog en de
+samengestelde contentaudit. Formules worden niet uitgevoerd.
+
+Optionele velden: label, source (ter controle), measured_at, period_start, period_end.
+preview=1 geeft tabbladen, kolommen, tellingen, waarschuwingen en vijf voorbeeldrecords
+zonder iets op te slaan. Zonder preview: HTTP 202, privé bronbestand, checksum,
+inhoudsfingerprint en Celery-verwerking. Een duplicate geeft 409 met batch-ID;
+allow_duplicate=1 staat expliciet een extra batch toe, binnen hetzelfde project.
+
+GET sources/<batch-id>/download/ downloadt het bronbestand na projectcontrole.
+GET sources/<batch-id>/records/?offset=0 geeft maximaal 100 verwerkte records,
+met originele kolommen en sheet/row-provenance. Recordaantallen tellen ook
+metadata- en diagramregels mee; de tabbladsamenvatting toont afzonderlijke aantallen.
+POST sources/<batch-id>/retry/ start een pending of failed upload opnieuw.
+De oorspronkelijke importgebruiker blijft behouden; ingetrokken toegang blokkeert
+verwerking. Alleen complete batches leveren gepubliceerde records op.
+
+Bij batchverwijdering verdwijnt de database-inhoud direct, het bronbestand via een
+Celery-opruimtaak. Bij brokeruitval blijft de opruimopdracht in PostgreSQL staan.
+Herstel/onderhoud kan zonder broker met:
+```sh
+docker compose exec web python manage.py cleanup_import_files
+```
+Er is nog geen periodieke opruimscheduler. De interface bestaat nog uit endpoints;
+het uploadformulier en de volledige gebruikersinterface volgen later.
+
+Alle 18 aangeleverde voorbeelden zijn read-only geparseerd; originele bestanden
+zijn niet gewijzigd of in Git opgenomen. De twee dubbele GSC-404-exporten worden
+als gelijke inhoud herkend, evenals de onvolledige 1000/2207-redirectexport.
+Datums 1970-01-01 blijven in de bronwaarden staan en krijgen een onbekend-markering.
+De contentaudit wordt als bronregels ingelezen; vrije tekst wordt niet automatisch
+een bewezen technisch feit. URL-normalisatie en gecombineerde metrics volgen later.

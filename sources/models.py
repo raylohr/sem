@@ -39,6 +39,11 @@ class ImportBatch(models.Model):
     checksum = models.CharField(max_length=64, blank=True)
     warnings = models.JSONField(default=list, blank=True)
 
+    file = models.FileField(upload_to="imports/%Y/%m/", blank=True, max_length=300)
+    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
+    sheet_summary = models.JSONField(default=list, blank=True)
+    error = models.CharField(max_length=255, blank=True)
+
     class Meta:
         ordering = ["-imported_at", "-id"]
         constraints = [models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
@@ -59,3 +64,8 @@ class BatchDeletionEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     deleted_at = models.DateTimeField(auto_now_add=True)
     # Deliberately no filenames, payloads or source content in deletion history.
+
+
+class PendingFileDeletion(models.Model):
+    path = models.CharField(max_length=300, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)

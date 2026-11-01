@@ -2,7 +2,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from projects.models import Project
 from projects.permissions import can_manage, can_edit
-from .models import ImportBatch, SourceRecord, BatchDeletionEvent
+from .models import ImportBatch, SourceRecord, BatchDeletionEvent, PendingFileDeletion
 
 
 @transaction.atomic
@@ -12,7 +12,11 @@ def delete_batch(*, batch_id, project, actor):
         raise PermissionDenied
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id, project=project)
     BatchDeletionEvent.objects.create(project=project, batch_id=batch.id, actor=actor)
+    if batch.file:
+        PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     batch.delete()
+    from .tasks import enqueue_cleanup
+    transaction.on_commit(enqueue_cleanup)
 
 
 @transaction.atomic
@@ -27,7 +31,7 @@ def publish_records(*, batch_id, records):
         return batch.record_count
     if batch.status not in (ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING):
         raise ValueError("Batch cannot be published in this state")
-    SourceRecord.objects.bulk_create([SourceRecord(batch=batch, locator=item["locator"], data=item["data"]) for item in records])
+    SourceRecord.objects.bulk_create([SourceRecord(batch=batch, locator=item["locator"], data=item["data"]) for item in records], batch_size=500)
     batch.record_count = len(records)
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status"])

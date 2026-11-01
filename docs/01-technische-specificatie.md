@@ -159,3 +159,12 @@ verwijderen door projectbeheerder. Server bepaalt actor en importtijd.
 Batchverwerking controleert opnieuw toegang, is transactioneel en voorkomt
 herpublicatie van een voltooide/verwijderde batch. 26 tests slagen.
 Feitelijke uploadopslag, parsers, API-downloads en afgeleide analyses volgen nog.
+
+Bestandsimports geïmplementeerd met preview, bronherkenning, privéopslag,
+projectgebonden duplicaatdetectie, Celery-verwerking, geautoriseerde downloads,
+recordpaginering en retry. Batchverwijdering heeft een duurzame bestandsopruimopdracht.
+41 tests slagen; alle 18 bronvoorbeelden zijn gelezen en bekende bijzondere gevallen
+zijn gecontroleerd. De volledige runtimeketen upload → Redis → Celery → database →
+bestandsverwijdering is met een synthetisch bestand getest; tijdelijke testgegevens
+zijn opgeruimd. Alleen sem_test is bijgewerkt; API-connectors en gebruikersinterface
+volgen nog.
