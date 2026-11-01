@@ -114,3 +114,10 @@ als gelijke inhoud herkend, evenals de onvolledige 1000/2207-redirectexport.
 Datums 1970-01-01 blijven in de bronwaarden staan en krijgen een onbekend-markering.
 De contentaudit wordt als bronregels ingelezen; vrije tekst wordt niet automatisch
 een bewezen technisch feit. URL-normalisatie en gecombineerde metrics volgen later.
+
+## Google Search Console API
+
+De eerste API-connector is gebouwd maar blijft uitgeschakeld zonder Google OAuth-
+configuratie. Zie docs/02-gsc-integratie.md voor configuratie, endpoints, toegangs-
+controle en grenzen. Tokens worden versleuteld opgeslagen; imports zijn afzonderlijke
+batches met ruwe API-antwoorden. Er is nog geen Google-account gekoppeld.

@@ -168,3 +168,11 @@ zijn gecontroleerd. De volledige runtimeketen upload → Redis → Celery → da
 bestandsverwijdering is met een synthetisch bestand getest; tijdelijke testgegevens
 zijn opgeruimd. Alleen sem_test is bijgewerkt; API-connectors en gebruikersinterface
 volgen nog.
+
+GSC Search Analytics-connector geïmplementeerd met projectgebonden OAuth,
+state/PKCE, versleutelde refresh-tokens, afzonderlijke API-batches en oorspronkelijke
+API-responsepagina's. Selectie en meettijdzone blijven bij de batch bewaard.
+62 tests slagen met nagebootste Google-antwoorden; geen live Google-data opgehaald.
+Gebruiker configureert Google Cloud/OAuth later. Google-configuratievelden zijn
+leeg in .env en de connector blijft uitgeschakeld; versleutelingssleutels zijn lokaal
+aangemaakt. Zie 02-gsc-integratie.md. Productie is niet bijgewerkt.

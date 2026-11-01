@@ -8,6 +8,7 @@ urlpatterns = [
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("health/", health, name="health"),
     path("ready/", ready, name="ready"),
+    path("integrations/", include("integrations.urls")),
     path("projects/", include("projects.urls")),
     path("admin/", admin.site.urls),
 ]

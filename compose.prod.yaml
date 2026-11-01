@@ -4,6 +4,7 @@ x-prod-env: &prod-env
   DB_USER: sem_prod_app
   DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
   DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_PROD}
+  INTEGRATION_TOKEN_KEY: ${INTEGRATION_TOKEN_KEY_PROD:-}
 services:
   web:
     environment: *prod-env

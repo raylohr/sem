@@ -19,7 +19,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "accounts", "core", "projects", "sources",
+    "django.contrib.gis", "accounts", "core", "projects", "sources", "integrations",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -91,3 +91,8 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 21 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024
 DATA_UPLOAD_MAX_NUMBER_FILES = 1
 FILE_UPLOAD_PERMISSIONS = 0o600
+
+GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
+GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
+GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integrations/gsc/callback/")
+INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")

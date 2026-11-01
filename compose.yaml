@@ -11,6 +11,10 @@ x-app: &app
     DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,sem.lohr.nl
     DB_SSLROOTCERT: /app/ops/database/certs/db-pg.crt
     CELERY_BROKER_URL: redis://redis:6379/0
+    GSC_CLIENT_ID: ${GSC_CLIENT_ID:-}
+    GSC_CLIENT_SECRET: ${GSC_CLIENT_SECRET:-}
+    GSC_REDIRECT_URI: ${GSC_REDIRECT_URI:-https://sem.lohr.nl/integrations/gsc/callback/}
+    INTEGRATION_TOKEN_KEY: ${INTEGRATION_TOKEN_KEY_TEST:-}
   volumes:
     - media:/app/media
   depends_on:

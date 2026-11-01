@@ -43,6 +43,8 @@ class ImportBatch(models.Model):
     fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
     sheet_summary = models.JSONField(default=list, blank=True)
     error = models.CharField(max_length=255, blank=True)
+    gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
+    request_metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-imported_at", "-id"]

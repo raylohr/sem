@@ -24,7 +24,7 @@ def batch_data(batch):
         "period_start": batch.period_start.isoformat() if batch.period_start else None,
         "period_end": batch.period_end.isoformat() if batch.period_end else None,
         "status": batch.status, "record_count": batch.record_count, "warnings": batch.warnings,
-        "sheets": batch.sheet_summary, "error": batch.error, "has_file": bool(batch.file)}
+        "sheets": batch.sheet_summary, "error": batch.error, "has_file": bool(batch.file), "request": batch.request_metadata}
 
 
 @login_required
@@ -180,11 +180,15 @@ def retry(request, project_id, batch_id):
         if not can_edit(request.user, project):
             return JsonResponse({"error": "Geen bewerkrechten."}, status=403)
         batch = get_object_or_404(ImportBatch.objects.select_for_update(), pk=batch_id, project=project)
-        if not batch.file or batch.status not in ("failed", "pending"):
+        if (not batch.file and not batch.gsc_connection_id) or batch.status not in ("failed", "pending"):
             return JsonResponse({"error": "Batch kan niet opnieuw worden gestart."}, status=409)
         # Keep the original importing user; retries do not overwrite provenance.
         batch.status = "pending"
         batch.error = ""
         batch.save(update_fields=["status", "error"])
-        transaction.on_commit(lambda: enqueue_upload(batch.id))
+        if batch.gsc_connection_id:
+            from integrations.tasks import enqueue_gsc
+            transaction.on_commit(lambda: enqueue_gsc(batch.id))
+        else:
+            transaction.on_commit(lambda: enqueue_upload(batch.id))
     return JsonResponse({"queued": True}, status=202)
