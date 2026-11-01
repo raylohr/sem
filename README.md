@@ -59,3 +59,20 @@ projectbeheerder blijft bij mutaties via deze endpoints behouden. Platformbeheer
 via Django-admin kan dit bewust overrulen. Gewone gebruikers loggen in via
 /accounts/login/. De projectendpoints retourneren voorlopig JSON; een volledige
 projectinterface, 2FA, auditlog van rolwijzigingen en mailflows volgen nog.
+
+## Bronnen en importbatches
+
+GET /projects/<uuid>/sources/ geeft batches met bron, methode, gebruiker,
+importtijd, meetdatum/periode, status en aantallen. POST op sources/create/ maakt
+voorlopig uitsluitend batchmetadata aan (JSON: source, method, label en optionele
+original_filename/measured_at/period_start/period_end). Gebruiker, project, status
+en importtijd worden door de server bepaald. Dit is nog geen bestandsupload of
+API-ophaalactie. De feitelijke importers worden in de volgende stap aangesloten.
+
+POST /projects/<uuid>/sources/<batch-uuid>/remove/ verwijdert als projectbeheerder
+de batch en gekoppelde SourceRecords. Andere batches blijven behouden. Een minimaal
+verwijderlog bewaart project, batch-ID, actor en verwijdertijd. Er zijn in deze stap
+nog geen bronbestanden of afgeleide analyses; hun opslag/opruiming volgen met de
+importers. publish_records is de transactionele toegang voor toekomstige workers:
+controleert opnieuw projectrechten, publiceert eenmaal en herstelt geen verwijderde
+batch. De bronnenweergave is voorlopig JSON, met read-only inspectie in admin.

@@ -152,3 +152,10 @@ Projecten en lidmaatschappen zijn geïmplementeerd en op sem_test gemigreerd.
 Zestien tests voor gezondheid en projectautorisatie slagen. Testservices zijn bijgewerkt.
 Productie-appmigraties zijn nog niet uitgevoerd. Projectinterface is voorlopig JSON
 met beheer via Django-admin; 2FA, e-mail en mutatieaudit volgen nog.
+
+Bronnenfundament geïmplementeerd: ImportBatch, SourceRecord en minimaal
+BatchDeletionEvent; projectgebonden overzicht, aanmaken van batchmetadata en
+verwijderen door projectbeheerder. Server bepaalt actor en importtijd.
+Batchverwerking controleert opnieuw toegang, is transactioneel en voorkomt
+herpublicatie van een voltooide/verwijderde batch. 26 tests slagen.
+Feitelijke uploadopslag, parsers, API-downloads en afgeleide analyses volgen nog.
