@@ -190,3 +190,9 @@ login, projecten, dashboard, bronoverzicht/upload, batchdetails, scans en koppel
 Bestaande JSON-API behouden. 104 tests slagen; desktop/mobiel en upload-/verwijderflow
 zijn met Chromium gecontroleerd, zonder externe assetverzoeken. Alleen testomgeving
 bijgewerkt; alle tijdelijke browserdata verwijderd. Google-configuratie blijft open.
+
+Aangeleverd Search Visibility Toolkit-artwork geïntegreerd in navigatie, login,
+favicons/touch-icon en Django-beheer. Merkpalet marineblauw/cyaan toegepast.
+Bronbestanden zijn ongewijzigd lokaal overgenomen uit /home/raymond/data/seo/logo.
+104 tests en desktop-/mobielcontrole slagen; tijdelijke browserdata is verwijderd.
+Technische projectnaam blijft sem; productie is niet bijgewerkt.

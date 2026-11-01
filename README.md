@@ -148,3 +148,17 @@ https://getbootstrap.com/docs/5.3/getting-started/download/
 104 Django-tests slagen. Een geïsoleerde Chromium-controle verifieerde desktop
 (1440px), mobiel (390px), Bootstrap-widgets, nul externe requests en de echte
 preview/upload/verwijderflow. Voorbeeldgegevens en browsersessie zijn opgeruimd.
+
+## Merkmateriaal
+
+De webinterface gebruikt Search Visibility Toolkit als productnaam, met het
+ongewijzigde aangeleverde artwork uit /home/raymond/data/seo/logo. De oorspronkelijke
+mountlocatie /mnt/texel/tex-gps/home/raymond/data/seo/logo correspondeert op tex-gps
+met die lokale map. Gebruikte assets staan in core/static/brand/.
+
+Het compacte logo staat in de navigatie en beheeromgeving, het tweeregelige logo
+op de loginpagina. SVG/PNG-favicons en een touch-icon zijn toegevoegd. De marineblauwe
+kleur #0B2D4D en cyaan #00B3E6 zijn doorgevoerd in navigatie, knoppen en accenten.
+Alle artwork-assets worden lokaal geserveerd; originele bronbestanden zijn ongewijzigd.
+Django-beheertemplates staan in templates/admin/ met voorrang via TEMPLATES.DIRS.
+De technische projectnaam en repository blijven sem.
