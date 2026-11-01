@@ -176,3 +176,11 @@ API-responsepagina's. Selectie en meettijdzone blijven bij de batch bewaard.
 Gebruiker configureert Google Cloud/OAuth later. Google-configuratievelden zijn
 leeg in .env en de connector blijft uitgeschakeld; versleutelingssleutels zijn lokaal
 aangemaakt. Zie 02-gsc-integratie.md. Productie is niet bijgewerkt.
+
+Sitemapimport en basiscrawler geïmplementeerd: projectgebonden doelen en hosts,
+robotsbeleid, publieke DNS-validatie met IP-pinning/TLS, download-/tijd-/URL-limieten,
+coöperatieve annulering en eigen scan-worker/queue. Bronrecords en ruwe documenten
+worden atomair gepubliceerd en per batch verwijderd. 94 tests slagen; daarnaast
+is de volledige runtimeketen met één example.com-pagina, documentdownload en
+verwijdering geverifieerd. Tijdelijke gebruiker, doel en project zijn opgeruimd.
+Alleen de testomgeving draait deze code. Zie 03-scans.md voor grenzen en gebruik.

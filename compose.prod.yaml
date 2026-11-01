@@ -10,6 +10,12 @@ services:
     environment: *prod-env
   worker:
     environment: *prod-env
+  scan-worker:
+    environment:
+      DB_NAME: sem_prod
+      DB_USER: sem_prod_app
+      DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_PROD}
   migrate:
     environment:
       <<: *prod-env

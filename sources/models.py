@@ -21,6 +21,7 @@ class ImportBatch(models.Model):
         PROCESSING = "processing", "Wordt verwerkt"
         COMPLETE = "complete", "Voltooid"
         FAILED = "failed", "Mislukt"
+        CANCELLED = "cancelled", "Geannuleerd"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="import_batches")
@@ -43,6 +44,7 @@ class ImportBatch(models.Model):
     fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
     sheet_summary = models.JSONField(default=list, blank=True)
     error = models.CharField(max_length=255, blank=True)
+    scan_target = models.ForeignKey("scans.ScanTarget", null=True, blank=True, on_delete=models.PROTECT)
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
 

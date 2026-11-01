@@ -180,13 +180,16 @@ def retry(request, project_id, batch_id):
         if not can_edit(request.user, project):
             return JsonResponse({"error": "Geen bewerkrechten."}, status=403)
         batch = get_object_or_404(ImportBatch.objects.select_for_update(), pk=batch_id, project=project)
-        if (not batch.file and not batch.gsc_connection_id) or batch.status not in ("failed", "pending"):
+        if (not batch.file and not batch.gsc_connection_id and not batch.scan_target_id) or batch.status not in ("failed", "pending"):
             return JsonResponse({"error": "Batch kan niet opnieuw worden gestart."}, status=409)
         # Keep the original importing user; retries do not overwrite provenance.
         batch.status = "pending"
         batch.error = ""
         batch.save(update_fields=["status", "error"])
-        if batch.gsc_connection_id:
+        if batch.scan_target_id:
+            from scans.tasks import enqueue_scan
+            transaction.on_commit(lambda: enqueue_scan(batch.id))
+        elif batch.gsc_connection_id:
             from integrations.tasks import enqueue_gsc
             transaction.on_commit(lambda: enqueue_gsc(batch.id))
         else:

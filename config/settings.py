@@ -19,7 +19,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "accounts", "core", "projects", "sources", "integrations",
+    "django.contrib.gis", "accounts", "core", "projects", "sources", "integrations", "scans",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -96,3 +96,5 @@ GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
 GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
 GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integrations/gsc/callback/")
 INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")
+
+CELERY_TASK_ROUTES = {"scans.tasks.*": {"queue": "scans"}}

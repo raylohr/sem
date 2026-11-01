@@ -19,7 +19,7 @@ Django ontvangt deze via de containeromgeving. Het bestand wordt niet ingebouwd.
 cd /srv/sem
 docker compose build
 docker compose --profile tools run --rm migrate
-docker compose up -d web worker
+docker compose up -d web worker scan-worker
 curl http://127.0.0.1:8001/health/
 curl http://127.0.0.1:8001/ready/
 ```
@@ -31,7 +31,7 @@ docker compose --profile tools run --rm migrate python manage.py createsuperuser
 
 Voor productie: gebruik bij ieder commando:
 ```sh
-SEM_PORT=8002 docker compose -f compose.yaml -f compose.prod.yaml up -d web worker
+SEM_PORT=8002 docker compose -f compose.yaml -f compose.prod.yaml up -d web worker scan-worker
 ```
 Gebruik dezelfde bestanden en SEM_PORT voor productie-migraties en beheer.
 Test en productie hebben aparte projectnamen en volumes. Beide binden alleen op
@@ -121,3 +121,11 @@ De eerste API-connector is gebouwd maar blijft uitgeschakeld zonder Google OAuth
 configuratie. Zie docs/02-gsc-integratie.md voor configuratie, endpoints, toegangs-
 controle en grenzen. Tokens worden versleuteld opgeslagen; imports zijn afzonderlijke
 batches met ruwe API-antwoorden. Er is nog geen Google-account gekoppeld.
+
+
+## Sitemap en crawler
+
+Projectbeheerders configureren expliciete scandoelen/hosts; bewerkers starten
+sitemapimports en begrensde crawls. Scans gebruiken een eigen worker/queue,
+respecteren robots.txt en blokkeren interne netwerkadressen en onveilige redirects.
+Zie docs/03-scans.md voor endpoints, resultaten, annulering en productlimieten.

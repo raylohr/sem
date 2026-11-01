@@ -37,7 +37,16 @@ services:
       retries: 3
   worker:
     <<: *app
-    command: celery -A config worker --loglevel=INFO --concurrency=1
+    command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=celery
+  scan-worker:
+    <<: *app
+    command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=scans --hostname=scans@%h
+    cpus: 0.5
+    environment:
+      <<: *app-env
+      GSC_CLIENT_ID: ""
+      GSC_CLIENT_SECRET: ""
+      INTEGRATION_TOKEN_KEY: ""
   migrate:
     <<: *app
     profiles: [tools]
