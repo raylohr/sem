@@ -29,13 +29,10 @@ Voor beheercommando's met migratierechten:
 docker compose --profile tools run --rm migrate python manage.py createsuperuser
 ```
 
-Voor productie: gebruik bij ieder commando:
-```sh
-SEM_PORT=8002 docker compose -f compose.yaml -f compose.prod.yaml up -d web worker scan-worker
-```
-Gebruik dezelfde bestanden en SEM_PORT voor productie-migraties en beheer.
-Test en productie hebben aparte projectnamen en volumes. Beide binden alleen op
-localhost; reverse proxy en HTTPS volgen later. SMTP staat standaard uit; platformbeheerders gebruiken verplicht 2FA.
+Productie gebruikt afzonderlijke containers en onveranderlijke images per gepushte
+Git-commit. Deploy met `./ops/deploy-production.sh` vanuit een schone checkout.
+Zie [productie-deployment](docs/06-productie-deployment.md) voor beheer,
+reverse proxy en eerste beheerder. Dev/test blijft op localhost:8001.
 Er worden geen migraties bij containerstart uitgevoerd.
 
 ## Tests
