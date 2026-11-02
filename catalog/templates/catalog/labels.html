@@ -1,0 +1,13 @@
+{% extends 'ui/base.html' %}{% load l10n %}
+{% block title %}Labels · {{ project.name }}{% endblock %}
+{% block content %}
+<h2 class="h4">Labelregister</h2>
+<p class="text-muted">{{ label_count }} labels · {{ labeled_url_count }} URL’s met labels. Bronlabels zijn overgenomen uit het werkdocument en nog niet inhoudelijk beoordeeld. Primair en aanvullend zijn nog niet bepaald.</p>
+<form method="get" class="d-flex gap-2 mb-4"><input class="form-control" name="q" value="{{ query }}" aria-label="Label zoeken" placeholder="Label zoeken"><button class="btn btn-primary">Zoeken</button></form>
+{% if selected %}
+<h3 class="h5">{{ selected.name }} <span class="text-muted">({{ assignments.paginator.count }} URL’s)</span></h3>
+{% for assignment in assignments %}{% include 'catalog/label_assignment.html' %}{% endfor %}
+{% if assignments.has_other_pages %}<nav aria-label="Gelabelde URL’s">{% if assignments.has_previous %}<a href="?label={{ selected.pk|unlocalize }}&amp;page={{ assignments.previous_page_number|unlocalize }}">← Vorige</a>{% endif %} <span>Pagina {{ assignments.number }} van {{ assignments.paginator.num_pages }}</span> {% if assignments.has_next %}<a href="?label={{ selected.pk|unlocalize }}&amp;page={{ assignments.next_page_number|unlocalize }}">Volgende →</a>{% endif %}</nav>{% endif %}
+{% endif %}
+<div class="table-responsive mt-4"><table class="table"><thead><tr><th>Label</th><th>Soort</th><th>URL’s</th></tr></thead><tbody>{% for label in labels %}<tr><td><a href="?label={{ label.pk|unlocalize }}">{{ label.name }}</a></td><td>{{ label.get_kind_display }}</td><td>{{ label.url_count }}</td></tr>{% empty %}<tr><td colspan="3">Geen labels gevonden.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

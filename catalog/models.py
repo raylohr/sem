@@ -32,3 +32,43 @@ class URLObservation(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=["batch", "scope", "measured_date"], name="url_obs_batch_scope_date")]
+
+
+class Label(models.Model):
+    class Kind(models.TextChoices):
+        EXPERTISE = 'expertise', 'Expertise'
+        SOURCE = 'source', 'Bronlabel (nog te beoordelen)'
+        FUNCTIONAL = 'functional', 'Functioneel label'
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='labels')
+    name = models.TextField()
+    key = models.CharField(max_length=64)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.SOURCE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name', 'id']
+        constraints = [models.UniqueConstraint(fields=['project', 'key'], name='unique_project_label_key')]
+
+
+class URLLabel(models.Model):
+    url = models.ForeignKey(ProjectURL, on_delete=models.CASCADE, related_name='label_assignments')
+    label = models.ForeignKey(Label, on_delete=models.CASCADE, related_name='assignments')
+    status = models.CharField(max_length=16, choices=[('source', 'Volgens bron'), ('reviewed', 'Beoordeeld')], default='source')
+    role = models.CharField(max_length=16, choices=[('', 'Niet bepaald'), ('primary', 'Primair'), ('additional', 'Aanvullend')], blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['url', 'label'], name='unique_url_label')]
+
+
+class LabelEvidence(models.Model):
+    assignment = models.ForeignKey(URLLabel, on_delete=models.CASCADE, related_name='evidence')
+    source_record = models.ForeignKey('sources.SourceRecord', on_delete=models.CASCADE, related_name='label_evidence')
+    column = models.CharField(max_length=200)
+    original_label = models.TextField()
+    original_url = models.TextField()
+    imported_by = models.ForeignKey('accounts.User', on_delete=models.PROTECT)
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['assignment', 'source_record', 'column'], name='unique_label_evidence')]

@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F
+from django.db.models import F, Count
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404,render
 from django.views.decorators.cache import never_cache
@@ -8,7 +8,7 @@ from django.views.decorators.http import require_GET
 from core.ui import project_context
 from sources.models import ImportBatch
 from .forms import URLFilterForm
-from .models import ProjectURL,URLObservation
+from .models import ProjectURL,URLObservation,Label,URLLabel
 from .queries import url_overview,summarize_urls
 
 SOURCE_LABELS=dict(ImportBatch.Source.choices)
@@ -98,8 +98,33 @@ def detail(request,project_id,url_id):
     page=Paginator(observations,25).get_page(request.GET.get('page'))
     for observation in page.object_list:
         observation.fact_items=[(FACT_LABELS.get(key,key),('Ja' if value else 'Nee') if isinstance(value,bool) else value) for key,value in observation.facts.items()]
-    context.update(url=item,page=page)
+    context.update(url=item,page=page,label_assignments=item.label_assignments.select_related('label').prefetch_related('evidence__source_record__batch').order_by('label__name'))
     return render(request,'catalog/detail.html',context)
+
+
+@never_cache
+@login_required
+@require_GET
+def labels(request, project_id):
+    context = project_context(request, project_id, 'labels')
+    project = context['project']
+    labels = Label.objects.filter(project=project).annotate(url_count=Count('assignments'))
+    query = request.GET.get('q', '').strip()[:200]
+    if query:
+        labels = labels.filter(name__icontains=query)
+    selected = None
+    assignments = URLLabel.objects.none()
+    if request.GET.get('label'):
+        try:
+            label_id = int(request.GET['label'])
+        except (ValueError, TypeError):
+            from django.http import Http404
+            raise Http404
+        selected = get_object_or_404(Label, project=project, pk=label_id)
+        assignments = URLLabel.objects.filter(label=selected, url__project=project).select_related('url', 'label').prefetch_related('evidence__source_record__batch').order_by('url__normalized_url')
+    context.update(labels=labels, query=query, selected=selected, assignments=Paginator(assignments, 25).get_page(request.GET.get('page')),
+        label_count=project.labels.count(), labeled_url_count=ProjectURL.objects.filter(project=project,label_assignments__isnull=False).distinct().count())
+    return render(request, 'catalog/labels.html', context)
 
 
 @never_cache

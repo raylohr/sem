@@ -20,6 +20,8 @@ def delete_batch(*, batch_id, project, actor):
         for path in work_paths(batch.pk):
             PendingFileDeletion.objects.get_or_create(path=path)
     batch.delete()
+    from catalog.models import URLLabel
+    URLLabel.objects.filter(url__project=project, status='source', evidence__isnull=True).delete()
     from catalog.services import prune_urls
     prune_urls(project.pk)
     from .tasks import enqueue_cleanup
