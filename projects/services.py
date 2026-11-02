@@ -47,3 +47,64 @@ def remove_membership(*,actor,project_id,user_id):
     last_admin_guard(project,member)
     AuditEvent.objects.create(actor=actor,target=member.user,project=project,action='project_access_removed')
     member.delete()
+
+
+@transaction.atomic
+def create_project(*, actor, name, website):
+    from accounts.services import platform_actor
+    lock_access_changes()
+    platform_actor(actor)
+    project = Project(name=name, website=website, created_by=actor)
+    project.full_clean()
+    project.save()
+    Membership.objects.create(project=project, user=actor, role=Membership.Role.ADMIN)
+    AuditEvent.objects.create(actor=actor, project=project, action='project_created',
+                              details={'name': project.name, 'website': project.website})
+    return project
+
+
+@transaction.atomic
+def update_project(*, actor, project_id, name, website):
+    lock_access_changes()
+    project = editable_project(actor, project_id)
+    previous = {'name': project.name, 'website': project.website}
+    project.name, project.website = name, website
+    project.full_clean()
+    project.save(update_fields=['name', 'website'])
+    AuditEvent.objects.create(actor=actor, project=project, action='project_updated',
+                              details={'before': previous, 'after': {'name': name, 'website': website}})
+    return project
+
+
+@transaction.atomic
+def delete_project(*, actor, project_id, confirmation_name):
+    from accounts.services import platform_actor
+    from sources.models import ImportBatch, BatchDeletionEvent, PendingFileDeletion
+    from sources.tasks import enqueue_cleanup
+    from integrations.models import GSCConnection
+    from scans.models import ScanTarget
+    lock_access_changes()
+    platform_actor(actor)
+    project = Project.objects.select_for_update().get(pk=project_id)
+    if confirmation_name != project.name:
+        raise ValidationError('De projectnaam is gewijzigd. Controleer de bevestiging opnieuw.')
+    batches = list(ImportBatch.objects.filter(project=project).values_list('id', 'file'))
+    for batch_id, file_path in batches:
+        BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk,
+                                           batch_id=batch_id, actor=actor)
+        if file_path:
+            PendingFileDeletion.objects.get_or_create(path=file_path)
+    # Remove protected children in dependency order; late workers cannot recreate batches.
+    ImportBatch.objects.filter(project=project).delete()
+    GSCConnection.objects.filter(project=project).delete()
+    ScanTarget.objects.filter(project=project).delete()
+    AuditEvent.objects.create(actor=actor, action='project_deleted',
+                              details={'project_id': str(project.pk), 'name': project.name,
+                                       'batches': len(batches)})
+    # Preserve project identity even for deletion events written by an older release.
+    BatchDeletionEvent.objects.filter(project=project, project_identifier__isnull=True).update(project_identifier=project.pk)
+    for event in AuditEvent.objects.filter(project=project).iterator():
+        event.details = {**event.details, "project_id": str(project.pk)}
+        event.save(update_fields=["details"])
+    project.delete()
+    transaction.on_commit(enqueue_cleanup)

@@ -11,7 +11,7 @@ def delete_batch(*, batch_id, project, actor):
     if not can_manage(actor, project):
         raise PermissionDenied
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id, project=project)
-    BatchDeletionEvent.objects.create(project=project, batch_id=batch.id, actor=actor)
+    BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk, batch_id=batch.id, actor=actor)
     if batch.file:
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     batch.delete()

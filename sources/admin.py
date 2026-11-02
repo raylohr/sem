@@ -20,4 +20,4 @@ class BatchAdmin(ReadOnlyPlatformAdmin):
 
 @admin.register(BatchDeletionEvent)
 class DeletionAdmin(ReadOnlyPlatformAdmin):
-    list_display = ("batch_id", "project", "actor", "deleted_at")
+    list_display = ("batch_id", "project", "project_identifier", "actor", "deleted_at")

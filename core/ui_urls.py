@@ -1,7 +1,11 @@
 from django.urls import include,path
 from . import ui
+from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("projects/create/",project_ui.create,name="project_create"),
+    path("projects/<uuid:project_id>/edit/",project_ui.edit,name="project_edit"),
+    path("projects/<uuid:project_id>/delete/",project_ui.remove,name="project_delete"),
     path("projects/<uuid:project_id>/sources/<uuid:batch_id>/records/<int:record_id>/",ui.source_record,name="record"),
     path("projects/<uuid:project_id>/urls/",include("catalog.ui_urls")),
     path('',ui.dashboard,name='dashboard'),

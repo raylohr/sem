@@ -64,7 +64,8 @@ class SourceRecord(models.Model):
 
 
 class BatchDeletionEvent(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.PROTECT)
+    project = models.ForeignKey(Project, null=True, blank=True, on_delete=models.SET_NULL)
+    project_identifier = models.UUIDField(null=True, blank=True, editable=False)
     batch_id = models.UUIDField()
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     deleted_at = models.DateTimeField(auto_now_add=True)

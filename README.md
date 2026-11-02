@@ -177,3 +177,9 @@ beveiligingslog zijn beschikbaar. Alle 157 Django-tests slagen. De nieuwe
 beheerpagina’s zijn tevens met Chromium op desktop en mobiel gecontroleerd.
 E-mailherstel is voorbereid en blijft uitgeschakeld totdat SMTP is ingesteld.
 Zie [beheerinstructies](docs/05-gebruikers-en-beveiliging.md).
+
+## Projectbeheer in de website
+
+Projecten aanmaken, wijzigen en bevestigd verwijderen gebeurt in de gewone
+webinterface, met dezelfde lokale Bootstrap en huisstijl. Zie
+[projectbeheer](docs/07-projectbeheer.md) voor rollen, verwijdering en back-ups.

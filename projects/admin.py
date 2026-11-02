@@ -28,10 +28,37 @@ class ProjectAdmin(PlatformOnlyAdmin):
     list_display = ("name", "website", "created_at")
     readonly_fields = ("created_by", "created_at")
 
-    def save_model(self, request, obj, form, change):
-        if not change:
-            obj.created_by = request.user
-        super().save_model(request, obj, form, change)
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_actions(self, request):
+        return {}
+
+    def website_redirect(self, request, name, **kwargs):
+        from django.core.exceptions import PermissionDenied
+        from django.shortcuts import redirect
+        if request.method not in ('GET', 'HEAD') or not self.has_module_permission(request):
+            raise PermissionDenied
+        if 'project_id' in kwargs:
+            import uuid
+            from django.http import Http404
+            try:
+                kwargs['project_id'] = uuid.UUID(str(kwargs['project_id']))
+            except ValueError:
+                raise Http404
+        return redirect(name, **kwargs)
+
+    def add_view(self, request, form_url='', extra_context=None):
+        return self.website_redirect(request, 'ui:project_create')
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        return self.website_redirect(request, 'ui:project_edit', project_id=object_id)
+
+    def delete_view(self, request, object_id, extra_context=None):
+        return self.website_redirect(request, 'ui:project_delete', project_id=object_id)
 
 
 @admin.register(Membership)

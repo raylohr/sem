@@ -32,6 +32,9 @@ class AuditEvent(models.Model):
         MFA_REPLACED="mfa_replacement_started","Vervangen authenticator gestart"
         RECOVERY_GENERATED="recovery_codes_generated","Herstelcodes vernieuwd"
         EMAIL_RESET="password_email_reset","Wachtwoord hersteld via e-mail"
+        PROJECT_CREATED="project_created","Project aangemaakt"
+        PROJECT_UPDATED="project_updated","Project bijgewerkt"
+        PROJECT_DELETED="project_deleted","Project verwijderd"
         ACCESS_SET="project_access_set","Projecttoegang ingesteld"
         ACCESS_REMOVED="project_access_removed","Projecttoegang ingetrokken"
     actor = models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.SET_NULL,related_name="security_actions")
