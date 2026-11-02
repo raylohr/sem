@@ -1,7 +1,7 @@
 # Sitemapimport en basiscrawler
 
 Scans draaien op een aparte Celery-queue (scans) met twee scanprocessen, samen
-maximaal twee CPU-cores en 768 MiB geheugen. Per websitecrawl worden standaard
+maximaal twee CPU-cores en 1 GiB geheugen. Per websitecrawl worden standaard
 acht HTTP-verzoeken parallel verwerkt; checkpoints en databasewerk blijven op de
 hoofdthread van die scan. Imports en GSC-ophaalacties blijven op queue celery.
 Dezelfde isolatie geldt voor dev/test en productie. De GPS-app blijft afzonderlijk.
@@ -243,3 +243,10 @@ De gecontroleerde proef op 2 november 2026 verwerkte 4.366 pagina's, 5.529
 bewaarde HTTP-documenten en de bijbehorende URL-observaties in 518,83 seconden
 (8 minuten en 39 seconden), met circa 115 MiB piek-RSS. Redirects en hervatten
 na een checkpoint zijn inbegrepen. De simulatie is geen meting van de GMW-server.
+
+De aanvullende parallelle schaalproef met 100.000 URL's (zonder gesimuleerde
+netwerkvertraging of pacing) controleerde ook alle 100.000 bronrecords, URL's
+en observaties en 101.161 ruwe HTTP-documenten, inclusief redirects en hervatten.
+Piek-RSS was circa 316 MiB voor één proces. De containerlimiet is daarom 1 GiB
+voor beide scanprocessen samen; de eerdere seriële schaalproef blijft circa
+111 MiB gebruiken. Dit is een verwerkingstest, geen extern crawltempo.
