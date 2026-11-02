@@ -332,3 +332,7 @@ de auditmodus. Eerdere passages met 100.000/99/8/12 beschrijven de vorige defaul
 De huidige defaults voor nieuwe scans zijn op verzoek aangepast naar
 **100.000 URL's en linkdiepte 99**. Robots.txt respecteren, één gelijktijdig
 verzoek en maximaal één verzoek per seconde blijven de standaard.
+
+De standaard robotsmodus voor nieuwe scans is op verzoek **Niet blokkeren (audit)**
+(`robots_mode=ignore`). De huidige overige defaults zijn 100.000 URL’s, diepte 99,
+één gelijktijdig verzoek en maximaal één verzoek per seconde.
