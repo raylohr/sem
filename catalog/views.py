@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F, Count
+from django.db.models import F, Count, Prefetch, prefetch_related_objects
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404,render
 from django.views.decorators.cache import never_cache
@@ -57,6 +57,9 @@ def overview_context(request,project_id):
         urls=urls.none();observations=observations.none()
     page=Paginator(urls,25).get_page(request.GET.get('page'))
     page.object_list=[present_url(item) for item in summarize_urls(page.object_list,observations)]
+    prefetch_related_objects(page.object_list, Prefetch('label_assignments',
+        queryset=URLLabel.objects.filter(label__project=context['project']).select_related('label').order_by('label__name', 'label_id'),
+        to_attr='overview_labels'))
     query=request.GET.copy();query.pop('page',None)
     context.update(form=form,page=page,url_count=page.paginator.count,observation_count=observations.count(),
         scope=filters.get('scope') or 'page',filter_query=query.urlencode(),valid=valid)

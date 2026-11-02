@@ -23,7 +23,7 @@ class SourceChoices(forms.MultipleChoiceField):
 class URLFilterForm(forms.Form):
     q=forms.CharField(max_length=250,required=False,label='URL keyword',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters. Bijvoorbeeld: aansprakelijkheid.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'id_q_help'}))
     host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik URL keyword voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
-    source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple,help_text='Selecteer één of meer bronnen. Niets geselecteerd betekent alle bronnen.')
+    source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple)
     batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
     expertise=ExpertiseChoice(queryset=Label.objects.none(),required=False,label='Expertise',empty_label='Alle expertises')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
@@ -57,10 +57,19 @@ class URLFilterForm(forms.Form):
             (value, label) for value, label in ImportBatch.Source.choices
             if value != ImportBatch.Source.AUDIT and value in available
         ]
+        default_sources = [value for value, _ in self.fields['source'].choices]
+        if self.is_bound and not self.data.get('source'):
+            self.data = self.data.copy()
+            if hasattr(self.data, 'setlist'):
+                self.data.setlist('source', default_sources)
+            else:
+                self.data['source'] = default_sources
+        elif not self.is_bound:
+            self.initial.setdefault('source', default_sources)
         signal_help = ('HTTP-status en indexeerbaarheid tonen signalen uit de geselecteerde bronnen en meetmomenten. '
                        'Ze beschrijven niet automatisch de huidige situatie. Klik op een URL voor de herkomst en cijfers per bron.')
         explanations = {
-            'source': 'Selecteer één of meer beschikbare bronnen. Niets geselecteerd betekent alle bronnen. Bijvoorbeeld: Google Search Console.',
+            'source': 'Standaard zijn alle beschikbare bronnen geselecteerd. Vink bronnen uit om de selectie te beperken. Zonder selectie worden alle beschikbare bronnen meegenomen.',
             'batch': 'Beperk de selectie tot één import of scan. Bijvoorbeeld: de laatste SEMScan.',
             'expertise': 'Toon URL’s met het gekozen expertiselabel. De labels zijn afkomstig uit het labelregister van dit project.',
             'scope': 'Kies individuele URL-metingen of sitestructuur / paden. Bij sitestructuur kunnen cijfers een heel pad met onderliggende pagina’s omvatten. Bijvoorbeeld: /diensten/.',
