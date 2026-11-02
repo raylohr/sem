@@ -6,7 +6,7 @@ from .models import ProjectURL,URLObservation
 def selected_observations(project,filters):
     query=URLObservation.objects.filter(url__project=project,batch__project=project,batch__status__in=('complete','incomplete'),scope=filters.get('scope') or 'page')
     if filters.get('source'):
-        query=query.filter(batch__source=filters['source'])
+        query=query.filter(batch__source__in=filters['source'])
     if filters.get('batch'):
         query=query.filter(batch=filters['batch'])
     if filters.get('http'):

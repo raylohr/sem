@@ -8,10 +8,16 @@ class BatchChoice(forms.ModelChoiceField):
         return f"{obj.label} · {obj.imported_at:%d-%m-%Y}"
 
 
+class SourceChoices(forms.MultipleChoiceField):
+    def clean(self, value):
+        # Existing links may still contain source= for all sources.
+        return super().clean([item for item in (value or []) if item])
+
+
 class URLFilterForm(forms.Form):
     q=forms.CharField(max_length=250,required=False,label='String in URL',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'urlStringHelp'}))
     host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik String in URL voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
-    source=forms.ChoiceField(choices=[('','Alle bronnen')]+list(ImportBatch.Source.choices),required=False,label='Bron')
+    source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple,help_text='Selecteer één of meer bronnen. Niets geselecteerd betekent alle bronnen.')
     batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
     http=forms.IntegerField(min_value=100,max_value=599,required=False,label='Gemeten HTTP-status')
@@ -26,7 +32,7 @@ class URLFilterForm(forms.Form):
         super().__init__(*args,**kwargs)
         self.fields['batch'].queryset=project.import_batches.filter(status__in=('complete','incomplete')).only('id','label','imported_at')
         for field in self.fields.values():
-            field.widget.attrs['class']='form-check-input' if isinstance(field,forms.BooleanField) else ('form-select' if isinstance(field,forms.ChoiceField) else 'form-control')
+            field.widget.attrs['class']='form-check-input' if isinstance(field,(forms.BooleanField,SourceChoices)) else ('form-select' if isinstance(field,forms.ChoiceField) else 'form-control')
             field.widget.attrs['aria-label']=field.label
 
     def clean(self):

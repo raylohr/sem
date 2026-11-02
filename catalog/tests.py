@@ -292,3 +292,25 @@ class CatalogTests(TestCase):
         self.assertEqual(self.client.get(endpoint).status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(endpoint).status_code, 302)
+
+    def test_multiple_sources_combine_and_keep_measurement_filters(self):
+        self.publish('gsc', [{'url': 'https://example.com/gsc-only', 'raw': {'clicks': 12}}], method='api')
+        result = self.client.get(self.url(), {'source': ['ahrefs', 'semscan']}).json()
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(set(result['urls'][0]['sources']), {'ahrefs', 'semscan'})
+        self.assertEqual(result['urls'][0]['observation_count'], 2)
+        result = self.client.get(self.url(), {'source': ['ahrefs', 'gsc'], 'http': 404}).json()
+        self.assertEqual(result['total'], 0)
+        self.assertEqual(self.client.get(self.url(), {'source': ''}).json()['total'], 2)
+        self.assertEqual(self.client.get(self.url(), {'source': ['ahrefs', 'invalid']}).status_code, 400)
+
+    def test_multiple_sources_persist_in_html_links_and_export(self):
+        import csv
+        import io
+        self.publish('gsc', [{'url': 'https://example.com/gsc-only'}], method='api')
+        response = self.client.get(reverse('ui:catalog:overview', args=[self.project.pk]), {'source': ['ahrefs', 'semscan']})
+        self.assertContains(response, 'source=ahrefs&amp;source=semscan')
+        self.assertContains(response, 'type="checkbox" name="source" value="ahrefs"')
+        with self.read_export(source=['ahrefs', 'semscan']) as archive:
+            rows = list(csv.DictReader(io.StringIO(archive.read('Imports.csv').decode('utf-8-sig'))))
+            self.assertEqual({row['source'] for row in rows}, {'ahrefs', 'semscan'})
