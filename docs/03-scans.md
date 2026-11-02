@@ -250,3 +250,30 @@ en observaties en 101.161 ruwe HTTP-documenten, inclusief redirects en hervatten
 Piek-RSS was circa 316 MiB voor één proces. De containerlimiet is daarom 1 GiB
 voor beide scanprocessen samen; de eerdere seriële schaalproef blijft circa
 111 MiB gebruiken. Dit is een verwerkingstest, geen extern crawltempo.
+
+## Downloadfouten en onvolledige resultaten
+
+Netwerkfouten krijgen een vaste foutcategorie en Nederlandse melding: DNS,
+verbindings-/leestime-out, TLS, reset, geweigerde verbinding of verwerking.
+Bronrecords bewaren error_code en error_details met fase, exceptiontypen en
+eventuele errno/verify_code. De workerlog bevat scan-ID, host, SHA-256 van de
+URL en deze diagnostiek. URL-paden, queries, antwoordinhoud en ruwe
+exceptionberichten worden niet naar de log geschreven. De oorspronkelijke
+bron-URL blijft binnen de normale projecttoegang beschikbaar.
+
+Crawls met mislukte downloads of HTTP 403, 429 of 5xx krijgen de terminale
+status **Onvolledig**. De bruikbare resultaten, foutrecords en documenten
+blijven gepubliceerd en afzonderlijk verwijderbaar; ze blijven meetellen in
+de URL-catalogus. Een echte HTTP 404 is een geldig SEO-resultaat en maakt
+de scan op zichzelf niet onvolledig. Robotsweigeringen bij de respect-modus
+blijven een apart resultaat. De scanpagina toont de aantallen en waarschuwing.
+
+Herhaalde Celery-levering van een onvolledige scan publiceert geen duplicaten.
+Een nieuwe poging start als nieuwe scan via Websitescans, zodat de oorspronkelijke
+meting intact blijft. Dit voegt geen automatische blokkadeherkenning of pauzes toe.
+
+Bestaande onterecht voltooide websitecrawls kunnen zonder dataverlies worden
+herbeoordeeld met `python manage.py review_scan_outcomes` (alleen rapporteren)
+of `python manage.py review_scan_outcomes --apply` (status en waarschuwing bijwerken).
+Oude algemene HTTP-fouten blijven herkenbaar als historische fouten waarvan
+de technische oorzaak niet is opgeslagen.

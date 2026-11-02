@@ -21,7 +21,7 @@ def index_batch(batch_id):
     project_id = ImportBatch.objects.values_list("project_id", flat=True).get(pk=batch_id)
     Project.objects.select_for_update().get(pk=project_id)
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
-    if batch.status != "complete":
+    if batch.status not in ("complete", "incomplete"):
         raise ValueError("Only complete batches can be indexed")
     context = {}
     if batch.source == "gsc" and batch.method == "upload":

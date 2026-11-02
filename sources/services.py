@@ -34,7 +34,7 @@ def publish_records(*, batch_id, records):
     batch = ImportBatch.objects.select_for_update().select_related("created_by").get(pk=batch_id)
     if not can_edit(batch.created_by, project):
         raise PermissionDenied
-    if batch.status == ImportBatch.Status.COMPLETE:
+    if batch.status in (ImportBatch.Status.COMPLETE, ImportBatch.Status.INCOMPLETE):
         return batch.record_count
     if batch.status not in (ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING):
         raise ValueError("Batch cannot be published in this state")

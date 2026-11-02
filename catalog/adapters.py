@@ -140,6 +140,8 @@ def adapt_record(batch, data, context=None):
             add("final_http_status", data.get("final_status"))
             add("robots_blocked", data.get("robots_blocked"))
             add("scan_error", data.get("error"))
+            add("scan_error_code", data.get("error_code"))
+            add("scan_error_stage", data.get("error_details",{}).get("stage"))
         content_type = data.get("content_type") if source == "crawler" else first(values, "Content Type", "Content type")
         add("content_type", content_type)
         title = None

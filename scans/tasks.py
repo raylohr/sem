@@ -7,12 +7,16 @@ from sources.models import ImportBatch
 from sources.services import publish_records
 from .models import ScanTarget, ScanDocument
 from .network import SafeClient, ScanError
+from .outcomes import summarize, outcome_warning
 from .runners import crawl, sitemap
 from .work import ScanWork, ScanPause, ScanBusy
 from .limits import SLICE_SECONDS, scan_budget
 from django.utils import timezone
 from itertools import islice
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ScanCancelled(PermissionDenied):
@@ -53,20 +57,20 @@ def checkpoint(batch, work, client=None):
 def process_scan(batch_id):
     try:
         batch = check_scan(batch_id)
-        if batch.status == 'complete':
+        if batch.status in ('complete','incomplete'):
             return
         with ScanWork(batch_id) as work:
             # Recheck after taking the cross-process file lock.
             batch = check_scan(batch_id)
-            if batch.status == 'complete':
+            if batch.status in ('complete','incomplete'):
                 work.clean = True
                 return
-            ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','cancelled']).update(status='processing',error='')
+            ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','incomplete','cancelled']).update(status='processing',error='')
             config = batch.request_metadata
             _, transfer = scan_budget(config['scan'], config['max_urls'])
             remaining = max(0,config['duration']-(time.time()-work.started))
             client = SafeClient(config['allowed_hosts'],check_access=lambda:check_scan(batch_id),
-                duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
+                batch_id=batch_id,duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
                 document_sink=work.documents,robot_cache=work.get('robots',{}),
                 respect_robots=config.get('respect_robots',True),
                 concurrency=config.get('concurrency',8),delay=1/config.get('requests_per_second',12),shared_rate=True)
@@ -88,11 +92,14 @@ def process_scan(batch_id):
             finally:
                 client.close()
             checkpoint(batch,work,client)
+            summary = summarize(records) if config['scan'] == 'crawl' else None
+            if summary and summary['incomplete']:
+                warnings = list(warnings) + [outcome_warning(summary)]
             with transaction.atomic():
                 Project.objects.select_for_update().get(pk=batch.project_id)
                 batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
                 check_scan(batch_id)
-                if batch.status == 'complete':
+                if batch.status in ('complete','incomplete'):
                     work.clean = True
                     return
                 publish_records(batch_id=batch_id,records=records)
@@ -101,17 +108,27 @@ def process_scan(batch_id):
                 while chunk := list(islice(documents,5)):
                     ScanDocument.objects.bulk_create([ScanDocument(batch=batch,index=index+i,**document) for i,document in enumerate(chunk)],batch_size=5)
                     index += len(chunk)
+                # publish_records used its own model instance; retain its record count
+                # and set a terminal outcome atomically with records/documents.
+                batch.refresh_from_db()
                 batch.warnings = warnings
-                batch.save(update_fields=['warnings'])
+                if summary:
+                    batch.request_metadata = {**batch.request_metadata,'scan_outcome':summary}
+                    if summary['incomplete']:
+                        batch.status = 'incomplete'
+                batch.save(update_fields=['warnings','request_metadata','status'])
             work.clean = True
     except (ImportBatch.DoesNotExist,ScanCancelled,ScanBusy):
         return
     except PermissionDenied:
-        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','cancelled']).update(status='failed',error='Projecttoegang of scandoel ingetrokken.')
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','incomplete','cancelled']).update(status='failed',error='Projecttoegang of scandoel ingetrokken.')
     except ScanError as exc:
-        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','cancelled']).update(status='failed',error=str(exc))
-    except Exception:
-        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','cancelled']).update(status='failed',error='Scan mislukt; opnieuw starten hervat het opgeslagen checkpoint.')
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','incomplete','cancelled']).update(status='failed',error=str(exc))
+    except Exception as exc:
+        from .diagnostics import describe_exception
+        _, details = describe_exception(exc, 'scan_task')
+        logger.error('scan_task_failed batch=%s exceptions=%s', batch_id, ','.join(details['exception_chain']))
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=['complete','incomplete','cancelled']).update(status='failed',error='Scan mislukt; opnieuw starten hervat het opgeslagen checkpoint.')
 
 
 def enqueue_scan(batch_id):

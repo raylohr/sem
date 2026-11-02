@@ -8,7 +8,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--project")
     def handle(self, *args, **options):
-        batches = ImportBatch.objects.filter(status="complete").order_by("imported_at")
+        batches = ImportBatch.objects.filter(status__in=("complete","incomplete")).order_by("imported_at")
         if options["project"]:
             batches = batches.filter(project_id=options["project"])
         total = 0

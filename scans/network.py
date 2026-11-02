@@ -15,6 +15,7 @@ import certifi
 import urllib3
 from django.utils import timezone
 from .work import ScanPause
+from .diagnostics import describe_exception, log_failure, MESSAGES
 
 USER_AGENT = "LohrSEM/0.1"
 MAX_BODY = 5 * 1024 * 1024
@@ -23,6 +24,12 @@ MAX_TRANSFER = 25 * 1024 * 1024
 
 class ScanError(ValueError):
     pass
+
+
+class NetworkRequestError(ScanError):
+    def __init__(self, code, details):
+        self.code, self.details = code, details
+        super().__init__(MESSAGES[code])
 
 
 class ScanBudgetExceeded(ScanError):
@@ -115,7 +122,8 @@ class FetchResult:
 
 
 class SafeClient:
-    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False):
+    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None):
+        self.batch_id = str(batch_id) if batch_id else None
         self.allowed_hosts = set(allowed_hosts)
         self.check_access = check_access
         self.deadline = time.monotonic() + duration
@@ -190,7 +198,13 @@ class SafeClient:
         host = parts.hostname
         port = 443 if parts.scheme == "https" else 80
         self._pace(host, delay)
-        address = resolve_public(host, port)
+        try:
+            address = resolve_public(host, port)
+        except ScanError as exc:
+            code, details = describe_exception(exc, 'dns')
+            code = 'dns_error' if code == 'dns_error' else 'unsafe_dns'
+            log_failure(url, self.batch_id, code, details, 0)
+            raise NetworkRequestError(code, details) from exc
         # The TCP peer is the validated IP. DNS cannot be resolved again to a private peer.
         options = {"timeout": urllib3.Timeout(connect=5, read=5), "retries": False}
         pools = getattr(self.local, 'pools', None)
@@ -209,10 +223,12 @@ class SafeClient:
                 self.pools.append(pool)
         response = None
         started = time.monotonic()
+        stage = "connect_or_headers"
         try:
             response = pool.urlopen("GET", parts.path + ("?" + parts.query if parts.query else ""),
                 headers={"Host": parts.netloc, "User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
                 redirect=False, retries=False, preload_content=False, assert_same_host=False)
+            stage = "read_body"
             raw = bytearray()
             while True:
                 self.guard()
@@ -228,6 +244,7 @@ class SafeClient:
                     raise ScanBudgetExceeded("Downloadlimiet bereikt; scanresultaat is onvolledig.")
             headers = {str(k).lower(): str(v) for k, v in response.headers.items()}
             body = bytes(raw)
+            stage = "decode_body"
             encoding = headers.get("content-encoding", "identity").lower()
             if encoding not in ("identity", "", "gzip"):
                 raise ScanError("Niet-ondersteunde HTTP-compressie.")
@@ -242,6 +259,7 @@ class SafeClient:
                 raise ScanBudgetExceeded("Totale documentomvang bereikt; scanresultaat is onvolledig.")
             result = FetchResult(url=url, status=response.status, headers=headers, body=body,
                                  elapsed=round(time.monotonic() - started, 3))
+            stage = "record_document"
             sink = self.documents if threading.get_ident() == self.owner else self.pending_documents
             document = {"url": url, "status": result.status, "body": body,
                 "content_type": headers.get("content-type", "")[:255], "fetched_at": timezone.now()}
@@ -276,7 +294,9 @@ class SafeClient:
             from django.core.exceptions import PermissionDenied
             if isinstance(exc, (PermissionDenied, ScanPause)):
                 raise
-            raise ScanError("HTTP-opvraag mislukt (netwerk, certificaat of antwoord).") from exc
+            code, details = describe_exception(exc, stage)
+            log_failure(url, self.batch_id, code, details, time.monotonic()-started)
+            raise NetworkRequestError(code, details) from exc
         finally:
             if response is not None:
                 response.close()

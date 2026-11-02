@@ -19,3 +19,5 @@
 .account-form{max-width:680px}.mfa-qr{max-width:100%;height:auto}.recovery-codes code{font-size:1.05rem;letter-spacing:.12em;color:#0b2d4d}
 
 .scan-config-button{width:44px;height:44px;display:grid;place-items:center;flex-shrink:0;font-size:1.25rem;line-height:1}
+
+.status-incomplete{background:#fff3cd;color:#664d03}

@@ -15,7 +15,7 @@ SOURCE_LABELS=dict(ImportBatch.Source.choices)
 FACT_LABELS={
  'http_status':'Gemeten HTTP-status','final_http_status':'HTTP-status na redirects','title':'Titel','missing_title':'Titel ontbreekt',
  'is_indexable':'Technisch indexeerbaar','canonical':'Canonical','content_type':'Contenttype','language':'Taal','word_count':'Woorden',
- 'robots_blocked':'Geblokkeerd door robots.txt','scan_error':'Scanfout','gsc_indexing_reason':'GSC-indexeringsreden',
+ 'robots_blocked':'Geblokkeerd door robots.txt','scan_error':'Scanfout','scan_error_code':'Foutcategorie','scan_error_stage':'Fase waarin het verzoek mislukte','gsc_indexing_reason':'GSC-indexeringsreden',
  'gsc_last_crawled':'Laatst gecrawld volgens Google','gsc_clicks':'GSC-klikken','gsc_impressions':'GSC-vertoningen',
  'gsc_ctr':'GSC-CTR (fractie)','gsc_position':'GSC-positie','gsc_date_timezone':'Tijdzone GSC-meetdatum',
  'ahrefs_organic_traffic_estimate':'Ahrefs geschat organisch verkeer','ahrefs_referring_domains':'Ahrefs verwijzende domeinen',
@@ -90,8 +90,8 @@ def api_overview(request,project_id):
 @require_GET
 def detail(request,project_id,url_id):
     context=project_context(request,project_id,'urls')
-    item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status='complete').distinct(),pk=url_id,project=context['project'])
-    observations=item.observations.filter(batch__project=context['project'],batch__status='complete').select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
+    item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status__in=('complete','incomplete')).distinct(),pk=url_id,project=context['project'])
+    observations=item.observations.filter(batch__project=context['project'],batch__status__in=('complete','incomplete')).select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
     page=Paginator(observations,25).get_page(request.GET.get('page'))
     for observation in page.object_list:
         observation.fact_items=[(FACT_LABELS.get(key,key),('Ja' if value else 'Nee') if isinstance(value,bool) else value) for key,value in observation.facts.items()]
@@ -104,8 +104,8 @@ def detail(request,project_id,url_id):
 @require_GET
 def api_detail(request,project_id,url_id):
     context=project_context(request,project_id,'urls')
-    item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status='complete').distinct(),pk=url_id,project=context['project'])
-    observations=item.observations.filter(batch__project=context['project'],batch__status='complete').select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
+    item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status__in=('complete','incomplete')).distinct(),pk=url_id,project=context['project'])
+    observations=item.observations.filter(batch__project=context['project'],batch__status__in=('complete','incomplete')).select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
     page=Paginator(observations,25).get_page(request.GET.get('page'))
     rows=[]
     for observation in page:

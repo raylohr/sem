@@ -19,6 +19,7 @@ class ImportBatch(models.Model):
         PENDING = "pending", "Wacht op verwerking"
         PROCESSING = "processing", "Wordt verwerkt"
         COMPLETE = "complete", "Voltooid"
+        INCOMPLETE = "incomplete", "Onvolledig"
         FAILED = "failed", "Mislukt"
         CANCELLED = "cancelled", "Geannuleerd"
 

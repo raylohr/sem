@@ -293,6 +293,53 @@ class ScanAccessTests(TestCase):
         delete_batch(batch_id=batch.pk,project=self.project,actor=self.admin)
         self.assertEqual(ScanDocument.objects.count(),0)
 
+    def test_failed_downloads_publish_as_incomplete_and_remain_readable(self):
+        from django.utils import timezone
+        from catalog.models import URLObservation
+        batch=self.make_batch()
+        rows=[{'locator':'crawl:0','data':{'url':self.target.url,'status':200}},
+              {'locator':'crawl:1','data':{'url':self.target.url+'broken','error':'Leestime-out','error_code':'read_timeout'}}]
+        doc={'url':self.target.url,'status':200,'body':b'ok','content_type':'text/html','fetched_at':timezone.now()}
+        with patch('scans.tasks.SafeClient') as client,patch('scans.tasks.crawl',return_value=(rows,[])):
+            client.return_value.documents=[doc]
+            process_scan(str(batch.pk))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status,'incomplete')
+        self.assertEqual(batch.record_count,2)
+        self.assertEqual(batch.request_metadata['scan_outcome']['request_failures'],1)
+        self.assertTrue(any('Onvolledige scan' in warning for warning in batch.warnings))
+        self.assertEqual(URLObservation.objects.filter(batch=batch).count(),2)
+        response=self.client.get(reverse('projects:sources:records',args=[self.project.pk,batch.pk]))
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['total'],2)
+        response=self.client.get(reverse('projects:scans:document-download',args=[self.project.pk,batch.pk,0]))
+        self.assertEqual(response.status_code,200)
+        response=self.client.get(reverse('ui:batch',args=[self.project.pk,batch.pk]))
+        self.assertContains(response,'Deze scan is onvolledig')
+        response=self.client.get(reverse('projects:urls:list',args=[self.project.pk]))
+        self.assertEqual(response.json()['total'],2)
+        with patch('scans.tasks.SafeClient') as client:
+            process_scan(str(batch.pk))
+            client.assert_not_called()
+        self.assertEqual(batch.records.count(),2)
+
+    def test_historical_outcome_review_preserves_records_and_provenance(self):
+        from django.core.management import call_command
+        from sources.models import SourceRecord
+        from io import StringIO
+        batch=self.make_batch()
+        batch.status='complete';batch.record_count=1;batch.save()
+        SourceRecord.objects.create(batch=batch,locator='old',data={'url':self.target.url,'error':'HTTP-opvraag mislukt (netwerk, certificaat of antwoord).'})
+        call_command('review_scan_outcomes',stdout=StringIO())
+        batch.refresh_from_db();self.assertEqual(batch.status,'complete')
+        call_command('review_scan_outcomes',apply=True,stdout=StringIO())
+        batch.refresh_from_db();self.assertEqual(batch.status,'incomplete')
+        self.assertEqual(batch.created_by,self.editor)
+        self.assertEqual(batch.records.count(),1)
+        warnings=list(batch.warnings)
+        call_command('review_scan_outcomes',apply=True,stdout=StringIO())
+        batch.refresh_from_db();self.assertEqual(batch.warnings,warnings)
+
     def test_access_revoked_during_scan_prevents_publication(self):
         batch=self.make_batch()
         def runner(*args,**kwargs):

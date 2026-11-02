@@ -159,7 +159,7 @@ def download(request, project_id, batch_id):
 def records(request, project_id, batch_id):
     project = visible_project(request, project_id)
     batch = get_object_or_404(ImportBatch, pk=batch_id, project=project)
-    if batch.status != ImportBatch.Status.COMPLETE:
+    if batch.status not in (ImportBatch.Status.COMPLETE, ImportBatch.Status.INCOMPLETE):
         return JsonResponse({"error": "Batch is nog niet voltooid."}, status=409)
     try:
         offset = int(request.GET.get("offset", 0))

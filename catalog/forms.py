@@ -24,7 +24,7 @@ class URLFilterForm(forms.Form):
 
     def __init__(self,*args,project,**kwargs):
         super().__init__(*args,**kwargs)
-        self.fields['batch'].queryset=project.import_batches.filter(status='complete').only('id','label','imported_at')
+        self.fields['batch'].queryset=project.import_batches.filter(status__in=('complete','incomplete')).only('id','label','imported_at')
         for field in self.fields.values():
             field.widget.attrs['class']='form-check-input' if isinstance(field,forms.BooleanField) else ('form-select' if isinstance(field,forms.ChoiceField) else 'form-control')
             field.widget.attrs['aria-label']=field.label

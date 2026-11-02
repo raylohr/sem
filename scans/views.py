@@ -125,7 +125,7 @@ def document_download(request, project_id, batch_id, index):
     from django.http import HttpResponse
     from .models import ScanDocument
     project = visible_project(request, project_id)
-    batch = get_object_or_404(ImportBatch, pk=batch_id, project=project, status='complete')
+    batch = get_object_or_404(ImportBatch, pk=batch_id, project=project, status__in=('complete','incomplete'))
     document = get_object_or_404(ScanDocument, batch=batch, index=index)
     response = HttpResponse(bytes(document.body), content_type='application/octet-stream')
     response['Content-Disposition'] = f'attachment; filename="scan-document-{index}.bin"'

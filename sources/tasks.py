@@ -19,7 +19,7 @@ def process_upload(batch_id):
         with transaction.atomic():
             project = Project.objects.select_for_update().get(pk=project_id)
             batch = ImportBatch.objects.select_for_update().select_related("created_by").get(pk=batch_id)
-            if batch.status == ImportBatch.Status.COMPLETE:
+            if batch.status in (ImportBatch.Status.COMPLETE, ImportBatch.Status.INCOMPLETE):
                 return
             if not can_edit(batch.created_by, project):
                 raise PermissionDenied
@@ -35,12 +35,12 @@ def process_upload(batch_id):
     except ImportBatch.DoesNotExist:
         return  # Deleted batches must never be recreated by a late task.
     except PermissionDenied:
-        ImportBatch.objects.filter(pk=batch_id).exclude(status="complete").update(status="failed", error="Projecttoegang ingetrokken.")
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=("complete","incomplete")).update(status="failed", error="Projecttoegang ingetrokken.")
     except ImportFormatError as exc:
-        ImportBatch.objects.filter(pk=batch_id).exclude(status="complete").update(status="failed", error=str(exc))
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=("complete","incomplete")).update(status="failed", error=str(exc))
     except Exception:
         logger.exception("Upload processing failed for batch %s", batch_id)
-        ImportBatch.objects.filter(pk=batch_id).exclude(status="complete").update(status="failed", error="Verwerking mislukt; probeer opnieuw.")
+        ImportBatch.objects.filter(pk=batch_id).exclude(status__in=("complete","incomplete")).update(status="failed", error="Verwerking mislukt; probeer opnieuw.")
 
 
 @shared_task(ignore_result=True, autoretry_for=(OSError,), retry_backoff=True, max_retries=5)

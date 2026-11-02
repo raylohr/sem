@@ -66,7 +66,11 @@ def batch(request, project_id, batch_id):
     context=project_context(request,project_id,'sources')
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
     from scans.work import stale_scan
-    context.update(scan_stale=stale_scan(item),batch=item,records=item.records.order_by('id')[:10] if item.status=='complete' else [],
+    from scans.diagnostics import MESSAGES
+    counts = item.request_metadata.get('scan_outcome',{}).get('errors_by_code',{})
+    labels = {**MESSAGES,'legacy_http_error':'HTTP-fout (historisch; technische oorzaak niet opgeslagen)', 'scan_error':'Download- of verwerkingsfout'}
+    context.update(scan_error_counts=[{'label': labels.get(code, code.replace('http_', 'HTTP ')), 'count': count} for code, count in counts.items()],
+        scan_stale=stale_scan(item),batch=item,records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [],
         documents=item.scan_documents.defer('body').order_by('index')[:50],
         url_index_issues=item.records.filter(pk__in=item.url_index_info.get('rejected_record_ids',[])).only('id','locator').order_by('id'))
     return render(request,'ui/batch.html',context)
@@ -111,7 +115,7 @@ def connections(request, project_id):
 def source_record(request,project_id,batch_id,record_id):
     from sources.models import SourceRecord
     context=project_context(request,project_id,'sources')
-    batch=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'],status='complete')
+    batch=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'],status__in=('complete','incomplete'))
     record=get_object_or_404(SourceRecord,pk=record_id,batch=batch)
     context.update(batch=batch,record=record)
     return render(request,'ui/source_record.html',context)

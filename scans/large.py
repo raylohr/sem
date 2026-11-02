@@ -113,6 +113,8 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
             break
         except (RobotsDenied, ScanError) as exc:
             data = {'url':current,'depth':depth,'error':str(exc),'measured_at':timezone.now().isoformat()}
+            if hasattr(exc, 'code'):
+                data.update(error_code=exc.code, error_details=exc.details)
             if isinstance(exc, RobotsDenied):
                 data['robots_blocked'] = True
                 data['robots_allowed'] = False

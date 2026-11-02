@@ -46,6 +46,8 @@ def crawl(client, *, url, max_urls, max_depth, work=None):
         except ScanError as exc:
             # Cancellation/access errors are not ScanError and propagate out of the runner.
             data = {'url': current, 'depth': depth, 'error': str(exc), 'measured_at': timezone.now().isoformat()}
+            if hasattr(exc, 'code'):
+                data.update(error_code=exc.code, error_details=exc.details)
         records.append({'locator': f'crawl:page:{len(records)}', 'data': data})
     if queue:
         warnings.append('URL- of tijdslimiet bereikt; niet alle ontdekte pagina’s zijn bezocht.')
