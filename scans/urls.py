@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 app_name = 'scans'
 urlpatterns = [
+    path('<uuid:batch_id>/progress/', views.progress, name='progress'),
     path("<uuid:batch_id>/documents/<int:index>/download/", views.document_download, name="document-download"),
     path('targets/', views.targets, name='targets'),
     path('targets/create/', views.target_create, name='target-create'),

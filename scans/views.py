@@ -10,7 +10,7 @@ from projects.models import Project
 from projects.permissions import can_edit, can_manage
 from sources.models import ImportBatch
 from sources.views import visible_project, batch_data
-from .models import ScanTarget
+from .models import ScanTarget, ScanDocument
 from .forms import TargetForm, ScanForm
 from .network import normalize_url, ScanError
 from .tasks import enqueue_scan
@@ -130,4 +130,44 @@ def document_download(request, project_id, batch_id, index):
     response = HttpResponse(bytes(document.body), content_type='application/octet-stream')
     response['Content-Disposition'] = f'attachment; filename="scan-document-{index}.bin"'
     response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_GET
+def progress(request, project_id, batch_id):
+    """Project-scoped read-only telemetry, including while the worker owns its lock."""
+    import time
+    from django.db.models import Count, Max
+    from django.utils.cache import add_never_cache_headers
+    from .telemetry import read_checkpoint, INTERVAL, WINDOW
+    project = visible_project(request, project_id)
+    batch = get_object_or_404(ImportBatch,pk=batch_id,project=project,scan_target__isnull=False)
+    active = batch.status in ('pending','processing')
+    stored = batch.request_metadata.get('scan_progress',{})
+    live = read_checkpoint(batch.pk) if active else None
+    if live is None:
+        live = stored.get('live')
+    if live is None:
+        # Historical scans predate rollups. Read only status/time columns, never bodies.
+        docs = ScanDocument.objects.filter(batch=batch)
+        last = docs.aggregate(last=Max('fetched_at'))['last'] if not active else None
+        end = int(last.timestamp() if last else time.time())//INTERVAL*INTERVAL
+        totals = {str(row['status']):row['n'] for row in docs.values('status').annotate(n=Count('id'))} if not active else {}
+        buckets = {}
+        if not active:
+            from datetime import datetime, timezone as dt_timezone
+            for status,stamp in docs.filter(fetched_at__gte=datetime.fromtimestamp(end-WINDOW,dt_timezone.utc)).values_list('status','fetched_at').iterator(chunk_size=500):
+                key=(int(stamp.timestamp())//INTERVAL*INTERVAL,str(status))
+                buckets[key]=buckets.get(key,0)+1
+        live={'records':stored.get('records',batch.record_count),'documents':stored.get('documents',sum(totals.values())),
+              'pending':0,'errors':batch.request_metadata.get('scan_outcome',{}).get('request_failures',0),
+              'updated_at':last.timestamp() if last else None,'interval_seconds':INTERVAL,'window_seconds':WINDOW,
+              'end':end,'totals':totals,'series':[{'time':t,'status':status,'count':n} for (t,status),n in sorted(buckets.items())]}
+    if active:
+        live={**live,'end':int(time.time())//INTERVAL*INTERVAL}
+    response=JsonResponse({**live,'status':batch.status,'status_label':batch.get_status_display(),
+        'active':active,'max_urls':batch.request_metadata.get('max_urls'),'available':bool(live.get('updated_at')),
+        'poll_seconds':3,'scan_kind':batch.scan_kind})
+    add_never_cache_headers(response)
     return response

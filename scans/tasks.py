@@ -46,7 +46,8 @@ def checkpoint(batch, work, client=None):
                 work.set(key,value)
         if isinstance(client.robot_cache,dict):
             work.set('robots',client.robot_cache)
-    progress = {'records':len(work.records),'documents':len(work.documents),
+    from .telemetry import snapshot
+    progress = {'live':snapshot(work.connection),'records':len(work.records),'documents':len(work.documents),
                 'heartbeat':timezone.now().isoformat(),'started_at':work.started}
     metadata = {**batch.request_metadata,'scan_progress':progress}
     ImportBatch.objects.filter(pk=batch.pk,status='processing').update(request_metadata=metadata)

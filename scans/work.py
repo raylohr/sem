@@ -46,10 +46,14 @@ class DiskRows:
         with self.work.connection:
             if self.table == 'records':
                 self.work.connection.execute('INSERT INTO records(payload) VALUES (?)', (json.dumps(value, ensure_ascii=False),))
+                from .telemetry import record
+                record(self.work.connection,value)
             else:
                 meta = {key: item.isoformat() if key == 'fetched_at' else item for key, item in value.items() if key != 'body'}
                 self.work.connection.execute('INSERT INTO documents(metadata,body) VALUES (?,?)',
                     (json.dumps(meta), gzip.compress(value['body'], compresslevel=1)))
+                from .telemetry import document
+                document(self.work.connection,meta)
         self.count += 1
 
     def __iter__(self):
@@ -98,6 +102,8 @@ class ScanWork:
             self.records, self.documents = DiskRows(self, 'records'), DiskRows(self, 'documents')
             self.started = self.get('started', time.time())
             self.set('started', self.started)
+            from .telemetry import initialize
+            initialize(self)
             return self
         except Exception:
             self.lock.close()
@@ -122,7 +128,11 @@ class ScanWork:
     def add(self, kind, url, depth):
         with self.connection:
             cursor = self.connection.execute('INSERT OR IGNORE INTO frontier(kind,url,depth) VALUES (?,?,?)', (kind,url,depth))
-            return bool(cursor.rowcount)
+            inserted = bool(cursor.rowcount)
+            if inserted:
+                from .telemetry import counter
+                counter(self.connection,'pending')
+            return inserted
 
     def next(self, kind):
         return self.connection.execute('SELECT id,url,depth FROM frontier WHERE kind=? AND done=0 ORDER BY id LIMIT 1', (kind,)).fetchone()
@@ -132,7 +142,12 @@ class ScanWork:
         with self.connection:
             if record is not None:
                 self.connection.execute('INSERT INTO records(payload) VALUES (?)', (json.dumps(record,ensure_ascii=False),))
-            self.connection.execute('UPDATE frontier SET done=1 WHERE id=?', (item_id,))
+                from .telemetry import record as track_record
+                track_record(self.connection,record)
+            advanced=self.connection.execute('UPDATE frontier SET done=1 WHERE id=? AND done=0', (item_id,)).rowcount
+            if advanced:
+                from .telemetry import counter
+                counter(self.connection,'pending',-1)
         if record is not None:
             self.records.count += 1
 
@@ -146,6 +161,8 @@ class ScanWork:
             inserted = self.connection.execute('INSERT OR IGNORE INTO sitemap_urls(url) VALUES (?)', (url,)).rowcount
             if inserted:
                 self.connection.execute('INSERT INTO records(payload) VALUES (?)', (json.dumps(record,ensure_ascii=False),))
+                from .telemetry import record as track_record
+                track_record(self.connection,record)
         self.records.count += bool(inserted)
 
     def check_disk(self):

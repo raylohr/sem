@@ -277,3 +277,29 @@ herbeoordeeld met `python manage.py review_scan_outcomes` (alleen rapporteren)
 of `python manage.py review_scan_outcomes --apply` (status en waarschuwing bijwerken).
 Oude algemene HTTP-fouten blijven herkenbaar als historische fouten waarvan
 de technische oorzaak niet is opgeslagen.
+
+## Live voortgang en statusgrafiek
+
+De card Scanvoortgang toont een lokaal getekende SVG-oppervlaktegrafiek.
+Iedere drie seconden haalt de browser projectgebonden JSON op via
+`GET /projects/<project-id>/scans/<batch-id>/progress/`. Iedere HTTP-code
+krijgt een eigen kleur; downloadfouten zijn een aparte reeks. De grafiek
+toont aantallen per drie seconden over de laatste vijf minuten; de legenda
+toont totalen van de hele scan. Alle opgehaalde HTTP-documenten tellen mee,
+ook robots.txt en redirectantwoorden. Het is geen voltooiingspercentage.
+
+Het endpoint controleert projecttoegang en voorkomt caching. Actieve scans
+worden read-only uit kleine SQLite-tellers en tijdvakken gelezen, zonder
+de workerlock over te nemen of ruwe paginainhoud te lezen. De enige schrijver
+blijft de scan-worker. Tellers worden atomair met records, wachtrijmutaties
+en documenten bijgewerkt. Bestaande checkpoints worden bij hervatten
+eenmalig bijgewerkt. De laatste vijf minuten worden bij het bestaande
+checkpoint ook in scan_progress.live bewaard, zodat de grafiek na het
+opruimen van een voltooide scan beschikbaar blijft. Historische scans
+zonder rollup gebruiken alleen HTTP-status en tijd uit opgeslagen documenten.
+
+De browser voorkomt overlappende verzoeken, pauzeert polling in verborgen
+tabbladen en stopt bij afronding of verlies van toegang. Bij een tijdelijke
+verbindingsfout blijven de laatste tellingen zichtbaar en wordt opnieuw
+geprobeerd. De pagina biedt bij afronding een link om het volledige
+resultaat te openen. Er worden geen externe grafiekbibliotheken of CDN's gebruikt.
