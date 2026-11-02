@@ -92,10 +92,13 @@ def start(request, project_id, target_id):
         config = {'scan': data['kind'], 'url': url, 'allowed_hosts': list(target.allowed_hosts),
             'max_urls': max_urls,
             'max_depth': data['max_depth'] if data.get('max_depth') is not None else 99,
-            'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': True}
+            'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': data.get('robots_mode') == 'respect',
+            'robots_mode': data.get('robots_mode') or 'ignore',
+            'concurrency': data.get('concurrency') or 8,
+            'requests_per_second': data.get('requests_per_second') or 12}
         batch = ImportBatch.objects.create(project=project, created_by=request.user, scan_target=target,
-            source='crawler' if data['kind'] == 'crawl' else 'sitemap', method='scan',
-            label=f"{data['kind']}: {target.name}", measured_at=timezone.now(), parser_version='scan-v2', request_metadata=config)
+            source='semscan', method='scan',
+            label=f"{data['kind']}: {target.name}", measured_at=timezone.now(), parser_version='scan-v3', request_metadata=config)
         transaction.on_commit(lambda: enqueue_scan(batch.id))
     return JsonResponse(batch_data(batch), status=202)
 

@@ -56,6 +56,14 @@ class AdapterTests(SimpleTestCase):
         self.assertEqual(result['facts']['sitemap_lastmod'],'2026-01-01')
         self.assertNotIn('http_status',result['facts'])
 
+    def test_semscan_keeps_crawl_and_sitemap_observations_distinct(self):
+        crawl=adapt_record(self.batch('semscan','scan',scan_kind='crawl'),{'url':'https://example.com/','status':200,'robots_allowed':False,'googlebot_allowed':False,'is_indexable':False})
+        sitemap=adapt_record(self.batch('semscan','scan',scan_kind='sitemap'),{'url':'https://example.com/','lastmod':'2026-01-01','page_fetched':False})
+        self.assertEqual(crawl['facts']['http_status'],200)
+        self.assertFalse(crawl['facts']['googlebot_allowed'])
+        self.assertNotIn('http_status',sitemap['facts'])
+        self.assertFalse(sitemap['facts']['page_fetched'])
+
     def test_screaming_frog_timestamp_has_no_invented_timezone(self):
         result=adapt_record(self.batch('screaming_frog'),{'values':{'Address':'https://example.com/','Crawl Timestamp':'2026-10-14 12:07:09','Status Code':200,'Indexability':'Indexable'}})
         self.assertEqual(result['measured_date'],datetime.date(2026,10,14))
@@ -80,11 +88,11 @@ class CatalogTests(TestCase):
         Membership.objects.create(project=self.project,user=self.viewer,role='viewer')
         self.client.force_login(self.owner)
         self.a=self.publish('ahrefs',[{'values':{'URL':'HTTPS://EXAMPLE.com:443/','Title':'Home','HTTP status code':'200','Organic traffic':'900','Is indexable page':'true'}}])
-        self.b=self.publish('crawler',[{'url':'https://example.com/','measured_at':'2026-10-02T10:00:00+00:00','status':404,'is_indexable':False,'titles':['Missing'],'content_type':'text/html'}],method='scan')
+        self.b=self.publish('semscan',[{'url':'https://example.com/','measured_at':'2026-10-02T10:00:00+00:00','status':404,'is_indexable':False,'titles':['Missing'],'content_type':'text/html'}],method='scan')
 
     def publish(self,source,rows,method='upload',project=None):
         project=project or self.project
-        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source)
+        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source,request_metadata={'scan':'crawl'} if source=='semscan' else {})
         if project==self.hidden:
             Membership.objects.get_or_create(project=project,user=self.other,defaults={'role':'admin'})
         publish_records(batch_id=batch.pk,records=[{'locator':f'row:{i}','data':data} for i,data in enumerate(rows)])
@@ -99,14 +107,14 @@ class CatalogTests(TestCase):
         result=self.client.get(self.url()).json()
         self.assertEqual(result['total'],1)
         self.assertEqual(result['urls'][0]['observation_count'],2)
-        self.assertEqual(set(result['urls'][0]['sources']),{'ahrefs','crawler'})
+        self.assertEqual(set(result['urls'][0]['sources']),{'ahrefs','semscan'})
         self.assertEqual(result['urls'][0]['http_signals'],[200,404])
         self.assertEqual(set(result['urls'][0]['indexability_signals']),{True,False})
         self.assertEqual(result['urls'][0]['unknown_dates'],1)
 
     def test_filters_apply_to_the_same_observation(self):
         self.assertEqual(self.client.get(self.url(),{'source':'ahrefs','http':404}).json()['total'],0)
-        self.assertEqual(self.client.get(self.url(),{'source':'crawler','http':404}).json()['total'],1)
+        self.assertEqual(self.client.get(self.url(),{'source':'semscan','http':404}).json()['total'],1)
 
     def test_known_dates_do_not_fall_back_to_import_time(self):
         result=self.client.get(self.url(),{'date_from':'2026-10-02','date_to':'2026-10-02'}).json()
@@ -204,7 +212,7 @@ class CatalogTests(TestCase):
         item=ProjectURL.objects.get(project=self.project)
         result=self.client.get(reverse('projects:urls:detail',args=[self.project.pk,item.pk])).json()
         self.assertEqual(result['total'],2)
-        self.assertEqual({row['source'] for row in result['observations']},{'ahrefs','crawler'})
+        self.assertEqual({row['source'] for row in result['observations']},{'ahrefs','semscan'})
         for row in result['observations']:
             self.assertEqual(row['user_id'],self.owner.pk)
             self.assertTrue(row['imported_at'])

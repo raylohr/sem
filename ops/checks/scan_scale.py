@@ -34,6 +34,9 @@ class SyntheticClient:
         self.transferred=self.decoded_bytes=0
         self.calls=0
 
+    def close(self):
+        pass
+
     def guard(self):
         if self.calls>=5000:raise ScanPause
 
@@ -64,7 +67,7 @@ try:
         project=Project.objects.create(name='Synthetic scale check',website='https://example.com',created_by=user)
         Membership.objects.create(project=project,user=user,role='admin')
         target=ScanTarget.objects.create(project=project,created_by=user,name='Synthetic',url='https://example.com/0',allowed_hosts=['example.com'])
-        batch=ImportBatch.objects.create(project=project,created_by=user,scan_target=target,source='crawler' if KIND=='crawl' else 'sitemap',method='scan',label='Synthetic 100k',request_metadata={'scan':KIND,'url':'https://example.com/0' if KIND=='crawl' else 'https://example.com/sitemap.xml','max_urls':TOTAL,'max_depth':100,'duration':604800,'allowed_hosts':['example.com']})
+        batch=ImportBatch.objects.create(project=project,created_by=user,scan_target=target,source='semscan',method='scan',label='Synthetic 100k',request_metadata={'scan':KIND,'url':'https://example.com/0' if KIND=='crawl' else 'https://example.com/sitemap.xml','max_urls':TOTAL,'max_depth':100,'duration':604800,'allowed_hosts':['example.com']})
         with patch('scans.tasks.SafeClient',SyntheticClient), patch('scans.tasks.process_scan.apply_async'):
             for iteration in range(30):
                 process_scan(str(batch.pk));batch.refresh_from_db()

@@ -25,7 +25,7 @@ document.querySelectorAll('form[data-scan-config]').forEach(editor => {
   const scanForm = document.getElementById(editor.dataset.scanConfig);
   const modal = editor.closest('.modal');
   const card = scanForm.closest('[data-scan-card]');
-  const names = ['url', 'max_urls', 'max_depth'];
+  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second'];
   const restore = () => {
     names.forEach(name => {
       const input = editor.elements.namedItem(name);
@@ -45,7 +45,7 @@ document.querySelectorAll('form[data-scan-config]').forEach(editor => {
       const value = input.dataset.valueType === 'integer' ? parseInteger(input.value) : input.value.trim();
       scanForm.elements.namedItem(name).value = String(value);
       const summary = card.querySelector(`[data-scan-summary="${name}"]`);
-      summary.textContent = name === 'url' ? (value || card.dataset.defaultUrl) : integerFormatter.format(value);
+      if (summary) summary.textContent = name === 'url' ? (value || card.dataset.defaultUrl) : integerFormatter.format(value);
     });
     card.querySelector('[data-scan-config-message]').textContent = 'Instellingen opgeslagen voor deze pagina.';
     const result = scanForm.querySelector('.form-result');

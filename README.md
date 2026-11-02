@@ -122,7 +122,8 @@ batches met ruwe API-antwoorden. Er is nog geen Google-account gekoppeld.
 
 Projectbeheerders configureren expliciete scandoelen/hosts; bewerkers starten
 sitemapimports en begrensde crawls. Scans gebruiken een eigen worker/queue,
-respecteren robots.txt en blokkeren interne netwerkadressen en onveilige redirects.
+hebben een instelbaar robotsbeleid en blokkeren interne netwerkadressen en onveilige redirects.
+Websitecrawls halen pagina’s parallel op; beide scantypen vallen onder bron SEMScan.
 Zie docs/03-scans.md voor endpoints, resultaten, annulering en productlimieten.
 
 ## Webinterface en lokale Bootstrap

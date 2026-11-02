@@ -16,7 +16,7 @@ def visible_project(request, project_id):
 
 
 def batch_data(batch):
-    return {"id": str(batch.id), "source": batch.source, "method": batch.method,
+    return {"id": str(batch.id), "source": batch.source, "method": batch.method, "scan_kind": batch.scan_kind,
         "label": batch.label, "original_filename": batch.original_filename,
         "user_id": batch.created_by_id, "username": batch.created_by.get_username(),
         "imported_at": batch.imported_at.isoformat(),

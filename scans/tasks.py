@@ -67,7 +67,9 @@ def process_scan(batch_id):
             remaining = max(0,config['duration']-(time.time()-work.started))
             client = SafeClient(config['allowed_hosts'],check_access=lambda:check_scan(batch_id),
                 duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
-                document_sink=work.documents,robot_cache=work.get('robots',{}))
+                document_sink=work.documents,robot_cache=work.get('robots',{}),
+                respect_robots=config.get('respect_robots',True),
+                concurrency=config.get('concurrency',8),delay=1/config.get('requests_per_second',12),shared_rate=True)
             client.transferred = work.get('transferred',0)
             client.decoded_bytes = work.get('decoded_bytes',0)
             checkpoint(batch,work)
@@ -75,6 +77,7 @@ def process_scan(batch_id):
             try:
                 records,warnings = runner(client,url=config['url'],max_urls=config['max_urls'],max_depth=config['max_depth'],work=work)
             except ScanPause:
+                client.close()
                 checkpoint(batch,work,client)
                 check_scan(batch_id)
                 try:
@@ -82,6 +85,8 @@ def process_scan(batch_id):
                 except Exception:
                     ImportBatch.objects.filter(pk=batch_id,status='processing').update(status='failed',error='Vervolgscan kon niet worden ingepland; opnieuw starten hervat het checkpoint.')
                 return
+            finally:
+                client.close()
             checkpoint(batch,work,client)
             with transaction.atomic():
                 Project.objects.select_for_update().get(pk=batch.project_id)

@@ -224,6 +224,21 @@ class ScanAccessTests(TestCase):
         self.assertEqual(batch.created_by, self.editor)
         self.assertEqual(batch.request_metadata['allowed_hosts'], ['example.com'])
         self.assertEqual(batch.request_metadata['max_depth'], 0)
+        self.assertEqual(batch.source,'semscan')
+        self.assertFalse(batch.request_metadata['respect_robots'])
+        self.assertEqual(batch.request_metadata['concurrency'],8)
+        self.assertEqual(batch.request_metadata['requests_per_second'],12)
+
+    def test_scan_options_are_validated_and_preserved(self):
+        response=self.client.post(self.url('start'),json.dumps({'kind':'sitemap','robots_mode':'respect','concurrency':4,'requests_per_second':5}),content_type='application/json')
+        self.assertEqual(response.status_code,202)
+        batch=ImportBatch.objects.get(pk=response.json()['id'])
+        self.assertEqual(batch.scan_kind,'sitemap')
+        self.assertTrue(batch.request_metadata['respect_robots'])
+        self.assertEqual(batch.request_metadata['concurrency'],4)
+        for field,value in [('robots_mode','bad'),('concurrency',17),('requests_per_second',16)]:
+            response=self.client.post(self.url('start'),json.dumps({'kind':'crawl',field:value}),content_type='application/json')
+            self.assertEqual(response.status_code,400)
 
     def test_seed_outside_scope_rejected(self):
         response = self.client.post(self.url('start'), json.dumps({'kind':'crawl','url':'https://other.example.com/'}), content_type='application/json')

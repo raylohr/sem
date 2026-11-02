@@ -52,8 +52,9 @@ services:
   scan-worker:
     <<: *app
     stop_grace_period: 150s
-    command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=scans --hostname=scans@%h
-    cpus: 0.5
+    command: celery -A config worker --loglevel=INFO --concurrency=2 --queues=scans --hostname=scans@%h
+    cpus: 2
+    mem_limit: 768m
     environment:
       <<: *app-env
       GSC_CLIENT_ID: ""

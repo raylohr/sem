@@ -1,7 +1,9 @@
 # Sitemapimport en basiscrawler
 
-Scans draaien op een aparte Celery-queue (scans) met één scan-worker, CPU-limiet
-0,5 en geheugenlimiet 512 MiB. Imports en GSC-ophaalacties blijven op queue celery.
+Scans draaien op een aparte Celery-queue (scans) met twee scanprocessen, samen
+maximaal twee CPU-cores en 768 MiB geheugen. Per websitecrawl worden standaard
+acht HTTP-verzoeken parallel verwerkt; checkpoints en databasewerk blijven op de
+hoofdthread van die scan. Imports en GSC-ophaalacties blijven op queue celery.
 Dezelfde isolatie geldt voor dev/test en productie. De GPS-app blijft afzonderlijk.
 
 ## Doelen en projectrechten
@@ -46,6 +48,14 @@ Of:
 url is optioneel: de doel-URL voor crawls; /sitemap.xml op de doelhost voor
 sitemaps. Deze versie ontdekt geen sitemap-URL's automatisch via robots.txt.
 Gebruik een expliciete URL als de website een andere locatie hanteert.
+
+Crawl en sitemap gebruiken één broncode `semscan` met weergavenaam SEMScan.
+Het subtype staat in request_metadata.scan (crawl of sitemap) en wordt ook in
+het bronnenoverzicht getoond. Bestaande batches zijn geconverteerd met behoud
+van hun UUID, gebruiker, tijd, records en oorspronkelijke broncode in
+request_metadata.source_original. Elke uitvoering blijft zelfstandig verwijderbaar.
+De catalogusadapter bewaart het verschil tussen gemeten crawlgegevens en
+sitemapvermeldingen, die geen gemeten HTTP-status krijgen.
 
 Een scan creëert een afzonderlijke batch met uitvoerende gebruiker, start-/importtijd,
 doel en een snapshot van instellingen. Alleen toegestane projectleden kunnen die
@@ -93,10 +103,17 @@ zonder andere scans of het scandoel te verwijderen.
 - Sitemap: standaard 100.000, maximaal 100.000 URL's; maximaal 10.000 sitemapdocumenten.
 - Tijd- en overdrachtsbudget schalen met het aantal URL's; zie Grote scans hieronder.
   Totale tijd maximaal zeven dagen; netwerk-time-outs zijn 5s.
-- Requesttempo: standaard minstens 1 seconde per host; robots crawl-delay en
-  request-rate kunnen dat verder vertragen.
-- robots.txt wordt gerespecteerd. 404/410 betekent geen robotsbestand; andere
-  fouten worden conservatief geblokkeerd. Er is geen negeer-robots-optie.
+- Requesttempo: standaard maximaal twaalf verzoeken per seconde per host,
+  instelbaar van één tot vijftien. Een atomaire Redis-begrenzer deelt de ruimte
+  tussen gelijktijdige scans van dezelfde host. Dit is een bovengrens, geen garantie.
+- robots_mode is standaard ignore (audit): robots.txt wordt opgehaald en als
+  bewijsmateriaal bewaard, maar blokkeert pagina's niet. Met respect worden
+  weigeringen, crawl-delay en request-rate wel toegepast. Historische scans zonder
+  nieuwe instelling behouden respect_robots=True. 404/410 betekent geen bestand;
+  bij respect blokkeren andere fouten conservatief; bij ignore kan de scan doorgaan.
+  Onbekend robotsbeleid blijft onbekend in de Googlebot-beoordeling.
+- Noindex, canonical, HTTP-status, toegestane hosts en netwerkbeveiliging blijven
+  afzonderlijke controles, ook wanneer robotsfilters zijn uitgeschakeld.
 - Maximaal 5 MiB per document, inclusief begrensde uitpakking. Het totale budget
   is minimaal 25 MiB en schaalt mee met het URL-maximum; zie hieronder. Dit zijn
   productlimieten, lager dan de maximale documentomvang van het sitemapprotocol.
@@ -106,7 +123,11 @@ zonder andere scans of het scandoel te verwijderen.
 - De TCP-verbinding gebruikt het gecontroleerde IP; HTTPS houdt de oorspronkelijke
   SNI/Host en certificaatverificatie. Iedere redirect wordt opnieuw gecontroleerd.
 - Geen omgevingsproxy's, cookies of externe authenticatie in scanverzoeken.
-- Bij 429/503 stopt de crawl; limieten/onvolledigheid verschijnen als waarschuwingen.
+- Bij 429/503 wordt het tempo verlaagd en een gedeelde hostpauze ingesteld
+  (Retry-After in seconden, begrensd tot 120 seconden; andere waarden vijf seconden).
+  De URL krijgt maximaal drie nieuwe pogingen, waarna het foutantwoord wordt
+  opgenomen. Trage antwoorden verlagen eveneens het tempo. Tijd/downloadlimieten
+  blijven gelden.
 
 Periodieke planning, vergelijking met eerdere scans en browsergestuurde cookie/JavaScript-scans volgen nog. Het gecombineerde URL-dashboard is inmiddels beschikbaar.
 
@@ -132,10 +153,9 @@ De huidige grenzen en uitvoering:
   zowel voor ontvangen als uitgepakte inhoud. Per document blijft 5 MiB gelden.
   De scan stopt ook bij minder dan 1 GiB vrije schijfruimte. Een waarschuwing meldt
   dat een scan onvolledig is bij een tijd-, diepte-, ontdek-, download- of schijflimiet.
-- Het tempo blijft minimaal één verzoek per seconde per host. Robotsbeleid kan
-  vertragen of blokkeren; 429/503 stopt een crawl. Het URL-maximum garandeert geen
-  aantal bereikbare pagina's. 100.000 echte pagina's kosten bij één verzoek per
-  seconde minstens circa 28 uur, exclusief vertragingen en redirects.
+- Het ingestelde tempo en eventuele robotsregels, reactietijden en overbelasting
+  bepalen de doorlooptijd. Het URL-maximum garandeert geen aantal bereikbare pagina's.
+  Verbindingen worden per thread hergebruikt, met DNS-validatie voor ieder verzoek.
 
 ### Checkpoints en publicatie
 
@@ -191,7 +211,8 @@ een startknop en een samenvatting van de instellingen. Het tandwiel opent een ei
 configuratiemodal voor de betreffende website en het betreffende proces.
 
 De modal biedt de start-/sitemap-URL, het URL-maximum (standaard 100.000) en de
-link-/sitemapdiepte (standaard 99). Opslaan past uitsluitend de card op de huidige
+link-/sitemapdiepte (standaard 99), robotsmodus, parallellisme (standaard 8;
+alleen voor websitecrawls) en requests per seconde (standaard 12). Opslaan past uitsluitend de card op de huidige
 pagina aan; er wordt geen scan gestart of verzoek naar de server verstuurd.
 Annuleren, het kruisje, Escape en sluiten via de achtergrond verwerpen de concept-
 wijzigingen. Na vernieuwen van de pagina gelden de standaardwaarden. Er zijn hiermee
@@ -202,3 +223,23 @@ de gebruikte instellingen bij de batch en controleert projectrechten, hosts en
 limieten opnieuw. Websitekeuze, eigen/concurrent-scandoelen, recente scans,
 voortgang, annuleren en hervatten blijven beschikbaar. Automatische sitemapontdekking
 is hiermee niet toegevoegd: een leeg sitemapadres gebruikt nog steeds /sitemap.xml.
+
+### Gecontroleerde snelheidsproef
+
+`ops/checks/scan_speed.py` gebruikt de echte netwerkclient, Redis-begrenzer,
+parallelle uitvoering, extractie, checkpoints en publicatie. Alleen DNS en de
+HTTP-antwoorden zijn vervangen door simulaties met 330 ms reactietijd: 4.366
+pagina's en 1.146 redirects. Er gaan geen verzoeken naar externe websites.
+Voer uitsluitend uit met de testmigratierol; alle databaserijen worden teruggedraaid:
+
+```sh
+docker compose --profile tools run --rm -T migrate python manage.py shell < ops/checks/scan_speed.py
+```
+
+Een echte website kan langzamer reageren of beperkingen opleggen; de proef
+bewijst geen vaste doorlooptijd voor GMW of andere externe websites.
+
+De gecontroleerde proef op 2 november 2026 verwerkte 4.366 pagina's, 5.529
+bewaarde HTTP-documenten en de bijbehorende URL-observaties in 518,83 seconden
+(8 minuten en 39 seconden), met circa 115 MiB piek-RSS. Redirects en hervatten
+na een checkpoint zijn inbegrepen. De simulatie is geen meting van de GMW-server.

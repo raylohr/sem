@@ -22,6 +22,9 @@ FACT_LABELS={
  'ahrefs_backlinks':'Ahrefs backlinks','ahrefs_dofollow_backlinks':'Ahrefs dofollow-backlinks',
  'ahrefs_keywords_top3':'Ahrefs keywords top 3','ahrefs_keywords_top10':'Ahrefs keywords top 10',
  'ahrefs_page_rating':'Ahrefs Page Rating','ahrefs_url_rating':'Ahrefs URL Rating',
+ 'robots_allowed':'Toegestaan volgens robots.txt (SEMScan)',
+ 'googlebot_allowed':'Toegestaan volgens robots.txt (Googlebot)',
+ 'robots_respected':'Robotsregels toegepast als crawlfilter',
  'sitemap_lastmod':'Lastmod volgens sitemap','sitemap_url':'Bron-sitemap','page_fetched':'Pagina opgehaald',
  'audit_title':'Titel uit samengestelde audit','audit_page_type':'Paginatype volgens audit','audit_finding':'Auditbevinding (uittreksel)',
  'audit_action':'Aanbevolen actie (uittreksel)','audit_priority':'Auditprioriteit','audit_evidence':'Bewijsstatus volgens audit',
@@ -107,7 +110,7 @@ def api_detail(request,project_id,url_id):
     rows=[]
     for observation in page:
         rows.append({'original_url':observation.original_url,'scope':observation.scope,'measured_date':observation.measured_date,
-            'measured_at':observation.measured_at,'source':observation.batch.source,'batch_id':str(observation.batch_id),
+            'measured_at':observation.measured_at,'source':observation.batch.source,'scan_kind':observation.batch.scan_kind,'batch_id':str(observation.batch_id),
             'user_id':observation.batch.created_by_id,'username':observation.batch.created_by.get_username(),
             'imported_at':observation.batch.imported_at,'period_start':observation.batch.period_start,'period_end':observation.batch.period_end,
             'source_record_id':observation.source_record_id,'facts':observation.facts})

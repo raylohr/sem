@@ -32,3 +32,7 @@ class ScanForm(forms.Form):
     max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=100000, required=False)
     max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=99, required=False)
     duration = forms.IntegerField(min_value=10, max_value=MAX_DURATION, required=False)
+
+    robots_mode = forms.ChoiceField(choices=[('ignore','Niet blokkeren (audit)'),('respect','Respecteren')], required=False, initial='ignore')
+    concurrency = forms.IntegerField(min_value=1, max_value=16, required=False, initial=8)
+    requests_per_second = forms.IntegerField(min_value=1, max_value=15, required=False, initial=12)

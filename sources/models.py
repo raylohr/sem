@@ -10,8 +10,7 @@ class ImportBatch(models.Model):
         AHREFS = "ahrefs", "Ahrefs"
         SCREAMING_FROG = "screaming_frog", "Screaming Frog"
         AUDIT = "audit", "Contentaudit"
-        SITEMAP = "sitemap", "Sitemap"
-        CRAWLER = "crawler", "Eigen crawler"
+        SEMSCAN = "semscan", "SEMScan"
     class Method(models.TextChoices):
         UPLOAD = "upload", "Upload"
         API = "api", "API"
@@ -48,6 +47,14 @@ class ImportBatch(models.Model):
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
     url_index_info = models.JSONField(default=dict, db_default={}, blank=True)
+
+    @property
+    def scan_kind(self):
+        return self.request_metadata.get('scan') or {'crawler':'crawl', 'sitemap':'sitemap'}.get(self.source, '')
+
+    @property
+    def scan_kind_display(self):
+        return {'crawl':'Websitecrawl', 'sitemap':'Sitemapimport'}.get(self.scan_kind, '')
 
     class Meta:
         ordering = ["-imported_at", "-id"]
