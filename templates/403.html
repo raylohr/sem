@@ -1,0 +1,5 @@
+{% extends 'errors/base.html' %}
+{% block error_title %}Geen toegang{% endblock %}
+{% block error_code %}403{% endblock %}
+{% block error_heading %}{% if csrf_error %}Formulier opnieuw openen{% else %}Geen toegang{% endif %}{% endblock %}
+{% block error_message %}{% if csrf_error %}We konden dit formulier niet veilig verwerken. Laad de pagina opnieuw en probeer het nogmaals. Je kunt ook opnieuw naar de loginpagina gaan.{% else %}Je hebt geen toestemming om deze pagina te bekijken of deze actie uit te voeren. Denk je dat je wel toegang hoort te hebben? Neem contact op met je beheerder.{% endif %}{% endblock %}

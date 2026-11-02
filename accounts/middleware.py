@@ -1,5 +1,5 @@
 from django.contrib.auth.views import redirect_to_login
-from django.http import HttpResponseForbidden
+from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from .policy import has_mfa,mfa_required
 
@@ -26,7 +26,7 @@ class AccountPolicyMiddleware:
         if path.startswith("/static/") or path in public or path.startswith("/accounts/reset/") or not user.is_authenticated:
             return self.get_response(request)
         if path.startswith("/admin/") and path!=reverse("admin:login") and not user.is_superuser:
-            return HttpResponseForbidden("Geen platformbeheerrechten.")
+            raise PermissionDenied("Geen platformbeheerrechten.")
         if user.must_change_password and path!=reverse("password_change"):
             return redirect_to_login(request.path,login_url=reverse("password_change"))
         if has_mfa(user):
