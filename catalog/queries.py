@@ -1,5 +1,8 @@
 from django.contrib.postgres.aggregates import ArrayAgg
-from django.db.models import Count, Exists, Max, Min, OuterRef, Q, F
+from django.db.models import Count, Exists, Max, Min, OuterRef, Q, F, Subquery, FloatField, Case, When, Value, CharField
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
+from sources.models import ImportBatch
 from .models import ProjectURL,URLObservation,URLLabel,Label
 
 
@@ -56,7 +59,37 @@ def url_overview(project,filters):
     observations=selected_observations(project,filters)
     # Correlated existence avoids multiplying rows through joins when multiple filters apply.
     urls=ProjectURL.objects.filter(project=project).filter(Exists(observations.filter(url_id=OuterRef('pk'))))
-    return urls.order_by("normalized_url","id"),observations
+    sort=filters.get('sort') or 'url'
+    descending=filters.get('direction')=='desc'
+    if sort=='url':
+        return urls.order_by('-normalized_url' if descending else 'normalized_url','id'),observations
+    selected=observations.filter(url_id=OuterRef('pk')).order_by().values('url_id')
+    if sort=='traffic':
+        latest=ahrefs_traffic_observations(observations).filter(url_id=OuterRef('pk')).annotate(
+            traffic_value=Cast(KeyTextTransform('ahrefs_organic_traffic_estimate','facts'),FloatField()))
+        value=Subquery(latest.values('traffic_value')[:1])
+    elif sort=='http':
+        value=Subquery(selected.annotate(value=Max(Cast(KeyTextTransform('http_status','facts'),FloatField()))).values('value')[:1])
+    elif sort=='date':
+        value=Subquery(selected.annotate(value=Max('measured_date')).values('value')[:1])
+    elif sort=='sources':
+        source_name=Case(*[When(batch__source=code,then=Value(name)) for code,name in ImportBatch.Source.choices],default=F('batch__source'),output_field=CharField())
+        value=Subquery(selected.annotate(value=Min(source_name)).values('value')[:1])
+    elif sort=='labels':
+        value=Subquery(URLLabel.objects.filter(url_id=OuterRef('pk'),label__project=project).order_by('label__name','label_id').values('label__name')[:1])
+    else:
+        return urls.order_by('normalized_url','id'),observations
+    urls=urls.alias(sort_value=value)
+    ordering=F('sort_value').desc(nulls_last=True) if descending else F('sort_value').asc(nulls_last=True)
+    return urls.order_by(ordering,'normalized_url','id'),observations
+
+
+def ahrefs_traffic_observations(observations):
+    return observations.filter(batch__source='ahrefs',scope=URLObservation.Scope.PAGE,
+        facts__has_key='ahrefs_organic_traffic_estimate').exclude(
+        facts__ahrefs_organic_traffic_estimate=None).order_by(
+        F('measured_date').desc(nulls_last=True), F('measured_at').desc(nulls_last=True),
+        '-batch__imported_at', '-id')
 
 
 def summarize_urls(items,observations):
@@ -74,9 +107,7 @@ def summarize_urls(items,observations):
         unknown_dates=Count('id',filter=Q(measured_date__isnull=True)),
     )
     summaries={row['url_id']:row for row in rows}
-    traffic_rows = observations.filter(url_id__in=[item.pk for item in items], batch__source='ahrefs',
-        scope=URLObservation.Scope.PAGE, facts__has_key='ahrefs_organic_traffic_estimate').exclude(
-        facts__ahrefs_organic_traffic_estimate=None).order_by('url_id',
+    traffic_rows = ahrefs_traffic_observations(observations).filter(url_id__in=[item.pk for item in items]).order_by('url_id',
         F('measured_date').desc(nulls_last=True), F('measured_at').desc(nulls_last=True),
         '-batch__imported_at', '-id').distinct('url_id').values('url_id', 'facts__ahrefs_organic_traffic_estimate')
     traffic = {row['url_id']: row['facts__ahrefs_organic_traffic_estimate'] for row in traffic_rows}

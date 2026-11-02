@@ -21,6 +21,8 @@ class SourceChoices(forms.MultipleChoiceField):
 
 
 class URLFilterForm(forms.Form):
+    sort=forms.ChoiceField(choices=[('url','URL'),('sources','Bronnen'),('http','Gemeten HTTP'),('traffic','Traffic'),('labels','Labels'),('date','Meetdatums')],required=False,widget=forms.HiddenInput)
+    direction=forms.ChoiceField(choices=[('asc','Oplopend'),('desc','Aflopend')],required=False,widget=forms.HiddenInput)
     q=forms.CharField(max_length=250,required=False,label='URL keyword',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters. Bijvoorbeeld: aansprakelijkheid.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'id_q_help'}))
     host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik URL keyword voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
     source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple)

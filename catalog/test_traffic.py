@@ -6,6 +6,8 @@ from projects.models import Project, Membership
 from sources.models import ImportBatch
 from sources.services import publish_records
 from .queries import url_overview, summarize_urls
+from .models import Label, URLLabel, ProjectURL
+from .labels import label_key
 
 
 @override_settings(STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}, 'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'}})
@@ -44,3 +46,47 @@ class TrafficColumnTests(TestCase):
         self.publish({'a/':90},datetime.datetime(2026,10,1,tzinfo=datetime.timezone.utc))
         self.assertEqual(self.summarize()['https://example.com/a/'],30)
         self.assertEqual(self.summarize({'batch':newest})['https://example.com/a/'],30)
+
+    def test_numeric_sorting_applies_before_pagination_and_keeps_unknown_last(self):
+        self.publish({f'{i:02d}/':v for i,v in enumerate([5,100,20,0]+list(range(6,32))+[None])})
+        url=reverse('ui:catalog:overview',args=[self.project.pk])
+        response=self.client.get(url,{'sort':'traffic','direction':'desc'})
+        page=response.context['page']
+        values=[u.ahrefs_traffic for u in page.object_list]
+        self.assertEqual(values[:3],[100,31,30])
+        self.assertEqual(len(values),25)
+        self.assertContains(response,'aria-sort="descending"')
+        self.assertContains(response,'name="sort" value="traffic"')
+        second=self.client.get(url,{'sort':'traffic','direction':'desc','page':2}).context['page']
+        self.assertIsNone(second.object_list[-1].ahrefs_traffic)
+        self.assertFalse({u.pk for u in page}&{u.pk for u in second})
+        asc=self.client.get(url,{'sort':'traffic','direction':'asc'}).context['page']
+        self.assertEqual([u.ahrefs_traffic for u in asc][:3],[0,5,6])
+
+    def test_latest_traffic_used_for_sort_and_filters_retained_in_toggles(self):
+        self.publish({'a/':100,'b/':90})
+        self.publish({'a/':20})
+        response=self.client.get(reverse('ui:catalog:overview',args=[self.project.pk]),
+            {'sort':'traffic','direction':'desc','source':'ahrefs','q':'example.com','page':2})
+        self.assertEqual([u.ahrefs_traffic for u in response.context['page']],[90,20])
+        columns={c['key']:c for c in response.context['columns']}
+        from urllib.parse import parse_qs
+        self.assertEqual(parse_qs(columns['traffic']['query']),
+            {'sort':['traffic'],'direction':['asc'],'source':['ahrefs'],'q':['example.com']})
+
+    def test_all_columns_and_label_ordering_are_supported(self):
+        self.publish({'a/':10,'b/':20,'c/':None})
+        for name,path in [('Zulu','a/'),('Alpha','b/')]:
+            label=Label.objects.create(project=self.project,name=name,key=label_key(name))
+            URLLabel.objects.create(label=label,url=ProjectURL.objects.get(project=self.project,normalized_url='https://example.com/'+path))
+        url=reverse('ui:catalog:overview',args=[self.project.pk])
+        for column in ['url','sources','http','traffic','labels','date']:
+            for direction in ['asc','desc']:
+                response=self.client.get(url,{'sort':column,'direction':direction})
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.context['url_count'],3)
+        response=self.client.get(url,{'sort':'labels','direction':'asc'})
+        self.assertEqual([u.normalized_url for u in response.context['page']],
+            ['https://example.com/b/','https://example.com/a/','https://example.com/c/'])
+        self.assertEqual(self.client.get(url,{'sort':'invalid'}).status_code,400)
+        self.assertEqual(self.client.get(url,{'direction':'invalid'}).status_code,400)

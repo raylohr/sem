@@ -61,8 +61,23 @@ def overview_context(request,project_id):
         queryset=URLLabel.objects.filter(label__project=context['project']).select_related('label').order_by('label__name', 'label_id'),
         to_attr='overview_labels'))
     query=request.GET.copy();query.pop('page',None)
+    sort=filters.get('sort') or 'url'
+    direction=filters.get('direction') or 'asc'
+    columns=[]
+    explanations={'http':'Sorteert op de hoogste gemeten HTTP-status binnen de filters.',
+        'sources':'Sorteert op de eerste bronnaam in alfabetische volgorde.',
+        'labels':'Sorteert op het eerste label in alfabetische volgorde.',
+        'date':'Sorteert op de laatste bekende meetdatum.',
+        'traffic':'Geschat maandelijks organisch verkeer volgens de laatste beschikbare Ahrefs-meting binnen de actieve filters. Geen gemeten bezoekersaantal. Bij onbekende meetdatum wordt de importvolgorde gebruikt.'}
+    for key,title in [('url','URL'),('sources','Bronnen'),('http','Gemeten HTTP'),('traffic','Traffic'),('labels','Labels'),('date','Meetdatums')]:
+        active=key==sort
+        next_direction=('desc' if direction=='asc' else 'asc') if active else ('desc' if key in ('traffic','http','date') else 'asc')
+        link=query.copy();link['sort']=key;link['direction']=next_direction
+        columns.append({'key':key,'title':title,'query':link.urlencode(),'aria_sort':('descending' if direction=='desc' else 'ascending') if active else 'none',
+            'indicator':('↓' if direction=='desc' else '↑') if active else '↕',
+            'next_direction_label':'aflopend' if next_direction=='desc' else 'oplopend','help':explanations.get(key,'')})
     context.update(form=form,page=page,url_count=page.paginator.count,observation_count=observations.count(),
-        scope=filters.get('scope') or 'page',filter_query=query.urlencode(),valid=valid)
+        scope=filters.get('scope') or 'page',filter_query=query.urlencode(),valid=valid,columns=columns)
     return context
 
 
