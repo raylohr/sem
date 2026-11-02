@@ -4,9 +4,9 @@
 <div id="exportStatus" class="small mb-3" role="status" aria-live="polite" aria-atomic="true"></div>
 <form method="get" class="card card-body mb-4">
 <div class="row g-3">
-<div class="col-md-6 col-xl-4"><label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{% include 'catalog/filter_help.html' with field=form.q %}{{ form.q }}</div>
-<div class="col-md-6 col-xl-4"><label class="form-label" for="{{ form.batch.id_for_label }}">Import of scan</label>{% include 'catalog/filter_help.html' with field=form.batch %}{{ form.batch }}</div>
-<div class="col-md-12 col-xl-4"><fieldset><legend class="form-label fs-6">Bronnen{% include 'catalog/filter_help.html' with field=form.source %}</legend>
+<div class="col-md-6 col-xl-4"><div><label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{% include 'catalog/filter_help.html' with field=form.q %}{{ form.q }}</div>
+<div class="mt-3"><label class="form-label" for="{{ form.batch.id_for_label }}">Import of scan</label>{% include 'catalog/filter_help.html' with field=form.batch %}{{ form.batch }}</div></div>
+<div class="col-md-6 col-xl-4 ms-md-auto"><fieldset><legend class="form-label fs-6">Bronnen{% include 'catalog/filter_help.html' with field=form.source %}</legend>
 <div class="d-flex flex-column gap-2">{% for option in form.source %}<div class="form-check mb-0">{{ option.tag }}<label class="form-check-label" for="{{ option.id_for_label }}">{{ option.choice_label }}</label></div>{% empty %}<span class="small text-muted">Geen bronnen met URL-data beschikbaar.</span>{% endfor %}</div></fieldset></div>
 </div>
 <div class="mt-3"><button class="btn btn-link p-0 small text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#urlFilters" aria-expanded="{% if form.host.value %}true{% else %}false{% endif %}" aria-controls="urlFilters">Meer filters ↓</button></div>
