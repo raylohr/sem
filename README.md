@@ -112,6 +112,10 @@ een bewezen technisch feit. URL-normalisatie en gecombineerde metrics volgen lat
 
 ## Google Search Console API
 
+Platformbeheerders stellen OAuth in via Integraties in de navigatie:
+`/workspace/settings/google/`. De website biedt ook een Google Cloud-stappenplan.
+Het client secret wordt versleuteld opgeslagen; wijzigingen werken direct.
+
 De eerste API-connector is gebouwd maar blijft uitgeschakeld zonder Google OAuth-
 configuratie. Zie docs/02-gsc-integratie.md voor configuratie, endpoints, toegangs-
 controle en grenzen. OAuth biedt propertyselectie, optionele dagelijkse prestatie-import via Celery beat

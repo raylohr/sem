@@ -15,7 +15,7 @@ from sources.models import ImportBatch
 from sources.views import visible_project, batch_data
 from .models import GSCConnection
 from .forms import GSCImportForm
-from .gsc import configured, oauth_flow, encrypt_token, list_properties
+from .gsc import configured, oauth_flow, encrypt_token, list_properties, configuration_fingerprint
 from .tasks import enqueue_gsc
 
 
@@ -56,7 +56,7 @@ def connect(request, project_id):
     url, state = flow.authorization_url(access_type="offline", prompt="consent")
     request.session["gsc_oauth"] = {"state": state, "verifier": flow.code_verifier,
         "user_id": request.user.pk, "project_id": str(project.pk), "property": property_url,
-        "started": time.time()}
+        "started": time.time(), "configuration": configuration_fingerprint()}
     response = JsonResponse({"authorization_url": url})
     response["Cache-Control"] = "no-store"
     return response
@@ -78,6 +78,8 @@ def callback(request):
     if not can_manage(request.user, project):
         return JsonResponse({"error": "Geen beheerrechten."}, status=403)
     try:
+        if pending.get("configuration") and pending["configuration"] != configuration_fingerprint():
+            raise ValueError("OAuth configuration changed")
         flow = oauth_flow(state=pending["state"], verifier=pending["verifier"])
         flow.fetch_token(code=request.GET["code"], timeout=30)
         credentials = flow.credentials

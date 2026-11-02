@@ -20,6 +20,7 @@ class User(AbstractUser):
 
 class AuditEvent(models.Model):
     class Action(models.TextChoices):
+        GSC_OAUTH_UPDATED="gsc_oauth_updated","Google OAuth-instellingen bijgewerkt"
         LOGIN="login","Ingelogd"
         RECOVERY_USED="recovery_code_used","Herstelcode gebruikt"
         CREATED="user_created","Gebruiker aangemaakt"

@@ -3,24 +3,30 @@
 Status: geïmplementeerd en getest met nagebootste antwoorden. Geen Google-account
 gekoppeld en geen live Google-data opgehaald. Configuratie volgt later op verzoek.
 
-## Later configureren
+## Configureren via de website
 
 1. Maak een Google Cloud-project en schakel de Search Console API in.
 2. Configureer het OAuth-toestemmingsscherm en de toegestane gebruikers.
 3. Maak een OAuth-client van type Web application.
 4. Registreer exact deze redirect-URI:
    https://sem.lohr.nl/integrations/gsc/callback/
-5. Vul in /srv/sem/.env GSC_CLIENT_ID en GSC_CLIENT_SECRET in.
+5. Meld als platformbeheerder aan met 2FA en open Integraties:
+   https://sem.lohr.nl/workspace/settings/google/
+   Het stappenplan staat op /workspace/settings/google/handleiding/.
+   Vul de client-ID en het client secret in en sla op. De wijziging werkt direct
+   in de webapp en workers; een containerherstart is niet nodig.
 6. De INTEGRATION_TOKEN_KEY_TEST en INTEGRATION_TOKEN_KEY_PROD zijn gegenereerd.
    Bewaar ze veilig met de back-up; zonder juiste sleutel zijn refresh-tokens
    onleesbaar. Verander ze niet zonder een tokenmigratie of opnieuw koppelen.
 7. Publiceer eerst de app via HTTPS/proxy en configureer vertrouwde forwarded headers.
    De sessiecookies zijn secure; interactieve OAuth vereist een werkende HTTPS-route.
-8. Hermaak de relevante containers na configuratiewijzigingen.
+8. Open een project → Koppelingen → Verbinden met Google en kies de property.
 
-Test en productie hebben verschillende tokenversleutelingssleutels. Dezelfde
-OAuth-clientconfiguratie wordt voorlopig uit .env ingelezen; voor gelijktijdig
-publieke test en productie moeten afzonderlijke clients/callbacks worden ingericht.
+Test en productie hebben verschillende tokenversleutelingssleutels. De OAuth-clientconfiguratie wordt per omgeving in de eigen database opgeslagen.
+Zonder opgeslagen configuratie blijven GSC_CLIENT_ID en GSC_CLIENT_SECRET uit .env
+beschikbaar als fallback. Een expliciet uitgeschakelde databaseconfiguratie gebruikt
+geen fallback. Voor gelijktijdig publieke test en productie moeten afzonderlijke
+clients/callbacks worden ingericht.
 Geen secrets of tokens delen in chat of Git. Alleen de read-only webmasters-scope
 wordt aangevraagd, geen schrijfrechten op Search Console.
 
@@ -119,3 +125,21 @@ versie gebruikt de centraal geconfigureerde OAuth-client met individuele toestem
 - https://developers.google.com/identity/protocols/oauth2/web-server
 - https://developers.google.com/webmaster-tools/v1/searchanalytics/query
 - https://developers.google.com/webmaster-tools/v1/how-tos/all-your-data
+
+
+## Platformbeheerpagina’s
+
+Alleen een actieve platformbeheerder met geverifieerde 2FA kan de instellingen
+of het stappenplan openen. POST vereist CSRF. Pagina’s hebben no-cache/no-store.
+Het client secret staat versleuteld in GSCOAuthSettings en wordt nooit als
+formulierwaarde teruggestuurd, ook niet na validatiefouten. Een leeg secretveld
+behoudt het bestaande geheim. Configuratiewijzigingen worden zonder secrets in
+het beveiligingslog vastgelegd.
+
+Een andere client-ID vereist een nieuw secret. Bij bestaande accountkoppelingen
+moet de beheerder expliciet het ontkoppelen bevestigen. Hierbij worden lokale
+refresh-tokens gewist en planningen uitgezet; bronbatches blijven bewaard.
+Het wijzigen van alleen het secret behoudt de bestaande koppelingen.
+Een tijdens OAuth gewijzigde configuratie blokkeert de oude callback; start dan
+opnieuw. Opslaan valideert de invoer, niet de geldigheid van Google-credentials;
+de interactieve projectkoppeling controleert de werkelijke toegang.

@@ -21,8 +21,30 @@ class ConnectorError(ValueError):
     pass
 
 
+def client_configuration():
+    from .models import GSCOAuthSettings
+    stored = GSCOAuthSettings.objects.filter(pk=1).first()
+    if stored:
+        if not stored.enabled:
+            return "", ""
+        return stored.client_id, decrypt_token(stored.encrypted_client_secret)
+    return settings.GSC_CLIENT_ID, settings.GSC_CLIENT_SECRET
+
+
+def configuration_fingerprint():
+    import hashlib
+    client_id, secret = client_configuration()
+    return hashlib.sha256((client_id + "\0" + secret).encode()).hexdigest()
+
+
 def configured():
-    return bool(settings.GSC_CLIENT_ID and settings.GSC_CLIENT_SECRET and settings.INTEGRATION_TOKEN_KEY)
+    if not settings.INTEGRATION_TOKEN_KEY:
+        return False
+    try:
+        client_id, secret = client_configuration()
+        return bool(client_id and secret)
+    except ConnectorError:
+        return False
 
 
 def encrypt_token(token):
@@ -39,7 +61,8 @@ def decrypt_token(value):
 def oauth_flow(*, state=None, verifier=None):
     if not configured():
         raise ConnectorError("Google OAuth is nog niet geconfigureerd.")
-    config = {"web": {"client_id": settings.GSC_CLIENT_ID, "client_secret": settings.GSC_CLIENT_SECRET,
+    client_id, secret = client_configuration()
+    config = {"web": {"client_id": client_id, "client_secret": secret,
         "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": TOKEN_URI,
         "redirect_uris": [settings.GSC_REDIRECT_URI]}}
     flow = Flow.from_client_config(config, scopes=[SCOPE], state=state,
@@ -51,8 +74,9 @@ def oauth_flow(*, state=None, verifier=None):
 def authorized_session(connection):
     if not configured():
         raise ConnectorError("Google OAuth is nog niet geconfigureerd.")
+    client_id, secret = client_configuration()
     credentials = Credentials(token=None, refresh_token=decrypt_token(connection.encrypted_refresh_token),
-        token_uri=TOKEN_URI, client_id=settings.GSC_CLIENT_ID, client_secret=settings.GSC_CLIENT_SECRET,
+        token_uri=TOKEN_URI, client_id=client_id, client_secret=secret,
         scopes=[SCOPE])
     return AuthorizedSession(credentials, refresh_timeout=30)
 

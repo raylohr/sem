@@ -27,3 +27,16 @@ class APIResponsePage(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["batch", "page_index"], name="unique_batch_api_page")]
+
+
+class GSCOAuthSettings(models.Model):
+    """One platform-wide OAuth client; the client secret is always encrypted."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    client_id = models.CharField(max_length=255)
+    encrypted_client_secret = models.TextField()
+    enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name="single_gsc_oauth_settings")]
