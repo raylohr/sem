@@ -49,7 +49,7 @@ def present_url(item):
 
 def overview_context(request,project_id):
     context=project_context(request,project_id,'urls')
-    form=URLFilterForm(request.GET or None,project=context['project'])
+    form=URLFilterForm(request.GET,project=context['project'])
     valid=form.is_valid() if form.is_bound else True
     filters=form.cleaned_data if form.is_bound and valid else {}
     urls,observations=url_overview(context['project'],filters)

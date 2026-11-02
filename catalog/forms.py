@@ -1,3 +1,4 @@
+from urllib.parse import urlsplit
 from django import forms
 from sources.models import ImportBatch
 from .models import URLObservation
@@ -15,8 +16,8 @@ class SourceChoices(forms.MultipleChoiceField):
 
 
 class URLFilterForm(forms.Form):
-    q=forms.CharField(max_length=250,required=False,label='String in URL',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'urlStringHelp'}))
-    host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik String in URL voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
+    q=forms.CharField(max_length=250,required=False,label='URL keyword',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters. Bijvoorbeeld: aansprakelijkheid.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'id_q_help'}))
+    host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik URL keyword voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
     source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple,help_text='Selecteer één of meer bronnen. Niets geselecteerd betekent alle bronnen.')
     batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
@@ -29,7 +30,39 @@ class URLFilterForm(forms.Form):
     include_unknown=forms.BooleanField(required=False,label='Ook onbekende meetdatums')
 
     def __init__(self,*args,project,**kwargs):
+        default_host = urlsplit(project.website).hostname or ''
+        if args and args[0] is not None:
+            data = args[0].copy()
+            if 'host' not in data:
+                data['host'] = default_host
+            args = (data, *args[1:])
+        else:
+            kwargs.setdefault('initial', {}).setdefault('host', default_host)
         super().__init__(*args,**kwargs)
+        available = URLObservation.objects.filter(
+            url__project=project, batch__project=project,
+            batch__status__in=('complete', 'incomplete'),
+        ).values_list('batch__source', flat=True).distinct()
+        self.fields['source'].choices = [
+            (value, label) for value, label in ImportBatch.Source.choices
+            if value != ImportBatch.Source.AUDIT and value in available
+        ]
+        signal_help = ('HTTP-status en indexeerbaarheid tonen signalen uit de geselecteerde bronnen en meetmomenten. '
+                       'Ze beschrijven niet automatisch de huidige situatie. Klik op een URL voor de herkomst en cijfers per bron.')
+        explanations = {
+            'source': 'Selecteer één of meer beschikbare bronnen. Niets geselecteerd betekent alle bronnen. Bijvoorbeeld: Google Search Console.',
+            'batch': 'Beperk de selectie tot één import of scan. Bijvoorbeeld: de laatste SEMScan.',
+            'scope': 'Kies individuele URL-metingen of sitestructuur / paden. Bij sitestructuur kunnen cijfers een heel pad met onderliggende pagina’s omvatten. Bijvoorbeeld: /diensten/.',
+            'http': 'Filter op een gemeten HTTP-status. Bijvoorbeeld: 404 voor niet gevonden. ' + signal_help,
+            'indexability': 'Filter op de technische indexeerbaarheid volgens de meting. Bijvoorbeeld: Niet indexeerbaar. ' + signal_help,
+            'signal': 'Toon metingen met een bepaald signaal. Bijvoorbeeld: een ontbrekende titel.',
+            'content': 'Filter op het gemeten bestandstype. Bijvoorbeeld: HTML voor webpagina’s.',
+            'date_from': 'Neem metingen vanaf deze datum mee, inclusief die dag. Bijvoorbeeld: 01-10-2026.',
+            'date_to': 'Neem metingen tot en met deze datum mee. Bijvoorbeeld: 31-10-2026.',
+            'include_unknown': 'Neem bij een datumfilter ook metingen zonder bekende meetdatum mee. Bijvoorbeeld: een import zonder meetdatum.',
+        }
+        for name, explanation in explanations.items():
+            self.fields[name].help_text = explanation
         self.fields['batch'].queryset=project.import_batches.filter(status__in=('complete','incomplete')).only('id','label','imported_at')
         for field in self.fields.values():
             field.widget.attrs['class']='form-check-input' if isinstance(field,(forms.BooleanField,SourceChoices)) else ('form-select' if isinstance(field,forms.ChoiceField) else 'form-control')
