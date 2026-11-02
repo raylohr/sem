@@ -86,6 +86,25 @@ def request_json(session, method, url, **kwargs):
         with session.request(method, url, timeout=30, allow_redirects=False, stream=True, **kwargs) as response:
             if response.status_code != 200:
                 if response.status_code in (401, 403):
+                    # Read a bounded error body; only allowlisted reasons influence our messages.
+                    import json
+                    content = bytearray()
+                    for chunk in response.iter_content(8192):
+                        content.extend(chunk)
+                        if len(content) > 65536:
+                            break
+                    reasons = set()
+                    try:
+                        error = json.loads(content).get("error", {})
+                        for item in error.get("errors", []) + error.get("details", []):
+                            if isinstance(item, dict) and isinstance(item.get("reason"), str):
+                                reasons.add(item["reason"])
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    if reasons & {"accessNotConfigured", "SERVICE_DISABLED", "API_DISABLED"}:
+                        raise ConnectorError("De Google Search Console API staat niet aan voor deze OAuth-client. Activeer de API in hetzelfde Google Cloud-project en probeer na enkele minuten opnieuw.")
+                    if reasons & {"insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"}:
+                        raise ConnectorError("Search Console-leestoegang ontbreekt. Start opnieuw via Verbinden met Google en geef de gevraagde toestemming.")
                     raise ConnectorError("Google-toegang geweigerd; controleer propertyrechten of koppel opnieuw.")
                 if response.status_code == 429:
                     raise ConnectorError("Google API-limiet bereikt; probeer later opnieuw.")

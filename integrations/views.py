@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import constant_time_compare
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -15,7 +15,7 @@ from sources.models import ImportBatch
 from sources.views import visible_project, batch_data
 from .models import GSCConnection
 from .forms import GSCImportForm
-from .gsc import configured, oauth_flow, encrypt_token, list_properties, configuration_fingerprint
+from .gsc import configured, oauth_flow, encrypt_token, list_properties, configuration_fingerprint, ConnectorError
 from .tasks import enqueue_gsc
 
 
@@ -77,25 +77,51 @@ def callback(request):
     project = get_object_or_404(Project.objects.visible_to(request.user), pk=pending["project_id"])
     if not can_manage(request.user, project):
         return JsonResponse({"error": "Geen beheerrechten."}, status=403)
+    stage = "configuration"
     try:
         if pending.get("configuration") and pending["configuration"] != configuration_fingerprint():
             raise ValueError("OAuth configuration changed")
         flow = oauth_flow(state=pending["state"], verifier=pending["verifier"])
+        stage = "token_exchange"
         flow.fetch_token(code=request.GET["code"], timeout=30)
         credentials = flow.credentials
         if not credentials.refresh_token:
-            raise ValueError("No refresh token")
+            raise ConnectorError("Google heeft geen blijvende toestemming afgegeven. Start opnieuw met Verbinden met Google en geef toestemming voor Search Console.")
         granted = credentials.granted_scopes or credentials.scopes or []
         from .gsc import SCOPE
         if SCOPE not in granted:
-            raise ValueError("Required scope not granted")
+            raise ConnectorError("Leestoegang tot Search Console ontbreekt. Start opnieuw en selecteer de Search Console-toestemming op het Google-scherm.")
+        stage = "properties"
         with AuthorizedSession(credentials, refresh_timeout=30) as session:
             properties = list_properties(session)
-            if not properties or (pending["property"] and pending["property"] not in properties):
-                raise ValueError("Property not accessible")
+            if not properties:
+                raise ConnectorError("Dit Google-account heeft geen toegankelijke Search Console-properties. Controleer het account op search.google.com/search-console en laat de website-eigenaar toegang geven.")
+            if pending["property"] and pending["property"] not in properties:
+                raise ConnectorError("De gekozen property is niet toegankelijk voor dit Google-account. Controleer de propertyrechten in Search Console.")
+        stage = "storage"
         token = encrypt_token(credentials.refresh_token)
-    except Exception:
-        return JsonResponse({"error": "Google-koppeling mislukt; controleer toestemming en propertyrechten."}, status=400)
+    except Exception as exc:
+        errors = {
+            "invalid_client": "Google weigert de OAuth-client. Controleer of client-ID en client secret van dezelfde Web application zijn en sla het juiste secret opnieuw op.",
+            "invalid_grant": "De Google-toestemming is verlopen of al gebruikt. Start opnieuw via Verbinden met Google; vernieuw de callbackpagina niet.",
+            "redirect_uri_mismatch": "De redirect-URI komt niet overeen. Neem de exacte redirect-URI van de Google-instellingen over in je Google OAuth-client.",
+            "access_denied": "Google-toestemming geweigerd. Controleer testgebruikers en geef toestemming voor Search Console.",
+        }
+        defaults = {
+            "configuration": "De Google-instellingen zijn tijdens het koppelen gewijzigd. Start opnieuw via Verbinden met Google.",
+            "token_exchange": "Het ophalen van Google-toestemming is mislukt. Controleer de OAuth-clientgegevens en probeer opnieuw.",
+            "properties": "Search Console-properties konden niet worden opgehaald. Controleer of de Google Search Console API actief is in hetzelfde Google Cloud-project als de OAuth-client.",
+            "storage": "De Google-koppeling kon niet veilig worden opgeslagen. Neem contact op met de platformbeheerder.",
+        }
+        code = getattr(exc, "error", None)
+        known_code = code if isinstance(code, str) and code in errors else "unknown"
+        message = str(exc) if isinstance(exc, ConnectorError) else errors.get(known_code, defaults[stage])
+        # Only fixed stage/code labels: exception text and token payloads may contain secrets.
+        import logging
+        logging.getLogger(__name__).warning("gsc_oauth_failed stage=%s code=%s", stage, known_code)
+        response = render(request, "integrations/oauth_error.html", {"project": project, "error": message}, status=400)
+        response["Referrer-Policy"] = "no-referrer"
+        return response
     with transaction.atomic():
         project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=("self",)), pk=project.pk)
         if not can_manage(request.user, project):
