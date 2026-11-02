@@ -29,6 +29,6 @@ class TargetForm(forms.ModelForm):
 class ScanForm(forms.Form):
     kind = forms.ChoiceField(choices=[("crawl", "Crawl"), ("sitemap", "Sitemap")])
     url = forms.CharField(max_length=4096, required=False)
-    max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=50, required=False)
-    max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=20, required=False)
+    max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=100000, required=False)
+    max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=99, required=False)
     duration = forms.IntegerField(min_value=10, max_value=MAX_DURATION, required=False)

@@ -89,8 +89,8 @@ zonder andere scans of het scandoel te verwijderen.
 
 ## Grenzen en netwerkbeleid
 
-- Crawl: standaard 50, maximaal 100.000 URL-observaties; diepte standaard 20, maximaal 100.
-- Sitemap: standaard 1.000, maximaal 100.000 URL's; maximaal 10.000 sitemapdocumenten.
+- Crawl: standaard 100.000, maximaal 100.000 URL-observaties; diepte standaard 99, maximaal 100.
+- Sitemap: standaard 100.000, maximaal 100.000 URL's; maximaal 10.000 sitemapdocumenten.
 - Tijd- en overdrachtsbudget schalen met het aantal URL's; zie Grote scans hieronder.
   Totale tijd maximaal zeven dagen; netwerk-time-outs zijn 5s.
 - Requesttempo: standaard minstens 1 seconde per host; robots crawl-delay en
@@ -121,7 +121,7 @@ Periodieke planning, vergelijking met eerdere scans en browsergestuurde cookie/J
 De huidige grenzen en uitvoering:
 
 - Crawl én sitemap ondersteunen maximaal **100.000 URL-resultaten per batch**.
-- Linkdiepte standaard 20, instelbaar van 0 tot 100; de crawler ontdekt maximaal
+- Linkdiepte standaard 99, instelbaar van 0 tot 100; de crawler ontdekt maximaal
   vijfmaal het aangevraagde aantal URL's. Sitemapindexen: maximaal 10.000 documenten.
 - Tijd standaard proportioneel aan het aantal URL's: crawl zes seconden per URL
   plus een minuut, sitemap één seconde per URL plus een minuut, minimum twee minuten

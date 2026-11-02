@@ -87,11 +87,11 @@ def start(request, project_id, target_id):
             url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), target.allowed_hosts)
         except ScanError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
-        max_urls = data.get('max_urls') or (1000 if data['kind'] == 'sitemap' else 50)
+        max_urls = data.get('max_urls') or 100000
         duration, transfer = scan_budget(data['kind'], max_urls)
         config = {'scan': data['kind'], 'url': url, 'allowed_hosts': list(target.allowed_hosts),
             'max_urls': max_urls,
-            'max_depth': data['max_depth'] if data.get('max_depth') is not None else 20,
+            'max_depth': data['max_depth'] if data.get('max_depth') is not None else 99,
             'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': True}
         batch = ImportBatch.objects.create(project=project, created_by=request.user, scan_target=target,
             source='crawler' if data['kind'] == 'crawl' else 'sitemap', method='scan',
