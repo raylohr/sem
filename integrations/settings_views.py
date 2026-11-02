@@ -69,4 +69,5 @@ def oauth_settings(request):
 @platform_required
 @require_http_methods(["GET"])
 def setup_guide(request):
-    return render(request, "integrations/setup_guide.html", settings_context())
+    from .guide_views import work_instructions
+    return work_instructions(request)

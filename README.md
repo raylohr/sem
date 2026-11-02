@@ -112,6 +112,11 @@ een bewezen technisch feit. URL-normalisatie en gecombineerde metrics volgen lat
 
 ## Google Search Console API
 
+De uitgebreide gebruikersinstructie staat op `/workspace/handleiding/gsc/`, via
+Handleiding in de navigatie. Koppelingen bevat een projectgebonden werkinstructie
+met directe links naar imports, URL-overzicht en websitescans. De instructie beschrijft
+Google-configuratie, alle instellingen, dagelijks gebruik en probleemoplossing.
+
 Platformbeheerders stellen OAuth in via Integraties in de navigatie:
 `/workspace/settings/google/`. De website biedt ook een Google Cloud-stappenplan.
 Het client secret wordt versleuteld opgeslagen; wijzigingen werken direct.

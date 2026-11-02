@@ -1,9 +1,11 @@
 from django.urls import include,path
 from . import ui
-from integrations import settings_views
+from integrations import settings_views, guide_views
 from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("handleiding/gsc/",guide_views.work_instructions,name="gsc-guide"),
+    path("projects/<uuid:project_id>/connections/handleiding/",guide_views.work_instructions,name="gsc-project-guide"),
     path("settings/google/",settings_views.oauth_settings,name="gsc-settings"),
     path("settings/google/handleiding/",settings_views.setup_guide,name="gsc-setup-guide"),
     path("projects/create/",project_ui.create,name="project_create"),

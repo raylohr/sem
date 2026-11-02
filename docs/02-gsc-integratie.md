@@ -1,7 +1,9 @@
 # Google Search Console — eerste API-connector
 
-Status: geïmplementeerd en getest met nagebootste antwoorden. Geen Google-account
-gekoppeld en geen live Google-data opgehaald. Configuratie volgt later op verzoek.
+Status: geïmplementeerd, getest en in productie gekoppeld. De gebruiker heeft
+bevestigd dat koppelen en ophalen werken. De gebruikershandleiding staat op
+/workspace/handleiding/gsc/ en is ook vanuit projectkoppelingen te openen.
+Google-instellingen kunnen per omgeving verschillen.
 
 ## Configureren via de website
 
