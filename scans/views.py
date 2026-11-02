@@ -14,7 +14,7 @@ from .models import ScanTarget, ScanDocument
 from .forms import TargetForm, ScanForm
 from .network import normalize_url, ScanError
 from .tasks import enqueue_scan
-from .limits import scan_budget
+from .limits import scan_budget, DEFAULT_SCAN_SETTINGS
 
 
 def target_data(target):
@@ -87,15 +87,16 @@ def start(request, project_id, target_id):
             url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), target.allowed_hosts)
         except ScanError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
-        max_urls = data.get('max_urls') or 100000
+        max_urls = data.get('max_urls') or DEFAULT_SCAN_SETTINGS['max_urls']
+        robots_mode = data.get('robots_mode') or DEFAULT_SCAN_SETTINGS['robots_mode']
         duration, transfer = scan_budget(data['kind'], max_urls)
         config = {'scan': data['kind'], 'url': url, 'allowed_hosts': list(target.allowed_hosts),
             'max_urls': max_urls,
-            'max_depth': data['max_depth'] if data.get('max_depth') is not None else 99,
-            'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': data.get('robots_mode') == 'respect',
-            'robots_mode': data.get('robots_mode') or 'ignore',
-            'concurrency': data.get('concurrency') or 8,
-            'requests_per_second': data.get('requests_per_second') or 12}
+            'max_depth': data['max_depth'] if data.get('max_depth') is not None else DEFAULT_SCAN_SETTINGS['max_depth'],
+            'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': robots_mode == 'respect',
+            'robots_mode': robots_mode,
+            'concurrency': data.get('concurrency') or DEFAULT_SCAN_SETTINGS['concurrency'],
+            'requests_per_second': data.get('requests_per_second') or DEFAULT_SCAN_SETTINGS['requests_per_second']}
         batch = ImportBatch.objects.create(project=project, created_by=request.user, scan_target=target,
             source='semscan', method='scan',
             label=f"{data['kind']}: {target.name}", measured_at=timezone.now(), parser_version='scan-v3', request_metadata=config)

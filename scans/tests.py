@@ -225,6 +225,19 @@ class ScanAccessTests(TestCase):
         self.assertEqual(batch.request_metadata['allowed_hosts'], ['example.com'])
         self.assertEqual(batch.request_metadata['max_depth'], 0)
         self.assertEqual(batch.source,'semscan')
+        self.assertTrue(batch.request_metadata['respect_robots'])
+        self.assertEqual(batch.request_metadata['concurrency'],1)
+        self.assertEqual(batch.request_metadata['requests_per_second'],1)
+
+    def test_omitted_scan_settings_restore_original_gmw_defaults(self):
+        response=self.client.post(self.url('start'),json.dumps({'kind':'crawl'}),content_type='application/json')
+        self.assertEqual(response.status_code,202)
+        batch=ImportBatch.objects.get(pk=response.json()['id'])
+        for key,value in {'max_urls':10000,'max_depth':20,'concurrency':1,'requests_per_second':1,'respect_robots':True,'robots_mode':'respect'}.items():
+            self.assertEqual(batch.request_metadata[key],value)
+        response=self.client.post(self.url('start'),json.dumps({'kind':'crawl','robots_mode':'ignore','concurrency':8,'requests_per_second':12}),content_type='application/json')
+        self.assertEqual(response.status_code,202)
+        batch=ImportBatch.objects.get(pk=response.json()['id'])
         self.assertFalse(batch.request_metadata['respect_robots'])
         self.assertEqual(batch.request_metadata['concurrency'],8)
         self.assertEqual(batch.request_metadata['requests_per_second'],12)

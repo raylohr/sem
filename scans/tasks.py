@@ -10,7 +10,7 @@ from .network import SafeClient, ScanError
 from .outcomes import summarize, outcome_warning
 from .runners import crawl, sitemap
 from .work import ScanWork, ScanPause, ScanBusy
-from .limits import SLICE_SECONDS, scan_budget
+from .limits import SLICE_SECONDS, scan_budget, DEFAULT_SCAN_SETTINGS
 from django.utils import timezone
 from itertools import islice
 import time
@@ -74,7 +74,7 @@ def process_scan(batch_id):
                 batch_id=batch_id,duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
                 document_sink=work.documents,robot_cache=work.get('robots',{}),
                 respect_robots=config.get('respect_robots',True),
-                concurrency=config.get('concurrency',8),delay=1/config.get('requests_per_second',12),shared_rate=True)
+                concurrency=config.get('concurrency',DEFAULT_SCAN_SETTINGS['concurrency']),delay=1/config.get('requests_per_second',DEFAULT_SCAN_SETTINGS['requests_per_second']),shared_rate=True)
             client.transferred = work.get('transferred',0)
             client.decoded_bytes = work.get('decoded_bytes',0)
             checkpoint(batch,work)

@@ -316,3 +316,15 @@ blijft de schatting onbekend. Bij een lege wachtrij verschijnt 'Wordt afgerond�
 Afgeronde, geannuleerde en mislukte scans krijgen geen actieve countdown.
 Sitemapimports tonen geen tijdschatting: hun wachtrij bevat bestanden, terwijl
 de verwerkte records pagina-URL's voorstellen.
+
+## Standaardinstellingen teruggezet naar de eerdere GMW-scan
+
+Nieuwe scans starten standaard met maximaal 10.000 URL's, diepte 20,
+robots.txt respecteren, één gelijktijdig verzoek en maximaal één verzoek per
+seconde. Dit zijn de instellingen van de eerdere GMW-crawl met 4.336 resultaten;
+het oorspronkelijke tempo was serieel met minimaal één seconde tussen verzoeken.
+De defaults staan centraal in scans/limits.py en worden gebruikt door formulier,
+API, modal en workerfallback voor historische configuraties zonder tempo-opties.
+Bestaande expliciet opgeslagen scaninstellingen blijven behouden. De limieten
+van 100.000 URL's en diepte 100 blijven instelbaar, evenals sneller crawlen en
+de auditmodus. Eerdere passages met 100.000/99/8/12 beschrijven de vorige defaults.

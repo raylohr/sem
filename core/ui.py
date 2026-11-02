@@ -95,7 +95,7 @@ def scans(request, project_id):
          'url_help':'Leeg laten gebruikt /sitemap.xml op deze website. Een andere locatie kun je hier invullen.'},
     ]
     context.update(targets=targets,scan_modes=modes,
-        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth')},
+        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth','robots_mode','concurrency','requests_per_second')},
         recent=context['project'].import_batches.filter(method='scan')[:10])
     return render(request,'ui/scans.html',context)
 

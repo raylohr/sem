@@ -1,7 +1,7 @@
 from urllib.parse import urlsplit
 from django import forms
 from .models import ScanTarget
-from .limits import MAX_URLS, MAX_DEPTH, MAX_DURATION
+from .limits import MAX_URLS, MAX_DEPTH, MAX_DURATION, DEFAULT_SCAN_SETTINGS
 from .network import normalize_host, normalize_url, ScanError
 
 
@@ -29,10 +29,10 @@ class TargetForm(forms.ModelForm):
 class ScanForm(forms.Form):
     kind = forms.ChoiceField(choices=[("crawl", "Crawl"), ("sitemap", "Sitemap")])
     url = forms.CharField(max_length=4096, required=False)
-    max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=100000, required=False)
-    max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=99, required=False)
+    max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=DEFAULT_SCAN_SETTINGS["max_urls"], required=False)
+    max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=DEFAULT_SCAN_SETTINGS["max_depth"], required=False)
     duration = forms.IntegerField(min_value=10, max_value=MAX_DURATION, required=False)
 
-    robots_mode = forms.ChoiceField(choices=[('ignore','Niet blokkeren (audit)'),('respect','Respecteren')], required=False, initial='ignore')
-    concurrency = forms.IntegerField(min_value=1, max_value=16, required=False, initial=8)
-    requests_per_second = forms.IntegerField(min_value=1, max_value=15, required=False, initial=12)
+    robots_mode = forms.ChoiceField(choices=[('ignore','Niet blokkeren (audit)'),('respect','Respecteren')], required=False, initial=DEFAULT_SCAN_SETTINGS['robots_mode'])
+    concurrency = forms.IntegerField(min_value=1, max_value=16, required=False, initial=DEFAULT_SCAN_SETTINGS["concurrency"])
+    requests_per_second = forms.IntegerField(min_value=1, max_value=15, required=False, initial=DEFAULT_SCAN_SETTINGS["requests_per_second"])
