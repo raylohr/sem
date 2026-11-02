@@ -120,7 +120,15 @@ def adapt_record(batch, data, context=None):
             else:
                 measured_at = None
                 facts["source_timestamp_without_timezone"] = str(stamp)
-    if source == "gsc" and batch.method == "api":
+    if source == "gsc" and batch.method == "api" and data.get("kind") == "inspection":
+        raw = data.get("raw", {}).get("indexStatusResult", {})
+        mapping = {"verdict": "gsc_index_verdict", "coverageState": "gsc_indexing_reason",
+            "robotsTxtState": "gsc_robots_state", "indexingState": "gsc_indexing_state",
+            "pageFetchState": "gsc_fetch_state", "lastCrawlTime": "gsc_last_crawled",
+            "googleCanonical": "gsc_google_canonical", "userCanonical": "gsc_user_canonical"}
+        for key, target in mapping.items():
+            add(target, raw.get(key))
+    elif source == "gsc" and batch.method == "api":
         measured_at = None
         measured_date = date_value(data.get("date"))
         raw = data.get("raw", {})

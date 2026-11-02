@@ -6,7 +6,7 @@ from projects.permissions import can_edit, can_manage
 from sources.models import ImportBatch
 from sources.services import publish_records
 from .models import GSCConnection, APIResponsePage
-from .gsc import authorized_session, fetch_search_analytics, ConnectorError
+from .gsc import authorized_session, fetch_search_analytics, fetch_inspections, ConnectorError
 
 
 def check_batch_access(batch_id):
@@ -27,9 +27,14 @@ def process_gsc(batch_id):
             return
         ImportBatch.objects.filter(pk=batch_id).exclude(status="complete").update(status="processing", error="")
         with authorized_session(batch.gsc_connection) as session:
-            records, pages, warnings = fetch_search_analytics(session,
-                property_url=batch.request_metadata["property"], start=batch.period_start, end=batch.period_end,
-                check_access=lambda: check_batch_access(batch_id))
+            if batch.request_metadata.get("kind") == "inspection":
+                records, pages, warnings = fetch_inspections(session,
+                    property_url=batch.request_metadata["property"], urls=batch.request_metadata["urls"],
+                    check_access=lambda: check_batch_access(batch_id))
+            else:
+                records, pages, warnings = fetch_search_analytics(session,
+                    property_url=batch.request_metadata["property"], start=batch.period_start, end=batch.period_end,
+                    check_access=lambda: check_batch_access(batch_id))
         with transaction.atomic():
             Project.objects.select_for_update().get(pk=batch.project_id)
             batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
@@ -57,3 +62,36 @@ def enqueue_gsc(batch_id):
     except Exception:
         # Pending state is retained; the retry endpoint can enqueue again.
         pass
+
+
+@shared_task(ignore_result=True)
+def schedule_daily_gsc():
+    """One durable batch per connection/day; pending/failed batches retry on each tick."""
+    import datetime
+    from zoneinfo import ZoneInfo
+    from django.utils import timezone
+    from .gsc import configured
+    if not configured():
+        return
+    today = timezone.now().astimezone(ZoneInfo("America/Los_Angeles")).date()
+    for connection_id in GSCConnection.objects.filter(active=True, daily_enabled=True).values_list("pk", flat=True):
+        with transaction.atomic():
+            connection = GSCConnection.objects.select_for_update().select_related("owner", "project").get(pk=connection_id)
+            if not connection.active or not connection.daily_enabled or not can_manage(connection.owner, connection.project):
+                continue
+            if connection.last_scheduled_date != today:
+                # A three-day lag and seven-day overlap allow late final data to arrive.
+                end = today - datetime.timedelta(days=3)
+                batch = ImportBatch.objects.create(project=connection.project, source="gsc", method="api",
+                    label=f"GSC dagelijkse import {today}", created_by=connection.owner,
+                    period_start=end-datetime.timedelta(days=6), period_end=end,
+                    gsc_connection=connection, parser_version="gsc-api-v1",
+                    request_metadata={"property": connection.property_url, "scheduled_date": today.isoformat(),
+                        "dimensions": ["date", "page"], "type": "web", "dataState": "final",
+                        "timezone": "America/Los_Angeles"})
+                connection.last_scheduled_date = today
+                connection.save(update_fields=["last_scheduled_date"])
+    for batch_id in ImportBatch.objects.filter(gsc_connection__active=True,
+            gsc_connection__daily_enabled=True, status__in=["pending", "failed"],
+            request_metadata__has_key="scheduled_date").values_list("pk", flat=True):
+        enqueue_gsc(batch_id)

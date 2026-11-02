@@ -49,6 +49,9 @@ services:
   worker:
     <<: *app
     command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=celery
+  beat:
+    <<: *app
+    command: celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
   scan-worker:
     <<: *app
     stop_grace_period: 150s

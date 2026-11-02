@@ -12,6 +12,10 @@ class GSCConnection(models.Model):
     encrypted_refresh_token = models.TextField()
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    available_properties = models.JSONField(default=list, blank=True)
+    daily_enabled = models.BooleanField(default=False)
+    last_scheduled_date = models.DateField(null=True, blank=True)
+
 
 
 class APIResponsePage(models.Model):

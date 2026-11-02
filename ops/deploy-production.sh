@@ -26,7 +26,7 @@ compose=(docker compose -f compose.yaml -f compose.prod.yaml)
 "${compose[@]}" stop scan-worker
 "${compose[@]}" --profile tools run --rm migrate
 "${compose[@]}" up -d --no-build web gateway
-"${compose[@]}" up -d --no-build worker scan-worker
+"${compose[@]}" up -d --no-build worker scan-worker beat
 "${compose[@]}" exec -T web python manage.py check
 curl --fail --silent --retry 15 --retry-connrefused --retry-delay 2 http://127.0.0.1:8002/ready/
 printf '\nProductiecommit: %s\nImage: %s\n' "$revision" "$SEM_PROD_IMAGE"

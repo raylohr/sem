@@ -42,11 +42,13 @@ def connect(request, project_id):
         return JsonResponse({"error": "Google OAuth is nog niet geconfigureerd."}, status=503)
     try:
         data = json.loads(request.body)
-        property_url = data["property"]
-        if not isinstance(property_url, str) or not 1 <= len(property_url) <= 2048:
+        if not isinstance(data, dict):
+            raise ValueError
+        property_url = data.get("property", "")
+        if not isinstance(property_url, str) or len(property_url) > 2048:
             raise ValueError
         parsed = urlparse(property_url)
-        if not (property_url.startswith("sc-domain:") and len(property_url) > 10) and not (parsed.scheme in ("http", "https") and parsed.hostname):
+        if property_url and not (property_url.startswith("sc-domain:") and len(property_url) > 10) and not (parsed.scheme in ("http", "https") and parsed.hostname):
             raise ValueError
     except (ValueError, TypeError, KeyError):
         return JsonResponse({"error": "Geef een geldige GSC-property op."}, status=400)
@@ -86,7 +88,8 @@ def callback(request):
         if SCOPE not in granted:
             raise ValueError("Required scope not granted")
         with AuthorizedSession(credentials, refresh_timeout=30) as session:
-            if pending["property"] not in list_properties(session):
+            properties = list_properties(session)
+            if not properties or (pending["property"] and pending["property"] not in properties):
                 raise ValueError("Property not accessible")
         token = encrypt_token(credentials.refresh_token)
     except Exception:
@@ -95,7 +98,8 @@ def callback(request):
         project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=("self",)), pk=project.pk)
         if not can_manage(request.user, project):
             return JsonResponse({"error": "Geen beheerrechten."}, status=403)
-        GSCConnection.objects.create(project=project, owner=request.user, property_url=pending["property"], encrypted_refresh_token=token)
+        GSCConnection.objects.create(project=project, owner=request.user, property_url=pending["property"], encrypted_refresh_token=token,
+            active=bool(pending["property"]), available_properties=properties)
     response = redirect("ui:connections", project_id=project.pk)
     response["Referrer-Policy"] = "no-referrer"
     return response
@@ -110,8 +114,10 @@ def disconnect(request, project_id, connection_id):
             return JsonResponse({"error": "Geen beheerrechten."}, status=403)
         connection = get_object_or_404(GSCConnection.objects.select_for_update(), pk=connection_id, project=project)
         connection.active = False
+        connection.daily_enabled = False
+        connection.available_properties = []
         connection.encrypted_refresh_token = ""
-        connection.save(update_fields=["active", "encrypted_refresh_token"])
+        connection.save(update_fields=["active", "encrypted_refresh_token", "daily_enabled", "available_properties"])
     return JsonResponse({"disconnected": True})
 
 
@@ -144,3 +150,61 @@ def import_data(request, project_id, connection_id):
                 "type": "web", "dataState": "final", "timezone": "America/Los_Angeles"})
         transaction.on_commit(lambda: enqueue_gsc(batch.id))
     return JsonResponse(batch_data(batch), status=202)
+
+
+@login_required
+@require_POST
+def select_property(request, project_id, connection_id):
+    with transaction.atomic():
+        project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(), pk=project_id)
+        if not can_manage(request.user, project):
+            return JsonResponse({"error": "Geen beheerrechten."}, status=403)
+        connection = get_object_or_404(GSCConnection.objects.select_for_update(), pk=connection_id,
+            project=project, owner=request.user, active=False, property_url="")
+        selected = request.POST.get("property", "")
+        if not connection.encrypted_refresh_token or selected not in connection.available_properties:
+            return JsonResponse({"error": "Kies een beschikbare property of koppel opnieuw."}, status=400)
+        connection.property_url = selected
+        connection.active = True
+        connection.daily_enabled = True
+        connection.available_properties = []
+        connection.save()
+    return redirect("ui:connections", project_id=project.pk)
+
+
+@login_required
+@require_POST
+def schedule(request, project_id, connection_id):
+    project = visible_project(request, project_id)
+    if not can_manage(request.user, project):
+        return JsonResponse({"error": "Geen beheerrechten."}, status=403)
+    connection = get_object_or_404(GSCConnection, pk=connection_id, project=project, active=True)
+    connection.daily_enabled = request.POST.get("enabled") == "1"
+    connection.save(update_fields=["daily_enabled"])
+    return redirect("ui:connections", project_id=project.pk)
+
+
+@login_required
+@require_POST
+def inspect_urls(request, project_id, connection_id):
+    from catalog.models import ProjectURL
+    from .gsc import property_contains
+    project = visible_project(request, project_id)
+    if not can_edit(request.user, project):
+        return JsonResponse({"error": "Geen bewerkrechten."}, status=403)
+    connection = get_object_or_404(GSCConnection, pk=connection_id, project=project, active=True)
+    if not can_manage(connection.owner, project):
+        return JsonResponse({"error": "Eigenaar heeft geen beheerrechten meer."}, status=403)
+    if not configured():
+        return JsonResponse({"error": "Google OAuth is nog niet geconfigureerd."}, status=503)
+    urls = list(dict.fromkeys(request.POST.get("urls", "").split()))
+    if not 1 <= len(urls) <= 20 or any(not property_contains(connection.property_url, u) for u in urls):
+        return JsonResponse({"error": "Kies 1 tot 20 URL’s binnen de gekoppelde property."}, status=400)
+    if ProjectURL.objects.filter(project=project, normalized_url__in=urls).count() != len(urls):
+        return JsonResponse({"error": "Kies URL’s uit het URL-overzicht van dit project."}, status=400)
+    batch = ImportBatch.objects.create(project=project, source="gsc", method="api",
+        label="GSC URL-inspecties", created_by=request.user, gsc_connection=connection,
+        parser_version="gsc-inspection-v1", request_metadata={"property": connection.property_url,
+        "kind": "inspection", "urls": urls})
+    transaction.on_commit(lambda: enqueue_gsc(batch.pk))
+    return redirect("ui:batch", project_id=project.pk, batch_id=batch.pk)

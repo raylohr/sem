@@ -114,7 +114,9 @@ een bewezen technisch feit. URL-normalisatie en gecombineerde metrics volgen lat
 
 De eerste API-connector is gebouwd maar blijft uitgeschakeld zonder Google OAuth-
 configuratie. Zie docs/02-gsc-integratie.md voor configuratie, endpoints, toegangs-
-controle en grenzen. Tokens worden versleuteld opgeslagen; imports zijn afzonderlijke
+controle en grenzen. OAuth biedt propertyselectie, optionele dagelijkse prestatie-import via Celery beat
+en selectieve URL-inspecties met verrijking van het URL-dossier.
+Tokens worden versleuteld opgeslagen; imports zijn afzonderlijke
 batches met ruwe API-antwoorden. Er is nog geen Google-account gekoppeld.
 
 

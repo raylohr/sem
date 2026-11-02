@@ -13,6 +13,9 @@ from .queries import url_overview,summarize_urls
 
 SOURCE_LABELS=dict(ImportBatch.Source.choices)
 FACT_LABELS={
+ 'gsc_index_verdict':'Google-indexstatus','gsc_robots_state':'Robotsstatus volgens Google',
+ 'gsc_indexing_state':'Indexeringsregels volgens Google','gsc_fetch_state':'Ophaalstatus volgens Google',
+ 'gsc_google_canonical':'Door Google gekozen canonical','gsc_user_canonical':'Opgegeven canonical',
  'http_status':'Gemeten HTTP-status','final_http_status':'HTTP-status na redirects','title':'Titel','missing_title':'Titel ontbreekt',
  'is_indexable':'Technisch indexeerbaar','canonical':'Canonical','content_type':'Contenttype','language':'Taal','word_count':'Woorden',
  'robots_blocked':'Geblokkeerd door robots.txt','scan_error':'Scanfout','scan_error_code':'Foutcategorie','scan_error_stage':'Fase waarin het verzoek mislukte','gsc_indexing_reason':'GSC-indexeringsreden',

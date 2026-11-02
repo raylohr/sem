@@ -237,3 +237,114 @@ class IntegrationTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 self.assertEqual(self.client.post(url).status_code, 202)
             enqueue.assert_called_once_with(batch.pk)
+
+
+class PropertyScopeTests(SimpleTestCase):
+    def test_domain_and_prefix_boundaries(self):
+        from .gsc import property_contains
+        self.assertTrue(property_contains("sc-domain:example.test", "https://www.example.test/a"))
+        self.assertFalse(property_contains("sc-domain:example.test", "https://example.test.evil/a"))
+        self.assertFalse(property_contains("https://example.test/", "http://example.test/a"))
+        self.assertFalse(property_contains("https://example.test/", "https://example.test@evil.test/a"))
+
+
+@override_settings(**CONFIG)
+class ExtendedIntegrationTests(TestCase):
+    setUp = IntegrationTests.setUp
+    url = IntegrationTests.url
+    make_batch = IntegrationTests.make_batch
+    pending_oauth = IntegrationTests.pending_oauth
+
+    def test_select_only_offered_property_by_owner(self):
+        self.connection.active = False
+        self.connection.property_url = ""
+        self.connection.available_properties = ["sc-domain:example.test"]
+        self.connection.save()
+        response = self.client.post(self.url('gsc-property', True), {"property": "sc-domain:evil.test"})
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(self.url('gsc-property', True), {"property": "sc-domain:example.test"})
+        self.assertEqual(response.status_code, 302)
+        self.connection.refresh_from_db()
+        self.assertTrue(self.connection.active)
+        self.assertTrue(self.connection.daily_enabled)
+
+    def test_daily_tick_is_idempotent_and_revoked_owner_skipped(self):
+        from .tasks import schedule_daily_gsc
+        self.connection.daily_enabled = True
+        self.connection.save()
+        with patch('integrations.tasks.enqueue_gsc'):
+            schedule_daily_gsc()
+            schedule_daily_gsc()
+        self.assertEqual(ImportBatch.objects.count(), 1)
+        Membership.objects.filter(user=self.owner).update(role='viewer')
+        self.connection.last_scheduled_date = None
+        self.connection.save()
+        with patch('integrations.tasks.enqueue_gsc'):
+            schedule_daily_gsc()
+        self.assertEqual(ImportBatch.objects.count(), 1)
+
+    def test_inspection_publishes_index_facts_and_raw_payload(self):
+        from .gsc import fetch_inspections
+        from django.utils import timezone
+        batch = self.make_batch()
+        batch.request_metadata = {"property": self.connection.property_url, "kind": "inspection", "urls": ["https://example.test/"]}
+        batch.save()
+        payload = {"inspectionResult": {"indexStatusResult": {"verdict": "PASS", "googleCanonical": "https://example.test/"}}}
+        with patch('integrations.gsc.request_json', return_value=payload):
+            result = fetch_inspections(MagicMock(), property_url=self.connection.property_url,
+                urls=["https://example.test/"], check_access=lambda: None)
+        with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_inspections', return_value=result):
+            process_gsc(batch.pk)
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'complete')
+        observation = batch.url_observations.get()
+        self.assertEqual(observation.facts['gsc_index_verdict'], 'PASS')
+        self.assertIsNotNone(observation.measured_at)
+        self.assertEqual(batch.api_pages.get().payload, payload)
+
+    def test_inspection_rejects_unknown_and_foreign_urls(self):
+        for url in ['https://example.test/unknown', 'https://evil.test/']:
+            self.assertEqual(self.client.post(self.url('gsc-inspect', True), {"urls": url}).status_code, 400)
+        self.client.force_login(self.viewer)
+        self.assertEqual(self.client.post(self.url('gsc-inspect', True), {"urls": 'https://example.test/'}).status_code, 403)
+
+    def test_oauth_without_property_offers_available_properties(self):
+        self.pending_oauth(property='')
+        with patch('integrations.views.oauth_flow') as flow, patch('integrations.views.AuthorizedSession'), patch('integrations.views.list_properties', return_value=['sc-domain:example.test']):
+            from .gsc import SCOPE
+            flow.return_value.credentials.refresh_token = 'secret'
+            flow.return_value.credentials.granted_scopes = [SCOPE]
+            response = self.client.get(reverse('integrations:gsc-callback'), {'state': 'expected', 'code': 'private-code'})
+        self.assertEqual(response.status_code, 302)
+        pending = GSCConnection.objects.get(property_url='')
+        self.assertFalse(pending.active)
+        self.assertEqual(pending.available_properties, ['sc-domain:example.test'])
+
+    def test_connection_ui_renders_pending_and_active_controls(self):
+        self.connection.daily_enabled = True
+        self.connection.save()
+        response = self.client.get(reverse('ui:connections', args=[self.project.pk]))
+        self.assertContains(response, 'Verbinden met Google')
+        self.assertContains(response, 'URL’s inspecteren')
+        self.assertContains(response, 'Dagelijkse import uitschakelen')
+        self.connection.active = False
+        self.connection.property_url = ''
+        self.connection.available_properties = ['sc-domain:example.test']
+        self.connection.save()
+        response = self.client.get(reverse('ui:connections', args=[self.project.pk]))
+        self.assertContains(response, 'Property koppelen')
+        self.assertNotContains(response, self.connection.encrypted_refresh_token)
+
+    def test_inspection_endpoint_queues_project_url(self):
+        from catalog.models import ProjectURL
+        from catalog.adapters import normalize_url
+        identity = normalize_url('https://example.test/')
+        ProjectURL.objects.create(project=self.project, normalized_url=identity[0], host=identity[1], url_hash=identity[2])
+        with patch('integrations.views.enqueue_gsc') as enqueue, self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.url('gsc-inspect', True), {'urls': identity[0]})
+        self.assertEqual(response.status_code, 302)
+        enqueue.assert_called_once()
+        self.assertEqual(ImportBatch.objects.get().request_metadata['kind'], 'inspection')
+
+    def test_connect_rejects_non_object_json(self):
+        self.assertEqual(self.client.post(self.url('gsc-connect'), '[]', content_type='application/json').status_code, 400)

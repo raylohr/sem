@@ -110,6 +110,10 @@ FILE_UPLOAD_PERMISSIONS = 0o600
 
 GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
 GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
+CELERY_BEAT_SCHEDULE = {
+    "gsc-daily-import": {"task": "integrations.tasks.schedule_daily_gsc", "schedule": 3600.0},
+}
+
 GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integrations/gsc/callback/")
 INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")
 

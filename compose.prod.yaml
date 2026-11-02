@@ -16,6 +16,9 @@ services:
   worker:
     image: ${SEM_PROD_IMAGE:?Set SEM_PROD_IMAGE}
     environment: *prod-env
+  beat:
+    image: ${SEM_PROD_IMAGE:?Set SEM_PROD_IMAGE}
+    environment: *prod-env
   scan-worker:
     image: ${SEM_PROD_IMAGE:?Set SEM_PROD_IMAGE}
     environment:

@@ -126,3 +126,35 @@ def fetch_search_analytics(session, *, property_url, start, end, check_access):
                 break
         day += datetime.timedelta(days=1)
     return records, pages, warnings
+
+
+def property_contains(property_url, url):
+    from catalog.adapters import normalize_url
+    from urllib.parse import urlsplit
+    identity = normalize_url(url)
+    if not identity:
+        return False
+    if property_url.startswith("sc-domain:"):
+        domain = property_url[10:].lower()
+        return identity[1] == domain or identity[1].endswith("." + domain)
+    # URL-prefix properties include scheme, host and path prefix.
+    return url.startswith(property_url) and urlsplit(url).netloc == urlsplit(property_url).netloc
+
+
+def fetch_inspections(session, *, property_url, urls, check_access):
+    records, pages = [], []
+    for url in urls:
+        check_access()
+        if not property_contains(property_url, url):
+            raise ConnectorError("URL valt buiten de gekoppelde property.")
+        body = {"inspectionUrl": url, "siteUrl": property_url, "languageCode": "nl-NL"}
+        requested_at = timezone.now()
+        payload = request_json(session, "POST", "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", json=body)
+        result = payload.get("inspectionResult")
+        if not isinstance(result, dict) or not isinstance(result.get("indexStatusResult"), dict):
+            raise ConnectorError("Onverwacht URL Inspection-antwoord.")
+        index = len(pages)
+        pages.append({"page_index": index, "requested_at": requested_at, "request_body": body, "payload": payload})
+        records.append({"locator": f"inspection:{index}", "data": {"url": url,
+            "kind": "inspection", "measured_at": requested_at.isoformat(), "raw": result}})
+    return records, pages, ["Google-indexsnapshot; geen live test of indexeringsaanvraag."]

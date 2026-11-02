@@ -75,7 +75,44 @@ wordt gelogd. Tokenresponses en refresh-tokens worden niet getoond of gelogd.
 
 De eerste connector biedt Search Analytics, geen volledige kopie van de GSC-
 indexeringsrapporten. Coverage-/indexeringsexports blijven uploadimports.
-Er is nog geen automatische periodieke API-ophaalplanning of volledige koppelinterface.
+De koppelinterface laat de beheerder eerst bij Google aanmelden en daarna een
+beschikbare property kiezen. De keuzelijst wordt server-side bewaard; tokens komen
+niet in HTML of sessiedata terecht. De oudere API-flow met vooraf ingevulde property
+blijft ondersteund.
+
+## Dagelijkse import en selectieve inspecties
+
+Na propertyselectie staat dagelijkse import aan. De beheerder kan deze in de
+koppelingenpagina uit- of inschakelen. Draai precies één Celery beat per omgeving;
+Compose bevat hiervoor de service `beat` en het productie-deployscript start deze.
+Beat controleert ieder uur. Per verbinding en Google-datum ontstaat maximaal één
+geplande batch, afgedwongen met een database-lock en last_scheduled_date. De batch
+bevat zeven dagen tot en met drie dagen geleden, zodat later definitief geworden
+gegevens worden meegenomen. Overlappende batches zijn afzonderlijke bronmetingen;
+tel deze niet bij elkaar op als unieke dagprestaties. Bestaande koppelingen houden
+planning uit totdat een beheerder deze inschakelt.
+
+Bij brokeruitval blijft de batch pending; volgende ticks bieden pending/failed
+geplande batches opnieuw aan. Een ingetrokken eigenaar, ontkoppeling of uitgeschakelde
+planning verhindert nieuwe planning. Workers controleren de actuele projectrechten.
+
+Bewerkers kunnen op de koppelingenpagina 1–20 URL’s uit het project selecteren door
+ze in te plakken, één per regel. Alleen URL’s binnen de gekoppelde property worden
+aanvaard. URL Inspection draait in de bestaande worker en publiceert atomair een
+eigen verwijderbare bronbatch met de ruwe antwoorden en opvraagtijd. Het URL-dossier
+toont Google-indexstatus, indexeringsreden, robots-/indexeringsregels, fetchstatus,
+laatste crawl en beide canonicals. Opvraagtijd is het meetmoment van de snapshot;
+laatste crawl is een afzonderlijk veld. Dit is geen live test of indexeringsverzoek.
+API-limietfouten blijven zichtbaar als mislukte batch; handmatig opnieuw proberen
+kan via het bestaande retry-endpoint.
+
+Aanvullende endpoints (form POST, CSRF vereist):
+- `gsc/<connection-id>/property/`: `property`, uitsluitend de initiërende beheerder.
+- `gsc/<connection-id>/schedule/`: `enabled=1` of `0`, projectbeheerder.
+- `gsc/<connection-id>/inspect/`: `urls`, bewerker of beheerder.
+
+Eigen OAuth-clients en serviceaccount-JSON zijn nog geen gebruikersopties. De eerste
+versie gebruikt de centraal geconfigureerde OAuth-client met individuele toestemming.
 
 ## Officiële documentatie
 
