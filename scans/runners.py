@@ -7,7 +7,10 @@ from .network import ScanError, ScanBudgetExceeded, RobotsDenied, normalize_url
 from .extraction import extract_page
 
 
-def crawl(client, *, url, max_urls, max_depth):
+def crawl(client, *, url, max_urls, max_depth, work=None):
+    if work is not None:
+        from .large import crawl_checkpointed
+        return crawl_checkpointed(client, url=url, max_urls=max_urls, max_depth=max_depth, work=work)
     queue = deque([(normalize_url(url, client.allowed_hosts), 0)])
     queued = {queue[0][0]}
     records, warnings = [], []
@@ -74,7 +77,10 @@ def parse_sitemap(body):
     return kind, entries
 
 
-def sitemap(client, *, url, max_urls, max_depth):
+def sitemap(client, *, url, max_urls, max_depth, work=None):
+    if work is not None:
+        from .large import sitemap_checkpointed
+        return sitemap_checkpointed(client, url=url, max_urls=max_urls, max_depth=max_depth, work=work)
     queue = deque([(normalize_url(url, client.allowed_hosts), 0)])
     seen, urls = set(), set()
     records, warnings = [], []

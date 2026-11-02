@@ -14,6 +14,7 @@ from .models import ScanTarget
 from .forms import TargetForm, ScanForm
 from .network import normalize_url, ScanError
 from .tasks import enqueue_scan
+from .limits import scan_budget
 
 
 def target_data(target):
@@ -86,13 +87,15 @@ def start(request, project_id, target_id):
             url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), target.allowed_hosts)
         except ScanError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
+        max_urls = data.get('max_urls') or (1000 if data['kind'] == 'sitemap' else 50)
+        duration, transfer = scan_budget(data['kind'], max_urls)
         config = {'scan': data['kind'], 'url': url, 'allowed_hosts': list(target.allowed_hosts),
-            'max_urls': data.get('max_urls') or (1000 if data['kind'] == 'sitemap' else 50),
-            'max_depth': data['max_depth'] if data.get('max_depth') is not None else 3,
-            'duration': data.get('duration') or 120, 'respect_robots': True}
+            'max_urls': max_urls,
+            'max_depth': data['max_depth'] if data.get('max_depth') is not None else 20,
+            'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': True}
         batch = ImportBatch.objects.create(project=project, created_by=request.user, scan_target=target,
             source='crawler' if data['kind'] == 'crawl' else 'sitemap', method='scan',
-            label=f"{data['kind']}: {target.name}", measured_at=timezone.now(), parser_version='scan-v1', request_metadata=config)
+            label=f"{data['kind']}: {target.name}", measured_at=timezone.now(), parser_version='scan-v2', request_metadata=config)
         transaction.on_commit(lambda: enqueue_scan(batch.id))
     return JsonResponse(batch_data(batch), status=202)
 

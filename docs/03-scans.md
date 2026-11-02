@@ -2,7 +2,7 @@
 
 Scans draaien op een aparte Celery-queue (scans) met één scan-worker, CPU-limiet
 0,5 en geheugenlimiet 512 MiB. Imports en GSC-ophaalacties blijven op queue celery.
-Geen wijzigingen aan de GPS-app of productieomgeving.
+Dezelfde isolatie geldt voor dev/test en productie. De GPS-app blijft afzonderlijk.
 
 ## Doelen en projectrechten
 
@@ -89,16 +89,17 @@ zonder andere scans of het scandoel te verwijderen.
 
 ## Grenzen en netwerkbeleid
 
-- Crawl: standaard 50, maximaal 200 URL-observaties; diepte maximaal 5.
-- Sitemap: standaard 1.000, maximaal 5.000 URL's; maximaal 50 sitemapdocumenten.
-- Tijd: standaard 120, maximaal 180 seconden coöperatief; netwerk-time-outs zijn 5s.
+- Crawl: standaard 50, maximaal 100.000 URL-observaties; diepte standaard 20, maximaal 100.
+- Sitemap: standaard 1.000, maximaal 100.000 URL's; maximaal 10.000 sitemapdocumenten.
+- Tijd- en overdrachtsbudget schalen met het aantal URL's; zie Grote scans hieronder.
+  Totale tijd maximaal zeven dagen; netwerk-time-outs zijn 5s.
 - Requesttempo: standaard minstens 1 seconde per host; robots crawl-delay en
   request-rate kunnen dat verder vertragen.
 - robots.txt wordt gerespecteerd. 404/410 betekent geen robotsbestand; andere
   fouten worden conservatief geblokkeerd. Er is geen negeer-robots-optie.
-- Maximaal 5 MiB per document, inclusief begrensde uitpakking; maximaal 25 MiB
-  totale overdracht én totale uitgepakte documentinhoud per batch. Dit zijn eigen
-  productlimieten, lager dan de maximale omvang van het sitemapprotocol.
+- Maximaal 5 MiB per document, inclusief begrensde uitpakking. Het totale budget
+  is minimaal 25 MiB en schaalt mee met het URL-maximum; zie hieronder. Dit zijn
+  productlimieten, lager dan de maximale documentomvang van het sitemapprotocol.
 - Alleen HTTP/HTTPS op standaardpoorten, zonder gebruikersnaam/wachtwoord.
 - Elke host moet exact zijn toegestaan. Alle DNS-antwoorden moeten publiek zijn;
   private, loopback, link-local, multicast en gereserveerde adressen worden geweigerd.
@@ -107,11 +108,78 @@ zonder andere scans of het scandoel te verwijderen.
 - Geen omgevingsproxy's, cookies of externe authenticatie in scanverzoeken.
 - Bij 429/503 stopt de crawl; limieten/onvolledigheid verschijnen als waarschuwingen.
 
-Deze versie bevat nog geen periodieke planning, vergelijking met eerdere scans,
-gecombineerd URL-dashboard of browsergestuurde cookie/JavaScript-scan.
+Periodieke planning, vergelijking met eerdere scans en browsergestuurde cookie/JavaScript-scans volgen nog. Het gecombineerde URL-dashboard is inmiddels beschikbaar.
 
 ## Bronnen
 
 - https://www.sitemaps.org/protocol.html
 - https://docs.python.org/3.12/library/urllib.robotparser.html
 - https://urllib3.readthedocs.io/en/stable/advanced-usage.html
+
+## Grote scans: 100.000 URL’s
+
+De huidige grenzen en uitvoering:
+
+- Crawl én sitemap ondersteunen maximaal **100.000 URL-resultaten per batch**.
+- Linkdiepte standaard 20, instelbaar van 0 tot 100; de crawler ontdekt maximaal
+  vijfmaal het aangevraagde aantal URL's. Sitemapindexen: maximaal 10.000 documenten.
+- Tijd standaard proportioneel aan het aantal URL's: crawl zes seconden per URL
+  plus een minuut, sitemap één seconde per URL plus een minuut, minimum twee minuten
+  en maximum zeven dagen. Een expliciete API-duration blijft mogelijk binnen die
+  grenzen. Het betreft verstreken tijd sinds de eerste verwerkingsronde, ook bij
+  pauzes of wachttijd tussen vervolgtaken.
+- Overdrachtsbudget proportioneel: minimaal 25 MiB of maximaal aantal URL's × 1 MiB,
+  zowel voor ontvangen als uitgepakte inhoud. Per document blijft 5 MiB gelden.
+  De scan stopt ook bij minder dan 1 GiB vrije schijfruimte. Een waarschuwing meldt
+  dat een scan onvolledig is bij een tijd-, diepte-, ontdek-, download- of schijflimiet.
+- Het tempo blijft minimaal één verzoek per seconde per host. Robotsbeleid kan
+  vertragen of blokkeren; 429/503 stopt een crawl. Het URL-maximum garandeert geen
+  aantal bereikbare pagina's. 100.000 echte pagina's kosten bij één verzoek per
+  seconde minstens circa 28 uur, exclusief vertragingen en redirects.
+
+### Checkpoints en publicatie
+
+De scan-worker verwerkt rondes van circa twee minuten en plant zichzelf opnieuw
+in. De actieve wachtrij, URL-ontdubbeling, resultaten en gzip-gecomprimeerde ruwe
+HTTP-documenten staan in een privé SQLite-checkpoint onder media/scan-work. Ze staan
+niet allemaal in RAM en worden niet als openbare bestanden geserveerd. Een bestands-
+lock voorkomt dat meerdere taken hetzelfde checkpoint gelijktijdig verwerken.
+Robotsbeleid, overdrachtscounters en starttijd blijven over rondes behouden.
+
+Een late-acknowledged taak wordt bij verlies van het workerproces opnieuw aangeboden.
+Een onderbroken scan kan na 15 minuten zonder heartbeat via Opnieuw starten worden
+hervat. Bij brokeruitval wordt de batch failed en blijft het checkpoint bewaard.
+Bestaande failed batches zonder checkpoint beginnen bij opnieuw starten vanaf nul.
+Annuleren en ingetrokken toegang stoppen verdere requests/publicatie. Een worker-
+update krijgt 150 seconden om een verwerkingsronde af te maken.
+
+De batchdetails tonen checkpointvoortgang. Alleen complete batches publiceren
+bronrecords, ruwe documenten en URL-observaties atomair. Publicatie leest kleine
+chunks uit het checkpoint. Grote metadata wordt expliciet gemarkeerd als ingekort;
+het oorspronkelijke HTTP-document blijft beschikbaar. Voltooide checkpoints worden
+opgeruimd. Batch- en projectverwijdering ruimen ook achtergebleven checkpoints via
+de bestaande duurzame opruimwachtrij op. Mislukte/geannuleerde scans houden het
+checkpoint tot hervatten of batchverwijdering; er is nog geen automatische retentie.
+
+### Synthetische schaalcontrole
+
+Voer alleen met de testmigratierol uit:
+
+```sh
+docker compose --profile tools run --rm migrate python manage.py shell < ops/checks/scan_scale.py
+```
+
+Dit simuleert 100.000 HTML-pagina's en controleert 100.000 bronrecords, documenten,
+URL's en observaties, met hervatting tussen verwerkingsrondes. Het doet geen echte
+netwerkrequests. Databasewijzigingen worden teruggedraaid en privébestanden opgeruimd.
+Dit controleert verwerking en geheugen, niet het crawltempo van een externe website.
+
+Met `-e SCAN_SCALE_KIND=sitemap` vóór `migrate` controleert dezelfde schaalproef
+een sitemapindex met twee urlsets van elk 50.000 URL’s.
+
+De schaalproef op deze host verwerkte een synthetische crawl met 100.000 ruwe
+HTML-documenten en een sitemapindex met twee keer 50.000 URL's. In beide gevallen
+zijn alle 100.000 bronrecords, URL's en observaties gecontroleerd. Piek-RSS was circa
+110 MiB voor de crawl en 153 MiB voor de sitemap. De oude orphan-URL-controle is
+vervangen door een geïndexeerde scalaire subquery om een kwadratisch queryplan bij
+nieuwe projecten zonder plannerstatistieken te voorkomen.

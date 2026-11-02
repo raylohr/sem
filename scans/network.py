@@ -12,6 +12,7 @@ from urllib.robotparser import RobotFileParser
 import certifi
 import urllib3
 from django.utils import timezone
+from .work import ScanPause
 
 USER_AGENT = "LohrSEM/0.1"
 MAX_BODY = 5 * 1024 * 1024
@@ -109,21 +110,27 @@ class FetchResult:
 
 
 class SafeClient:
-    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0):
+    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None):
         self.allowed_hosts = set(allowed_hosts)
         self.check_access = check_access
         self.deadline = time.monotonic() + duration
+        self.slice_deadline = time.monotonic() + slice_seconds if slice_seconds else None
+        self.max_transfer = max_transfer
+        self.robot_cache = robot_cache if robot_cache is not None else {}
         self.delay = max(0.5, delay)
         self.last_request = {}
         self.robots = {}
         self.transferred = 0
         self.decoded_bytes = 0
-        self.documents = []
+        self.documents = document_sink if document_sink is not None else []
 
     def guard(self):
         self.check_access()
         if time.monotonic() >= self.deadline:
             raise ScanBudgetExceeded("Tijdslimiet bereikt; scanresultaat is onvolledig.")
+
+        if self.slice_deadline and time.monotonic() >= self.slice_deadline:
+            raise ScanPause
 
     def _pace(self, host, delay):
         remaining = self.last_request.get(host, 0) + delay - time.monotonic()
@@ -163,7 +170,7 @@ class SafeClient:
                 self.transferred += len(chunk)
                 if len(raw) > MAX_BODY:
                     raise ScanError("Document overschrijdt 5 MiB.")
-                if self.transferred > MAX_TRANSFER:
+                if self.transferred > self.max_transfer:
                     raise ScanBudgetExceeded("Downloadlimiet bereikt; scanresultaat is onvolledig.")
             headers = {str(k).lower(): str(v) for k, v in response.headers.items()}
             body = bytes(raw)
@@ -176,7 +183,7 @@ class SafeClient:
                 if len(body) > MAX_BODY:
                     raise ScanError("Uitgepakt document overschrijdt 5 MiB.")
             self.decoded_bytes += len(body)
-            if self.decoded_bytes > MAX_TRANSFER:
+            if self.decoded_bytes > self.max_transfer:
                 raise ScanBudgetExceeded("Totale documentomvang bereikt; scanresultaat is onvolledig.")
             result = FetchResult(url=url, status=response.status, headers=headers, body=body,
                                  elapsed=round(time.monotonic() - started, 3))
@@ -188,7 +195,7 @@ class SafeClient:
         except Exception as exc:
             # Access/cancellation exceptions must pass through, not turn into HTTP errors.
             from django.core.exceptions import PermissionDenied
-            if isinstance(exc, PermissionDenied):
+            if isinstance(exc, (PermissionDenied, ScanPause)):
                 raise
             raise ScanError("HTTP-opvraag mislukt (netwerk, certificaat of antwoord).") from exc
         finally:
@@ -200,7 +207,14 @@ class SafeClient:
         parts = urlsplit(url)
         origin = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
         if origin not in self.robots:
-            result = self.fetch(origin + "/robots.txt", enforce_robots=False)
+            cached = self.robot_cache.get(origin)
+            if cached:
+                result = FetchResult(origin + "/robots.txt", cached['status'], {}, cached['body'].encode('utf-8'))
+            else:
+                result = self.fetch(origin + "/robots.txt", enforce_robots=False)
+                self.robot_cache[origin] = {'status': result.status, 'body': result.body.decode('utf-8', errors='replace')}
+            # Also pace the first request after resuming in another worker process.
+            self.last_request.setdefault(parts.hostname, time.monotonic())
             parser = RobotFileParser()
             if result.status in (404, 410):
                 parser.allow_all = True

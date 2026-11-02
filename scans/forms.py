@@ -1,6 +1,7 @@
 from urllib.parse import urlsplit
 from django import forms
 from .models import ScanTarget
+from .limits import MAX_URLS, MAX_DEPTH, MAX_DURATION
 from .network import normalize_host, normalize_url, ScanError
 
 
@@ -28,11 +29,6 @@ class TargetForm(forms.ModelForm):
 class ScanForm(forms.Form):
     kind = forms.ChoiceField(choices=[("crawl", "Crawl"), ("sitemap", "Sitemap")])
     url = forms.CharField(max_length=4096, required=False)
-    max_urls = forms.IntegerField(min_value=1, max_value=5000, initial=50, required=False)
-    max_depth = forms.IntegerField(min_value=0, max_value=5, initial=3, required=False)
-    duration = forms.IntegerField(min_value=10, max_value=180, initial=120, required=False)
-    def clean(self):
-        data = super().clean()
-        if data.get("kind") == "crawl" and (data.get("max_urls") or 50) > 200:
-            raise forms.ValidationError("Maximaal 200 URL's per basiscrawl.")
-        return data
+    max_urls = forms.IntegerField(min_value=1, max_value=MAX_URLS, initial=50, required=False)
+    max_depth = forms.IntegerField(min_value=0, max_value=MAX_DEPTH, initial=20, required=False)
+    duration = forms.IntegerField(min_value=10, max_value=MAX_DURATION, required=False)

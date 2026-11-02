@@ -65,7 +65,8 @@ def sources(request, project_id):
 def batch(request, project_id, batch_id):
     context=project_context(request,project_id,'sources')
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
-    context.update(batch=item,records=item.records.order_by('id')[:10] if item.status=='complete' else [],
+    from scans.work import stale_scan
+    context.update(scan_stale=stale_scan(item),batch=item,records=item.records.order_by('id')[:10] if item.status=='complete' else [],
         documents=item.scan_documents.defer('body').order_by('index')[:50],
         url_index_issues=item.records.filter(pk__in=item.url_index_info.get('rejected_record_ids',[])).only('id','locator').order_by('id'))
     return render(request,'ui/batch.html',context)

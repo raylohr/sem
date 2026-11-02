@@ -167,6 +167,13 @@ class ParsingTests(SimpleTestCase):
 
 class ScanAccessTests(TestCase):
     def setUp(self):
+        import tempfile
+        from django.test import override_settings
+        self.directory=tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        override=override_settings(MEDIA_ROOT=self.directory.name)
+        override.enable()
+        self.addCleanup(override.disable)
         U = get_user_model()
         self.admin = U.objects.create_user('scan-admin')
         self.editor = U.objects.create_user('scan-editor')
@@ -223,8 +230,17 @@ class ScanAccessTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_crawl_cap_rejected(self):
-        response = self.client.post(self.url('start'), json.dumps({'kind':'crawl','max_urls':201}), content_type='application/json')
+        response = self.client.post(self.url('start'), json.dumps({'kind':'crawl','max_urls':100001}), content_type='application/json')
         self.assertEqual(response.status_code, 400)
+
+    def test_accepts_100000_urls_and_allocates_realistic_budgets(self):
+        for kind in ('crawl','sitemap'):
+            response=self.client.post(self.url('start'),json.dumps({'kind':kind,'max_urls':100000,'max_depth':100}),content_type='application/json')
+            self.assertEqual(response.status_code,202)
+            batch=ImportBatch.objects.get(pk=response.json()['id'])
+            self.assertEqual(batch.request_metadata['max_urls'],100000)
+            self.assertGreaterEqual(batch.request_metadata['duration'],100000)
+            self.assertGreater(batch.request_metadata['max_transfer'],25*1024**2)
 
     def test_foreign_project_targets_hidden(self):
         self.client.force_login(self.other)

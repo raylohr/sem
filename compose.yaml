@@ -51,6 +51,7 @@ services:
     command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=celery
   scan-worker:
     <<: *app
+    stop_grace_period: 150s
     command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=scans --hostname=scans@%h
     cpus: 0.5
     environment:

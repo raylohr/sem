@@ -1,9 +1,19 @@
 from itertools import islice
 from django.db import transaction
+from django.db.models import Subquery, OuterRef
 from projects.models import Project
 from sources.models import ImportBatch
 from .models import ProjectURL, URLObservation
 from .adapters import adapt_record,first,URL_COLUMNS
+
+
+def prune_urls(project_id):
+    # A scalar LIMIT-1 subquery keeps this as a parameterized FK-index probe.
+    # LEFT JOIN/NOT EXISTS can become quadratic without statistics on a fresh
+    # 100k-URL project because PostgreSQL may choose an unparameterized join scan.
+    first_observation = URLObservation.objects.filter(url_id=OuterRef('pk')).values('pk')[:1]
+    return ProjectURL.objects.filter(project_id=project_id).alias(
+        first_observation=Subquery(first_observation)).filter(first_observation__isnull=True).delete()
 
 
 @transaction.atomic
@@ -17,11 +27,11 @@ def index_batch(batch_id):
     if batch.source == "gsc" and batch.method == "upload":
         context["gsc_problem"] = batch.records.filter(data__sheet="Metadata", data__values__Property="Probleem").values_list("data__values__Waarde", flat=True).first()
     URLObservation.objects.filter(batch=batch).delete()
-    iterator = batch.records.order_by("id").iterator(chunk_size=500)
+    iterator = batch.records.order_by("id").iterator(chunk_size=50)
     count = 0
     summary={"version":"url-v1","page_records":0,"subtree_records":0,"rejected_url_records":0,"non_url_records":0,"rejected_record_ids":[]}
     while True:
-        chunk = list(islice(iterator, 500))
+        chunk = list(islice(iterator, 50))
         if not chunk:
             break
         adapted = []
@@ -53,7 +63,7 @@ def index_batch(batch_id):
                 scope=result["scope"],measured_date=result["measured_date"],measured_at=result["measured_at"],facts=result["facts"]))
         URLObservation.objects.bulk_create(observations,batch_size=500)
         count += len(observations)
-    ProjectURL.objects.filter(project_id=project_id,observations__isnull=True).delete()
+    prune_urls(project_id)
     summary["indexed_records"]=count
     batch.url_index_info=summary
     batch.save(update_fields=["url_index_info"])

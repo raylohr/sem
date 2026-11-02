@@ -1,3 +1,4 @@
+from itertools import islice
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from projects.models import Project
@@ -14,9 +15,13 @@ def delete_batch(*, batch_id, project, actor):
     BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk, batch_id=batch.id, actor=actor)
     if batch.file:
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
+    if batch.scan_target_id:
+        from scans.work import work_paths
+        for path in work_paths(batch.pk):
+            PendingFileDeletion.objects.get_or_create(path=path)
     batch.delete()
-    from catalog.models import ProjectURL
-    ProjectURL.objects.filter(project=project, observations__isnull=True).delete()
+    from catalog.services import prune_urls
+    prune_urls(project.pk)
     from .tasks import enqueue_cleanup
     transaction.on_commit(enqueue_cleanup)
 
@@ -33,8 +38,12 @@ def publish_records(*, batch_id, records):
         return batch.record_count
     if batch.status not in (ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING):
         raise ValueError("Batch cannot be published in this state")
-    SourceRecord.objects.bulk_create([SourceRecord(batch=batch, locator=item["locator"], data=item["data"]) for item in records], batch_size=500)
-    batch.record_count = len(records)
+    iterator = iter(records)
+    count = 0
+    while chunk := list(islice(iterator, 50)):
+        SourceRecord.objects.bulk_create([SourceRecord(batch=batch, locator=item["locator"], data=item["data"]) for item in chunk], batch_size=50)
+        count += len(chunk)
+    batch.record_count = count
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status"])
     from catalog.services import index_batch
