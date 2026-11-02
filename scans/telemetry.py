@@ -1,5 +1,6 @@
 """Small transactional rollups; web requests never scan raw crawl bodies."""
 import json
+import math
 import sqlite3
 import time
 from datetime import datetime
@@ -63,7 +64,9 @@ def snapshot(connection, end=None):
     series=[{'time':bucket,'status':str(status) if status!=-1 else 'download_error','count':n}
             for bucket,status,n in connection.execute('SELECT bucket,status,n FROM live_series WHERE bucket>=? AND bucket<=? ORDER BY bucket,status',(start,end))]
     totals={str(status) if status!=-1 else 'download_error':n for status,n in connection.execute('SELECT status,n FROM live_totals')}
-    return {'records':int(stats.get('records',0)),'documents':int(stats.get('documents',0)),
+    row=connection.execute("SELECT payload FROM metadata WHERE key='started'").fetchone()
+    started_at=json.loads(row[0]) if row else None
+    return {'started_at':started_at,'records':int(stats.get('records',0)),'documents':int(stats.get('documents',0)),
             'pending':int(stats.get('pending',0)),'errors':int(stats.get('errors',0)),
             'updated_at':stats.get('updated_at'),'interval_seconds':INTERVAL,
             'window_seconds':WINDOW,'end':end,'series':series,'totals':totals}
@@ -82,3 +85,16 @@ def read_checkpoint(batch_id):
     except sqlite3.Error:
         # Initial creation, publication/cleanup and transient locks are normal.
         return None
+
+
+def estimate_remaining(*, records, pending, started_at, now, active, max_urls=None):
+    """Mean throughput since actual worker start, for the currently known queue."""
+    if not isinstance(started_at,(int,float)) or not math.isfinite(started_at):
+        return {'elapsed_seconds':None,'urls_per_second':None,'eta_seconds':None}
+    elapsed=max(0,now-started_at)
+    rate=records/elapsed if elapsed>0 and records>0 else None
+    remaining=max(0,pending)
+    if isinstance(max_urls,int) and max_urls>0:
+        remaining=min(remaining,max(0,max_urls-records))
+    eta=math.ceil(remaining/rate) if active and rate else None
+    return {'elapsed_seconds':int(elapsed),'urls_per_second':rate,'eta_seconds':eta}

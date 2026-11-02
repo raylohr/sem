@@ -1,6 +1,14 @@
 'use strict';
 document.querySelectorAll('[data-scan-live]').forEach(card => {
   const nf = new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 0});
+  const rateFormatter = new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 2});
+  const duration = value => {
+    const seconds=Math.max(0,Math.ceil(value));
+    if(seconds>=86400) return `${nf.format(Math.floor(seconds/86400))} d ${Math.floor(seconds%86400/3600)} u`;
+    if(seconds>=3600) return `${nf.format(Math.floor(seconds/3600))} u ${Math.floor(seconds%3600/60)} min`;
+    if(seconds>=60) return `${nf.format(Math.floor(seconds/60))} min ${seconds%60} s`;
+    return `${nf.format(seconds)} s`;
+  };
   const tf = new Intl.DateTimeFormat('nl-NL', {timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit', second: '2-digit'});
   const svg = card.querySelector('svg'), chart = card.querySelector('[data-live-chart]');
   const tooltip = card.querySelector('[data-live-tooltip]');
@@ -26,6 +34,16 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
     W=mobile?600:960;H=mobile?300:270;L=mobile?70:55;plotW=W-L-R;plotH=H-T-B;
     svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
     for(const name of ['records','documents','pending','errors']) card.querySelector(`[data-live-${name}]`).textContent=nf.format(data[name] || 0);
+    const eta=card.querySelector('[data-live-eta]');
+    if(!data.active) eta.textContent=data.status_label;
+    else if(data.scan_kind==='sitemap') eta.textContent='Niet beschikbaar';
+    else if(data.eta_seconds===0) eta.textContent='Wordt afgerond…';
+    else if(Number.isFinite(data.eta_seconds)) eta.textContent=`≈ ${duration(data.eta_seconds)}`;
+    else eta.textContent='Nog onbekend';
+    const timing=[];
+    if(Number.isFinite(data.elapsed_seconds)) timing.push(`Verstreken ${duration(data.elapsed_seconds)}`);
+    if(Number.isFinite(data.urls_per_second)) timing.push(`${rateFormatter.format(data.urls_per_second)} URL/s`);
+    card.querySelector('[data-live-timing]').textContent=timing.join(' · ');
     keys=[...new Set([...Object.keys(data.totals || {}),...(data.series || []).map(point=>point.status)])].sort((a,b)=>(a==='download_error'?1000:Number(a))-(b==='download_error'?1000:Number(b)));
     const step=data.interval_seconds || 3,end=data.end,start=end-(data.window_seconds || 300);
     samples=[];

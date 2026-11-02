@@ -303,3 +303,16 @@ tabbladen en stopt bij afronding of verlies van toegang. Bij een tijdelijke
 verbindingsfout blijven de laatste tellingen zichtbaar en wordt opnieuw
 geprobeerd. De pagina biedt bij afronding een link om het volledige
 resultaat te openen. Er worden geen externe grafiekbibliotheken of CDN's gebruikt.
+
+### Geschatte resterende tijd
+
+Websitecrawls tonen iedere drie seconden een tijdschatting:
+`wachtrij / (verwerkte URL's / verstreken seconden)`. Het werkelijk te verwerken
+aantal is begrensd door het ingestelde URL-maximum. De starttijd komt uit het
+oorspronkelijke checkpoint en blijft behouden over vervolgtaken en herstarts.
+De kaart toont ook verstreken tijd en gemiddeld tempo; nieuwe ontdekkingen
+kunnen de schatting verhogen. Zonder verwerkt resultaat of geldige starttijd
+blijft de schatting onbekend. Bij een lege wachtrij verschijnt 'Wordt afgerond…'.
+Afgeronde, geannuleerde en mislukte scans krijgen geen actieve countdown.
+Sitemapimports tonen geen tijdschatting: hun wachtrij bevat bestanden, terwijl
+de verwerkte records pagina-URL's voorstellen.

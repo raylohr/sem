@@ -140,7 +140,7 @@ def progress(request, project_id, batch_id):
     import time
     from django.db.models import Count, Max
     from django.utils.cache import add_never_cache_headers
-    from .telemetry import read_checkpoint, INTERVAL, WINDOW
+    from .telemetry import read_checkpoint, estimate_remaining, INTERVAL, WINDOW
     project = visible_project(request, project_id)
     batch = get_object_or_404(ImportBatch,pk=batch_id,project=project,scan_target__isnull=False)
     active = batch.status in ('pending','processing')
@@ -166,7 +166,16 @@ def progress(request, project_id, batch_id):
               'end':end,'totals':totals,'series':[{'time':t,'status':status,'count':n} for (t,status),n in sorted(buckets.items())]}
     if active:
         live={**live,'end':int(time.time())//INTERVAL*INTERVAL}
-    response=JsonResponse({**live,'status':batch.status,'status_label':batch.get_status_display(),
+    started_at=live.get('started_at') or stored.get('started_at')
+    now=time.time()
+    if not active:
+        from django.utils.dateparse import parse_datetime
+        heartbeat=stored.get('heartbeat')
+        ended=parse_datetime(heartbeat) if isinstance(heartbeat,str) else None
+        now=ended.timestamp() if ended else live.get('updated_at') or now
+    timing=estimate_remaining(records=live['records'],pending=live['pending'],started_at=started_at,
+        now=now,active=active and batch.scan_kind=='crawl',max_urls=batch.request_metadata.get('max_urls'))
+    response=JsonResponse({**live,**timing,'status':batch.status,'status_label':batch.get_status_display(),
         'active':active,'max_urls':batch.request_metadata.get('max_urls'),'available':bool(live.get('updated_at')),
         'poll_seconds':3,'scan_kind':batch.scan_kind})
     add_never_cache_headers(response)

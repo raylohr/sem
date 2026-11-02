@@ -4,7 +4,7 @@ from pathlib import Path
 from django.test import SimpleTestCase,TestCase,override_settings
 from django.utils import timezone
 from .work import ScanWork,work_paths
-from .telemetry import read_checkpoint,snapshot
+from .telemetry import read_checkpoint,snapshot,estimate_remaining
 from . import tests as scan_tests
 from django.urls import reverse
 from .models import ScanDocument
@@ -44,6 +44,19 @@ class TelemetryTests(SimpleTestCase):
                 self.assertEqual(live['documents'],1)
                 self.assertEqual(live['totals'],{'download_error':1,'404':1})
 
+    def test_eta_uses_queue_processed_and_elapsed_time(self):
+        timing=estimate_remaining(records=260,pending=1976,started_at=1000,now=1130,active=True,max_urls=100000)
+        self.assertEqual(timing,{'elapsed_seconds':130,'urls_per_second':2,'eta_seconds':988})
+        timing=estimate_remaining(records=260,pending=1976,started_at=1000,now=1260,active=True,max_urls=100000)
+        self.assertEqual(timing['eta_seconds'],1976)
+
+    def test_eta_handles_startup_limits_and_finished_scans(self):
+        for count,start,now in [(0,1000,1100),(1,None,1100),(1,1200,1100)]:
+            self.assertIsNone(estimate_remaining(records=count,pending=100,started_at=start,now=now,active=True)['eta_seconds'])
+        self.assertIsNone(estimate_remaining(records=10,pending=100,started_at=1000,now=1100,active=False)['eta_seconds'])
+        self.assertEqual(estimate_remaining(records=10,pending=100,started_at=1000,now=1100,active=True,max_urls=20)['eta_seconds'],100)
+        self.assertEqual(estimate_remaining(records=10,pending=0,started_at=1000,now=1100,active=True)['eta_seconds'],0)
+
     def test_reader_never_creates_a_missing_checkpoint(self):
         with tempfile.TemporaryDirectory() as directory,override_settings(MEDIA_ROOT=directory):
             self.assertIsNone(read_checkpoint('missing'))
@@ -63,6 +76,8 @@ class ProgressAccessTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.json()['totals'],{'201':1})
                 self.assertEqual(response.json()['poll_seconds'],3)
+                self.assertIsNotNone(response.json()['elapsed_seconds'])
+                self.assertIsNone(response.json()['eta_seconds'])
                 self.assertIn('no-store',response.headers['Cache-Control'])
                 self.client.force_login(self.viewer)
                 self.assertEqual(self.client.get(url).status_code,200)
@@ -78,3 +93,19 @@ class ProgressAccessTests(TestCase):
         self.assertFalse(response.json()['active'])
         self.assertEqual(response.json()['records'],42)
         self.assertEqual(response.json()['totals']['200'],41)
+
+    def test_endpoint_eta_uses_worker_start_and_skips_sitemap_units(self):
+        import time
+        batch=self.make_batch();batch.request_metadata['max_urls']=10000;batch.save()
+        with ScanWork(batch.pk) as work:
+            work.set('started',time.time()-120)
+            for i in range(3): work.add('crawl',f'https://example.com/{i}',0)
+            work.finish(work.next('crawl')[0],{'locator':'one','data':{'url':'https://example.com/0','status':200}})
+            url=reverse('projects:scans:progress',args=[self.project.pk,batch.pk])
+            data=self.client.get(url).json()
+            self.assertEqual(data['records'],1)
+            self.assertEqual(data['pending'],2)
+            self.assertGreaterEqual(data['eta_seconds'],240)
+            self.assertLess(data['eta_seconds'],250)
+            batch.request_metadata['scan']='sitemap';batch.save()
+            self.assertIsNone(self.client.get(url).json()['eta_seconds'])
