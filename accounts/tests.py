@@ -294,10 +294,32 @@ class AccountSecurityTests(TestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password(PASSWORD))
 
+    def test_https_login_with_csrf_enforcement_and_same_origin_provenance(self):
+        for provenance in ({'HTTP_ORIGIN':'https://sem.lohr.nl'},
+                           {'HTTP_REFERER':'https://sem.lohr.nl/accounts/login/'}):
+            client=Client(enforce_csrf_checks=True)
+            response=client.get(reverse('login'),secure=True,HTTP_HOST='sem.lohr.nl')
+            self.assertEqual(response['Referrer-Policy'],'same-origin')
+            management=response.context['wizard']['management_form']['current_step'].html_name
+            response=client.post(reverse('login'),{
+                management:'auth','auth-username':self.user.username,'auth-password':PASSWORD,
+                'csrfmiddlewaretoken':client.cookies[settings.CSRF_COOKIE_NAME].value,
+            },secure=True,HTTP_HOST='sem.lohr.nl',**provenance)
+            self.assertEqual(response.status_code,302)
+            self.assertEqual(client.session['_auth_user_id'],str(self.user.pk))
+
+    def test_https_login_still_rejects_missing_token_or_untrusted_origin(self):
+        client=Client(enforce_csrf_checks=True)
+        client.get(reverse('login'),secure=True,HTTP_HOST='sem.lohr.nl')
+        data={'csrfmiddlewaretoken':client.cookies[settings.CSRF_COOKIE_NAME].value}
+        for origin in ('null','https://untrusted.example'):
+            self.assertEqual(client.post(reverse('login'),data,secure=True,HTTP_HOST='sem.lohr.nl',HTTP_ORIGIN=origin).status_code,403)
+        self.assertEqual(client.post(reverse('login'),{},secure=True,HTTP_HOST='sem.lohr.nl',HTTP_ORIGIN='https://sem.lohr.nl').status_code,403)
+
     def test_sensitive_views_are_not_cached(self):
         response=self.client.get(reverse('two_factor:backup_tokens'))
         self.assertIn('no-store',response['Cache-Control'])
-        self.assertEqual(response['Referrer-Policy'],'no-referrer')
+        self.assertEqual(response['Referrer-Policy'],'same-origin')
 
 
 class AccessLogTests(SimpleTestCase):

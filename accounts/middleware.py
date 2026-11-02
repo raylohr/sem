@@ -14,7 +14,9 @@ class AccountPolicyMiddleware:
         if request.path.startswith(('/accounts/','/workspace/users/')):
             from django.utils.cache import patch_cache_control
             patch_cache_control(response,no_cache=True,no_store=True,private=True,must_revalidate=True)
-            response['Referrer-Policy']='no-referrer'
+            # Keep same-origin form provenance: no-referrer makes Chromium send
+            # Origin: null on navigation POSTs, which Django must reject.
+            response['Referrer-Policy']='same-origin'
         return response
 
     def enforce(self,request):

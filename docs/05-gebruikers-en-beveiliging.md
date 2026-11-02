@@ -74,7 +74,7 @@ hergebruikbescherming. De toepassing vertrouwt geen willekeurige forwarded-IP-he
 
 Het beveiligingslog onder Gebruikers toont account- en rolwijzigingen en
 herstelacties zonder wachtwoorden of codes. Gevoelige pagina's hebben no-store en
-no-referrer. Gunicorn verwijdert querystrings en wachtwoordhersteltokens uit
+same-origin (geen referrer naar andere websites). Gunicorn verwijdert querystrings en wachtwoordhersteltokens uit
 accesslogs. Configureer bij de toekomstige reverse proxy dezelfde redactie: geen
 OAuth-querystrings of `/accounts/reset/`-tokens in proxylogs bewaren.
 
