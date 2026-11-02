@@ -9,8 +9,8 @@ class BatchChoice(forms.ModelChoiceField):
 
 
 class URLFilterForm(forms.Form):
-    q=forms.CharField(max_length=250,required=False,label='URL zoeken')
-    host=forms.CharField(max_length=253,required=False,label='Host')
+    q=forms.CharField(max_length=250,required=False,label='String in URL',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'urlStringHelp'}))
+    host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik String in URL voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
     source=forms.ChoiceField(choices=[('','Alle bronnen')]+list(ImportBatch.Source.choices),required=False,label='Bron')
     batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
