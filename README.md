@@ -195,3 +195,15 @@ Zie [beheerinstructies](docs/05-gebruikers-en-beveiliging.md).
 Projecten aanmaken, wijzigen en bevestigd verwijderen gebeurt in de gewone
 webinterface, met dezelfde lokale Bootstrap en huisstijl. Zie
 [projectbeheer](docs/07-projectbeheer.md) voor rollen, verwijdering en back-ups.
+
+## SEO-brondata export
+
+Het URL-overzicht heeft een knop **Exporteer brondata**. De ZIP bevat een Excelbestand
+plus UTF-8 CSV’s per dataset, een URL-register, importherkomst en een datasetindex.
+De actieve filters gelden voor de volledige export, onafhankelijk van paginering.
+Bronrecords en bronkolommen blijven per bron, bronwerkblad, scantype en scope apart;
+ontbrekende meetdatums worden niet aangevuld. Auditbeoordelingen worden uitgesloten.
+Uit Ahrefs-werkbladen in een contentaudit worden alleen oorspronkelijke bronmetrics
+meegenomen, zonder toegevoegde auditannotaties. Alleen gekoppelde URL-records uit
+voltooide/onvolledige imports vallen binnen de selectie. De export voegt geen
+SEO-aanbevelingen toe. Projectlezers hebben dezelfde toegang als tot het URL-overzicht.

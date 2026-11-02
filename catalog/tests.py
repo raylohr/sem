@@ -226,3 +226,69 @@ class CatalogTests(TestCase):
         self.assertEqual(len(second['urls']),6)
         self.assertFalse({row['id'] for row in first['urls']} & {row['id'] for row in second['urls']})
         self.assertEqual([row['url'] for row in first['urls']],sorted(row['url'] for row in first['urls']))
+
+    def read_export(self, **filters):
+        import io
+        import zipfile
+        response = self.client.get(reverse('ui:catalog:export', args=[self.project.pk]), filters)
+        self.assertEqual(response.status_code, 200)
+        payload = b''.join(response.streaming_content)
+        return zipfile.ZipFile(io.BytesIO(payload))
+
+    def test_export_keeps_raw_fields_dates_and_all_pages(self):
+        import csv
+        import io
+        import openpyxl
+        self.publish('ahrefs', [{'values': {'URL': f'https://example.com/costs-{i}', 'Extra field': '=1+1', 'Zero': 0}} for i in range(30)])
+        with self.read_export(q='costs', page=2) as archive:
+            rows = list(csv.DictReader(io.StringIO(archive.read('Data-01.csv').decode('utf-8-sig'))))
+            self.assertEqual(len(rows), 30)
+            self.assertEqual(rows[0]['raw.values.Extra field'], "'=1+1")
+            self.assertEqual(rows[0]['raw.values.Zero'], '0')
+            self.assertEqual(rows[0]['measured_date'], '')
+            book = openpyxl.load_workbook(io.BytesIO(archive.read('SEO-brondata.xlsx')), read_only=True)
+            data = list(book['Data-01'].values)
+            index = data[0].index('raw.values.Extra field')
+            self.assertEqual(data[1][index], '=1+1')
+            book.close()
+
+    def test_export_filters_on_same_measurement_and_rejects_invalid_filters(self):
+        import csv
+        import io
+        with self.read_export(source='semscan', http=404) as archive:
+            rows = list(csv.DictReader(io.StringIO(archive.read('Data-01.csv').decode('utf-8-sig'))))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]['raw.status'], '404')
+            self.assertNotIn('Data-02.csv', archive.namelist())
+        endpoint = reverse('ui:catalog:export', args=[self.project.pk])
+        self.assertEqual(self.client.get(endpoint, {'http': 'invalid'}).status_code, 400)
+        self.assertEqual(self.client.get(endpoint, {'date_from': '2026-10-02', 'date_to': '2026-10-01'}).status_code, 400)
+        with self.read_export(q='does-not-exist') as archive:
+            self.assertIn('SEO-brondata.xlsx', archive.namelist())
+            self.assertNotIn('Data-01.csv', archive.namelist())
+
+    def test_export_excludes_audit_judgements_and_preserves_subtree_source(self):
+        self.publish('audit', [
+            {'sheet': 'BEVINDINGEN PER ONDERWERP URL', 'values': {'URL': 'https://example.com/', 'Concrete actie': 'Do not export this recommendation'}},
+            {'sheet': 'AHREFS site structure 26-10', 'values': {'URL / pad uit bronexport': 'https://example.com/blog', 'Current organic traffic': 1000, 'Bestaande bevinding / actie': 'Do not export this recommendation'}},
+        ])
+        with self.read_export(scope='subtree') as archive:
+            text = archive.read('Data-01.csv').decode('utf-8-sig')
+            self.assertIn('Current organic traffic', text)
+            self.assertIn('1000', text)
+            self.assertNotIn('recommendation', text)
+            self.assertNotIn('bevinding', text)
+        with self.read_export(source='audit') as archive:
+            self.assertNotIn('Data-01.csv', archive.namelist())
+
+    def test_export_enforces_project_access_and_allows_viewers(self):
+        endpoint = reverse('ui:catalog:export', args=[self.project.pk])
+        foreign = self.publish('ahrefs', [{'url': 'https://other.example/'}], project=self.hidden)
+        self.assertEqual(self.client.get(endpoint, {'batch': str(foreign.pk)}).status_code, 400)
+        self.client.force_login(self.viewer)
+        with self.read_export() as archive:
+            self.assertIn('URL-register.csv', archive.namelist())
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(endpoint).status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(endpoint).status_code, 302)

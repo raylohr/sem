@@ -118,3 +118,18 @@ def api_detail(request,project_id,url_id):
             'imported_at':observation.batch.imported_at,'period_start':observation.batch.period_start,'period_end':observation.batch.period_end,
             'source_record_id':observation.source_record_id,'facts':observation.facts})
     return JsonResponse({'id':str(item.pk),'url':item.normalized_url,'observations':rows,'total':page.paginator.count,'page':page.number})
+
+
+@never_cache
+@login_required
+@require_GET
+def export(request, project_id):
+    from .exports import export_archive
+    context = project_context(request, project_id, 'urls')
+    form = URLFilterForm(request.GET, project=context['project'])
+    if not form.is_valid():
+        return JsonResponse({'errors': form.errors.get_json_data()}, status=400)
+    _, observations = url_overview(context['project'], form.cleaned_data)
+    query = request.GET.copy()
+    query.pop('page', None)
+    return export_archive(context['project'], observations, query.urlencode())
