@@ -1,5 +1,5 @@
-# Defaults from the earlier GMW crawl with 4,336 URL results.
-DEFAULT_SCAN_SETTINGS = {'max_urls':10000, 'max_depth':20, 'robots_mode':'respect',
+# Broad crawl coverage with the conservative request pace from the earlier GMW crawl.
+DEFAULT_SCAN_SETTINGS = {'max_urls':100000, 'max_depth':99, 'robots_mode':'respect',
                          'concurrency':1, 'requests_per_second':1}
 
 MAX_URLS = 100_000

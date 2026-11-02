@@ -328,3 +328,7 @@ API, modal en workerfallback voor historische configuraties zonder tempo-opties.
 Bestaande expliciet opgeslagen scaninstellingen blijven behouden. De limieten
 van 100.000 URL's en diepte 100 blijven instelbaar, evenals sneller crawlen en
 de auditmodus. Eerdere passages met 100.000/99/8/12 beschrijven de vorige defaults.
+
+De huidige defaults voor nieuwe scans zijn op verzoek aangepast naar
+**100.000 URL's en linkdiepte 99**. Robots.txt respecteren, één gelijktijdig
+verzoek en maximaal één verzoek per seconde blijven de standaard.
