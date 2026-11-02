@@ -1,7 +1,12 @@
 from urllib.parse import urlsplit
 from django import forms
 from sources.models import ImportBatch
-from .models import URLObservation
+from .models import URLObservation, Label
+
+
+class ExpertiseChoice(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return obj.name
 
 
 class BatchChoice(forms.ModelChoiceField):
@@ -20,6 +25,7 @@ class URLFilterForm(forms.Form):
     host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik URL keyword voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
     source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple,help_text='Selecteer één of meer bronnen. Niets geselecteerd betekent alle bronnen.')
     batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
+    expertise=ExpertiseChoice(queryset=Label.objects.none(),required=False,label='Expertise',empty_label='Alle expertises')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
     http=forms.IntegerField(min_value=100,max_value=599,required=False,label='Gemeten HTTP-status')
     indexability=forms.ChoiceField(choices=[('','Alle beoordelingen'),('yes','Technisch indexeerbaar'),('no','Niet indexeerbaar'),('unknown','Geen beoordeling')],required=False,label='Indexeerbaarheid')
@@ -42,6 +48,7 @@ class URLFilterForm(forms.Form):
             kwargs.setdefault('initial', {}).setdefault('host', default_host)
             kwargs['initial'].setdefault('content', 'html')
         super().__init__(*args,**kwargs)
+        self.fields['expertise'].queryset = project.labels.filter(label_type=Label.Type.EXPERTISE).order_by('name', 'id')
         available = URLObservation.objects.filter(
             url__project=project, batch__project=project,
             batch__status__in=('complete', 'incomplete'),
@@ -55,6 +62,7 @@ class URLFilterForm(forms.Form):
         explanations = {
             'source': 'Selecteer één of meer beschikbare bronnen. Niets geselecteerd betekent alle bronnen. Bijvoorbeeld: Google Search Console.',
             'batch': 'Beperk de selectie tot één import of scan. Bijvoorbeeld: de laatste SEMScan.',
+            'expertise': 'Toon URL’s met het gekozen expertiselabel. De labels zijn afkomstig uit het labelregister van dit project.',
             'scope': 'Kies individuele URL-metingen of sitestructuur / paden. Bij sitestructuur kunnen cijfers een heel pad met onderliggende pagina’s omvatten. Bijvoorbeeld: /diensten/.',
             'http': 'Filter op een gemeten HTTP-status. Bijvoorbeeld: 404 voor niet gevonden. ' + signal_help,
             'indexability': 'Filter op de technische indexeerbaarheid volgens de meting. Bijvoorbeeld: Niet indexeerbaar. ' + signal_help,

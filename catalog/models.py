@@ -35,6 +35,11 @@ class URLObservation(models.Model):
 
 
 class Label(models.Model):
+    class Type(models.TextChoices):
+        EXPERTISE = 'expertise', 'Expertise'
+        TOPIC = 'topic', 'Onderwerp'
+        AUDIENCE = 'audience', 'Doelgroep'
+        FUNCTIONAL = 'functional', 'Functioneel'
     class Kind(models.TextChoices):
         EXPERTISE = 'expertise', 'Expertise'
         SOURCE = 'source', 'Bronlabel (nog te beoordelen)'
@@ -43,6 +48,7 @@ class Label(models.Model):
     name = models.TextField()
     key = models.CharField(max_length=64)
     kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.SOURCE)
+    label_type = models.CharField('labeltype', max_length=16, choices=Type.choices, default=Type.EXPERTISE, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -1,5 +1,11 @@
 # Labelregister en contentaudit
 
+Labels hebben een afzonderlijk `label_type`: expertise, onderwerp, doelgroep of
+functioneel. De bestaande labels krijgen type expertise. De eerdere `kind` blijft
+als bronindeling behouden en is niet bepalend voor het labeltype. Het URL-overzicht
+toont onder Meer filters een Expertise-dropdown met uitsluitend expertiselabels
+van het huidige project. Deze selectie geldt ook voor tellingen, paginering en export.
+
 Per project bevat het labelregister een beheerde lijst expertises, oorspronkelijke
 bronlabels en functionele labels. Iedere URL-labelkoppeling is uniek en kan meerdere
 bronregels als bewijs hebben. De oorspronkelijke celtekst, URL, tabblad, rij,

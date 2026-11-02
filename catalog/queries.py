@@ -1,10 +1,14 @@
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db.models import Count, Exists, Max, Min, OuterRef, Q
-from .models import ProjectURL,URLObservation
+from .models import ProjectURL,URLObservation,URLLabel,Label
 
 
 def selected_observations(project,filters):
     query=URLObservation.objects.filter(url__project=project,batch__project=project,batch__status__in=('complete','incomplete'),scope=filters.get('scope') or 'page')
+    if filters.get('expertise'):
+        assignments = URLLabel.objects.filter(url_id=OuterRef('url_id'), label=filters['expertise'],
+            label__project=project, label__label_type=Label.Type.EXPERTISE)
+        query = query.filter(Exists(assignments))
     if filters.get('source'):
         query=query.filter(batch__source__in=filters['source'])
     if filters.get('batch'):
