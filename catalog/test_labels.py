@@ -67,3 +67,10 @@ class AuditLabelTests(TestCase):
         self.assertEqual(URLLabel.objects.count(),1)
         self.assertTrue(URLLabel.objects.filter(pk=kept.pk).exists())
         self.assertFalse(LabelEvidence.objects.exists())
+
+    def test_deleting_source_preserves_unrelated_path_assignments(self):
+        import_labels(batch_id=self.batch.pk,actor=self.actor)
+        url=URLLabel.objects.get(label__name='Arbeid').url
+        rule=URLLabel.objects.create(url=url,label=Label.objects.get(project=self.project,name='Huur'))
+        delete_batch(batch_id=self.batch.pk,project=self.project,actor=self.actor)
+        self.assertEqual(list(URLLabel.objects.values_list('pk',flat=True)),[rule.pk])
