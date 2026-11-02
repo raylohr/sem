@@ -1,5 +1,12 @@
 # Labelregister en contentaudit
 
+Expertises hebben een afzonderlijk `url_path` voor hun vastgestelde landingspagina.
+Dit veld wordt in het register als URL-pad getoond. Bij GMW volgen de paden de
+goedgekeurde vergelijking van de vijftien expertises met de bestaande URL-boom.
+Bouw gebruikt `/expertises/vastgoed/vastgoedrecht/bouw/`. Het onbevestigde pad voor
+Mediation blijft leeg en verschijnt als ‘Nog niet bevestigd’. Dit zijn definitiepaden,
+geen nieuwe URL-labelkoppelingen; historische aliassen worden niet toegevoegd.
+
 Labels hebben een afzonderlijk `label_type`: expertise, onderwerp, doelgroep of
 functioneel. De bestaande labels krijgen type expertise. De eerdere `kind` blijft
 als bronindeling behouden en is niet bepalend voor het labeltype. Het URL-overzicht
