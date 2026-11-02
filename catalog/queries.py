@@ -1,5 +1,5 @@
 from django.contrib.postgres.aggregates import ArrayAgg
-from django.db.models import Count, Exists, Max, Min, OuterRef, Q
+from django.db.models import Count, Exists, Max, Min, OuterRef, Q, F
 from .models import ProjectURL,URLObservation,URLLabel,Label
 
 
@@ -74,7 +74,14 @@ def summarize_urls(items,observations):
         unknown_dates=Count('id',filter=Q(measured_date__isnull=True)),
     )
     summaries={row['url_id']:row for row in rows}
+    traffic_rows = observations.filter(url_id__in=[item.pk for item in items], batch__source='ahrefs',
+        scope=URLObservation.Scope.PAGE, facts__has_key='ahrefs_organic_traffic_estimate').exclude(
+        facts__ahrefs_organic_traffic_estimate=None).order_by('url_id',
+        F('measured_date').desc(nulls_last=True), F('measured_at').desc(nulls_last=True),
+        '-batch__imported_at', '-id').distinct('url_id').values('url_id', 'facts__ahrefs_organic_traffic_estimate')
+    traffic = {row['url_id']: row['facts__ahrefs_organic_traffic_estimate'] for row in traffic_rows}
     for item in items:
+        item.ahrefs_traffic = traffic.get(item.pk)
         row=summaries.get(item.pk,{})
         for key in ('observation_count','sources','http_signals','indexability_signals','first_measurement','last_measurement','unknown_dates'):
             setattr(item,key,row.get(key))

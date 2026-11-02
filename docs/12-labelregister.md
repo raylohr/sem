@@ -7,6 +7,23 @@ Bouw gebruikt `/expertises/vastgoed/vastgoedrecht/bouw/`. Het onbevestigde pad v
 Mediation blijft leeg en verschijnt als ‘Nog niet bevestigd’. Dit zijn definitiepaden,
 geen nieuwe URL-labelkoppelingen; historische aliassen worden niet toegevoegd.
 
+Het afzonderlijke veld `url_path_en` bevat de Engelse paden. Het register toont
+URL-pad NL en URL-pad EN. Voor Bouw geldt de Engelse construction-pagina binnen
+real-estate; beide expertises kunnen matchen. Mediation gebruikt het bevestigde
+pad `/en/mediator-the-hague/`; voor Cassatie blijft het Engelse veld leeg.
+
+De reproduceerbare padclassificatie werkt standaard als dry run:
+
+```sh
+python manage.py assign_path_labels PROJECT_UUID --actor GEBRUIKERSNAAM --language en
+```
+
+Voeg `--apply` toe om de gevonden URL-labelparen op te slaan. `--language nl` of
+`--language both` selecteert de andere regels. De opdracht controleert projectrechten,
+websitehost en de segmentgrens van het pad, bewaart bestaande toekenningen en maakt
+geen nieuwe labels. De JSON-uitvoer vermeldt per URL de gebruikte regel en kan als
+controlerapport worden bewaard. Dit is een padindeling, geen inhoudelijke review.
+
 Labels hebben een afzonderlijk `label_type`: expertise, onderwerp, doelgroep of
 functioneel. De bestaande labels krijgen type expertise. De eerdere `kind` blijft
 als bronindeling behouden en is niet bepalend voor het labeltype. Het URL-overzicht

@@ -50,6 +50,7 @@ class Label(models.Model):
     kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.SOURCE)
     label_type = models.CharField('labeltype', max_length=16, choices=Type.choices, default=Type.EXPERTISE, db_index=True)
     url_path = models.CharField('URL-pad', max_length=2048, blank=True, default='', help_text='Vastgesteld pad van de expertise-landingspagina, inclusief beginnende slash. Leeg zolang het pad niet bevestigd is.')
+    url_path_en = models.CharField('URL-pad EN', max_length=2048, blank=True, default='', help_text='Vastgesteld Engels expertise-pad; leeg zolang het pad niet bevestigd is.')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
