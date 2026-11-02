@@ -35,9 +35,12 @@ class URLFilterForm(forms.Form):
             data = args[0].copy()
             if 'host' not in data:
                 data['host'] = default_host
+            if 'content' not in data:
+                data['content'] = 'html'
             args = (data, *args[1:])
         else:
             kwargs.setdefault('initial', {}).setdefault('host', default_host)
+            kwargs['initial'].setdefault('content', 'html')
         super().__init__(*args,**kwargs)
         available = URLObservation.objects.filter(
             url__project=project, batch__project=project,
