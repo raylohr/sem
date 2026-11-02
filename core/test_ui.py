@@ -61,7 +61,15 @@ class WorkspaceTests(TestCase):
         ScanTarget.objects.create(project=self.project,created_by=self.owner,name='Own website',url='https://example.com/',allowed_hosts=['example.com'])
         response=self.client.get(reverse('ui:scans',args=[self.project.pk]))
         self.assertContains(response,'Own website')
-        self.assertContains(response,'Onderzoek starten')
+        self.assertContains(response,'Crawl starten')
+        self.assertContains(response,'Sitemapimport starten')
+        self.assertContains(response,'name="kind" value="crawl"')
+        self.assertContains(response,'name="kind" value="sitemap"')
+        self.client.force_login(self.viewer)
+        response=self.client.get(reverse('ui:scans',args=[self.project.pk]))
+        self.assertContains(response,'Sitemap inlezen')
+        self.assertNotContains(response,'data-scan-config=')
+        self.assertNotContains(response,'data-api-form')
 
     def test_json_api_is_unchanged(self):
         response=self.client.get(reverse('projects:list'))

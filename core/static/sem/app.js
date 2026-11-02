@@ -16,10 +16,43 @@ const validateInteger = (input, format = false) => {
   input.setCustomValidity(message);
   if (!message && format) input.value = integerFormatter.format(value);
 };
-document.querySelectorAll('input[data-value-type="integer"]').forEach(input => {
+document.querySelectorAll('input[data-value-type="integer"]:not([type="hidden"])').forEach(input => {
   validateInteger(input, true);
   input.addEventListener('input', () => validateInteger(input));
   input.addEventListener('blur', () => validateInteger(input, true));
+});
+document.querySelectorAll('form[data-scan-config]').forEach(editor => {
+  const scanForm = document.getElementById(editor.dataset.scanConfig);
+  const modal = editor.closest('.modal');
+  const card = scanForm.closest('[data-scan-card]');
+  const names = ['url', 'max_urls', 'max_depth'];
+  const restore = () => {
+    names.forEach(name => {
+      const input = editor.elements.namedItem(name);
+      input.value = scanForm.elements.namedItem(name).value;
+      if (input.dataset.valueType === 'integer') validateInteger(input, true);
+    });
+  };
+  modal.addEventListener('show.bs.modal', restore);
+  modal.addEventListener('hidden.bs.modal', restore);
+  modal.addEventListener('shown.bs.modal', () => editor.elements.namedItem('url').focus());
+  editor.addEventListener('submit', event => {
+    event.preventDefault();
+    editor.querySelectorAll('input[data-value-type="integer"]').forEach(input => validateInteger(input));
+    if (!editor.reportValidity()) return;
+    names.forEach(name => {
+      const input = editor.elements.namedItem(name);
+      const value = input.dataset.valueType === 'integer' ? parseInteger(input.value) : input.value.trim();
+      scanForm.elements.namedItem(name).value = String(value);
+      const summary = card.querySelector(`[data-scan-summary="${name}"]`);
+      summary.textContent = name === 'url' ? (value || card.dataset.defaultUrl) : integerFormatter.format(value);
+    });
+    card.querySelector('[data-scan-config-message]').textContent = 'Instellingen opgeslagen voor deze pagina.';
+    const result = scanForm.querySelector('.form-result');
+    result.textContent = '';
+    result.classList.add('d-none');
+    window.bootstrap.Modal.getOrCreateInstance(modal).hide();
+  });
 });
 document.querySelectorAll('form[data-api-form]').forEach((form) => {
   form.addEventListener('submit', async (event) => {

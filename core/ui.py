@@ -77,7 +77,22 @@ def batch(request, project_id, batch_id):
 @require_GET
 def scans(request, project_id):
     context=project_context(request,project_id,'scans')
-    context.update(targets=context['project'].scan_targets.all(),recent=context['project'].import_batches.filter(method='scan')[:10])
+    from urllib.parse import urljoin
+    from scans.forms import ScanForm
+    targets = list(context['project'].scan_targets.all())
+    for target in targets:
+        target.default_sitemap_url = urljoin(target.url, '/sitemap.xml')
+    modes = [
+        {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s en volgt links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
+         'url_label':'Start-URL','depth_label':'Maximale linkdiepte','depth_help':'Aantal linkstappen vanaf de startpagina; maximaal 100.',
+         'url_help':'Leeg laten gebruikt de startpagina van deze website.'},
+        {'kind':'sitemap','title':'Sitemap inlezen','button_label':'Sitemapimport starten','description':'Leest URL’s en gegevens uit sitemapbestanden en onderliggende sitemapindexen. De gevonden webpagina’s worden hierbij niet opgehaald.',
+         'url_label':'Sitemap-URL','depth_label':'Maximale sitemapdiepte','depth_help':'Aantal niveaus met onderliggende sitemapindexen; maximaal 100.',
+         'url_help':'Leeg laten gebruikt /sitemap.xml op deze website. Een andere locatie kun je hier invullen.'},
+    ]
+    context.update(targets=targets,scan_modes=modes,
+        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth')},
+        recent=context['project'].import_batches.filter(method='scan')[:10])
     return render(request,'ui/scans.html',context)
 
 

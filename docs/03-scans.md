@@ -183,3 +183,22 @@ zijn alle 100.000 bronrecords, URL's en observaties gecontroleerd. Piek-RSS was 
 110 MiB voor de crawl en 153 MiB voor de sitemap. De oude orphan-URL-controle is
 vervangen door een geïndexeerde scalaire subquery om een kwadratisch queryplan bij
 nieuwe projecten zonder plannerstatistieken te voorkomen.
+
+## Twee procescards en configuratie
+
+Ieder scandoel heeft twee cards: Website crawlen en Sitemap inlezen, met uitleg,
+een startknop en een samenvatting van de instellingen. Het tandwiel opent een eigen
+configuratiemodal voor de betreffende website en het betreffende proces.
+
+De modal biedt de start-/sitemap-URL, het URL-maximum (standaard 100.000) en de
+link-/sitemapdiepte (standaard 99). Opslaan past uitsluitend de card op de huidige
+pagina aan; er wordt geen scan gestart of verzoek naar de server verstuurd.
+Annuleren, het kruisje, Escape en sluiten via de achtergrond verwerpen de concept-
+wijzigingen. Na vernieuwen van de pagina gelden de standaardwaarden. Er zijn hiermee
+geen blijvende gebruikers- of projectvoorkeuren toegevoegd.
+
+Starten verstuurt de opgeslagen cardwaarden naar de bestaande scan-API. Die bewaart
+de gebruikte instellingen bij de batch en controleert projectrechten, hosts en
+limieten opnieuw. Websitekeuze, eigen/concurrent-scandoelen, recente scans,
+voortgang, annuleren en hervatten blijven beschikbaar. Automatische sitemapontdekking
+is hiermee niet toegevoegd: een leeg sitemapadres gebruikt nog steeds /sitemap.xml.
