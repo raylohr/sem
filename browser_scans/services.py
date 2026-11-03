@@ -6,17 +6,19 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from catalog.adapters import normalize_url as identity
 from projects.models import Project
 from projects.permissions import can_edit
 from sources.models import ImportBatch
 from sources.services import publish_records
-from scans.models import ScanTarget
+from scans.models import ScanTarget, ScanDocument
 from scans.extraction import extract_page
 from scans.large import bounded_metadata
 from scans.network import normalize_url, ScanError, MAX_BODY, USER_AGENT
 from assessments.models import AnalysisDefinition, AnalysisRun, AnalysisResult, Finding, FindingEvidence
+from .sampling import select_urls
 from .models import BrowserRun, BrowserVisit, BrowserResource, AccessibilityIssue, BrowserArtifact, StorageObservation
 
 MAX_RUN_ARTIFACTS = 256 * 1024 * 1024
@@ -41,7 +43,7 @@ def create_run(source_batch, actor, values):
         'max_bytes': 20*1024*1024, 'max_depth': 3, 'resource_hosts': values.get('resource_hosts') or [],
         'allowed_hosts': list(source.request_metadata.get('allowed_hosts') or target.allowed_hosts),
         'respect_robots': source.request_metadata.get('respect_robots', True),
-        'sampling': 'first URL per host/top-level path, then lexical fill; rendered links use remaining slots',
+        'sampling': 'round-robin across top-level paths and subpaths; one URL per path, query variants deduplicated; successful HTML only; infrastructure excluded',
         'scenario': 'four isolated consent contexts; ephemeral cookie transport; GET only' if values.get('privacy_enabled') else 'no consent interaction; stateless GET transport; service workers and websockets blocked'}
     if not set(config['allowed_hosts']).issubset(set(target.allowed_hosts)):
         raise PermissionDenied
@@ -49,25 +51,36 @@ def create_run(source_batch, actor, values):
         source='semscan', method='scan', label='Browseronderzoek: ' + target.name,
         parser_version='browser-v1', request_metadata={'scan': 'browser', **config})
     run = BrowserRun.objects.create(batch=batch, source_batch=source, config=config)
-    eligible = source.url_observations.filter(facts__content_type__icontains='html').values_list('url__normalized_url', flat=True).distinct().order_by('url__normalized_url')
-    selected, fallback, groups = [], [], set()
-    for url in eligible.iterator(chunk_size=500):
-        try:
-            url = normalize_url(url, config['allowed_hosts'])
-        except ScanError:
-            continue
-        parts = urlsplit(url)
-        group = (parts.hostname, parts.path.strip('/').split('/')[0])
-        if group not in groups:
-            groups.add(group)
-            selected.append(url)
-        elif len(fallback) < config['max_pages']:
-            fallback.append(url)
-        if len(selected) >= config['max_pages']:
-            break
-    selected.extend(fallback[:max(0, config['max_pages']-len(selected))])
+    eligible = source.url_observations.filter(facts__content_type__icontains='html').filter(
+        Q(facts__final_http_status=200) | (Q(facts__http_status=200) & ~Q(facts__has_key='final_http_status'))).values_list('url__normalized_url', flat=True).distinct().order_by('url__normalized_url')
+    selected = select_urls(eligible.iterator(chunk_size=500), config['allowed_hosts'], config['max_pages'])
     if not selected:
         selected = [normalize_url(source.request_metadata.get('url') or target.url, config['allowed_hosts'])]
+    # Discover only exact subdomains from the sampled server HTML. Every request
+    # still goes through public DNS pinning; navigation remains unchanged.
+    discovered = set()
+    candidates = ScanDocument.objects.filter(batch=source, url__in=selected, status=200).order_by('index')
+    inspected = set()
+    for document in candidates.iterator(chunk_size=1):
+        if document.url in inspected or 'html' not in document.content_type:
+            continue
+        inspected.add(document.url)
+        fields, _ = extract_page(SimpleNamespace(url=document.url, status=200,
+            headers={'content-type':document.content_type}, body=bytes(document.body)))
+        for url in fields.get('resource_urls', []):
+            try:
+                normalized = normalize_url(url)
+                host = urlsplit(normalized).hostname
+            except (ScanError, ValueError):
+                continue
+            if any(host.endswith('.'+parent) for parent in config['allowed_hosts']) and host not in config['allowed_hosts']:
+                if len(discovered) < 20: discovered.add(host)
+    config['discovered_resource_hosts'] = sorted(discovered)
+    config['resource_hosts'] = sorted(set(config['resource_hosts']) | discovered)
+    run.config = config
+    run.save(update_fields=['config'])
+    batch.request_metadata = {'scan':'browser', **config}
+    batch.save(update_fields=['request_metadata'])
     BrowserVisit.objects.bulk_create([BrowserVisit(run=run, url=url, url_hash=identity(url)[2], scenario=scenario) for url in selected for scenario in config['scenarios']])
     run.coverage = {'eligible_source_pages': eligible.count(), 'initial_sample_pages': len(selected),
         'sample_limit': config['max_pages'], 'sampling': config['sampling'], 'artifact_bytes': 0}
@@ -192,6 +205,12 @@ def store_visit(visit_id, response):
             try:
                 url = normalize_url(link, run.config['allowed_hosts'])
             except ScanError:
+                continue
+            parts = urlsplit(url)
+            if parts.path.startswith('/cdn-cgi/'):
+                continue
+            if any((urlsplit(existing).netloc, urlsplit(existing).path) == (parts.netloc, parts.path)
+                   for existing in run.visits.values_list('url', flat=True).distinct()):
                 continue
             created_url = False
             for scenario in run.config.get('scenarios', ['baseline']):

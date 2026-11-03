@@ -22,6 +22,12 @@ class ExtractionTests(SimpleTestCase):
         return extract_page(SimpleNamespace(url='https://example.com/base', status=200,
             headers={'content-type': 'text/html'}, body=html.encode()))[0]
 
+    def test_svg_titles_are_accessible_graphic_labels_not_document_titles(self):
+        fields = self.extract('<head><title>Page title</title></head><body><svg><title>Chart label</title><svg><title>Nested</title></svg></svg><h1>Heading</h1>')
+        self.assertEqual(fields['titles'], ['Page title'])
+        self.assertEqual(fields['h1'], ['Heading'])
+        self.assertEqual(self.extract('<title>One</title><title>Two</title>')['titles'], ['One','Two'])
+
     def test_anchor_details_duplicates_base_and_robots_provenance(self):
         fields = self.extract('<base href="/docs/"><meta name="googlebot" content="noindex"><a href="x" rel="nofollow sponsored">Read <b>more</b></a><a href="x"><img alt="Photo"></a>')
         self.assertEqual(fields['outlinks'], ['https://example.com/docs/x'] * 2)
@@ -72,6 +78,21 @@ class AssessmentTests(TestCase):
     def publish(self, batch, pages):
         publish_records(batch_id=batch.pk, records=[{'locator': f'page:{i}', 'data': data} for i, data in enumerate(pages)])
         return batch.analysis_runs.latest('started_at')
+
+    def test_protected_email_404_is_reviewable_and_real_broken_links_keep_correct_evidence(self):
+        fields = extract_page(SimpleNamespace(url='https://example.com/',status=200,headers={'content-type':'text/html'},
+            body=b'<title>Title</title><meta name="description" content="Description"><h1>Heading</h1><a class="__cf_email__" href="/cdn-cgi/l/email-protection#abc">Email</a><a href="/broken">Broken</a>'))[0]
+        batch = self.batch()
+        run = self.publish(batch,[self.page(**fields),self.page('/cdn-cgi/l/email-protection',404),self.page('/broken',404)])
+        findings = Finding.objects.filter(result__run=run,rule='link_to_404')
+        self.assertEqual(findings.count(),1)
+        self.assertEqual(findings.get().details['destination'],'https://example.com/broken')
+        self.assertTrue(findings.get().evidence.filter(role='target',snapshot__url='https://example.com/broken').exists())
+        self.assertEqual(run.summary['protected_email_links'],1)
+        # An ordinary link to that same path is still a measured broken link.
+        batch2=self.batch()
+        run2=self.publish(batch2,[self.page(link_details=[{'url':'https://example.com/cdn-cgi/l/email-protection'}]),self.page('/cdn-cgi/l/email-protection',404)])
+        self.assertEqual(Finding.objects.filter(result__run=run2,rule='link_to_404').count(),1)
 
     def test_same_batch_404_redirect_and_unmeasured_links(self):
         batch = self.batch()

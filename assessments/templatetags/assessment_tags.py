@@ -1,6 +1,8 @@
 from django import template
 register = template.Library()
 LABELS = {
+    'protected_email_links': 'Cloudflare-e-maillinks: browsercontrole nodig',
+    'cloudflare_email_review_required': 'Cloudflare-e-mailbescherming: browsercontrole nodig',
     'privacy-signals':'Privacywaarnemingen', 'baseline':'Zonder interactie', 'no_choice':'Geen keuze', 'reject':'Weigeren', 'accept':'Accepteren', 'withdraw':'Intrekken',
     'before_choice':'Vóór keuze','after_reject':'Na weigeren','after_accept':'Na accepteren','after_withdraw':'Na intrekken',
     'cms':'CMS','plugin':'Plugin','framework':'Framework','library':'Library','crm_marketing':'CRM / marketing','analytics':'Analytics','behavior_analytics':'Gedragsanalyse','tag_management':'Tagmanagement','advertising':'Advertenties','consent':'Toestemming','chat':'Chat','payment':'Betalingen','ecommerce':'E-commerce','embed':'Embed','fonts':'Fonts','reviews':'Reviews','cdn_waf':'CDN / WAF','hosting':'Hosting-/netwerkaanwijzing','webserver':'Webserver','email_infrastructure':'Mailinfrastructuur',

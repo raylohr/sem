@@ -7,7 +7,7 @@ class BrowserForm(forms.Form):
     profile = forms.ChoiceField(choices=[('desktop', 'Desktop (1440 × 900)'), ('mobile', 'Mobiele viewport (390 × 844)')], initial='desktop', required=False, label='Schermprofiel')
     timeout_seconds = forms.IntegerField(min_value=5, max_value=60, initial=30, required=False, label='Maximale rendertijd per pagina (seconden)')
     requests_per_second = forms.IntegerField(min_value=1, max_value=15, initial=1, required=False, label='Maximaal aantal verzoeken per seconde per host')
-    resource_hosts = forms.CharField(max_length=4096, required=False, label='Extra toegestane resourcehosts', help_text='Exacte hosts voor bijvoorbeeld CDN, fonts en API’s, gescheiden door komma’s. Navigatie blijft beperkt tot de websitehosts.')
+    resource_hosts = forms.CharField(max_length=4096, required=False, label='Extra toegestane resourcehosts', help_text='Exacte externe hosts voor bijvoorbeeld CDN, fonts en API’s, gescheiden door komma’s. Resource-subdomeinen die in de geselecteerde server-HTML staan, worden automatisch meegenomen (maximaal 20). Navigatie blijft beperkt tot de websitehosts.')
 
     privacy_enabled = forms.BooleanField(required=False, label='Privacy- en toestemmingsscenario’s onderzoeken', help_text='Vier schone browsercontexten per URL. Maximaal 25 URL’s bij privacyonderzoek.')
     consent_accept = forms.CharField(max_length=500, required=False, label='Accepteren: CSS-selector (optioneel)')

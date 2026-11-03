@@ -11,6 +11,8 @@ class PageParser(HTMLParser):
         self.h1, self.h2 = [], []
         self.current = None
         self.ignore = 0
+        self.foreign_depth = 0
+        self.protected_email_locators = []
         self.text = []
         self.links = []
         self.canonicals = []
@@ -22,13 +24,19 @@ class PageParser(HTMLParser):
         self.link_count = 0
         self.anchor = None
         self.robot_directives = []
+        self.resource_urls = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag in ('svg', 'math'):
+            self.foreign_depth += 1
         if tag in ('script', 'style', 'noscript'):
             self.ignore += 1
-        if tag in ('title', 'h1', 'h2'):
+        if tag in ('title', 'h1', 'h2') and not self.foreign_depth:
             self.current = (tag, [])
+        resource = attrs.get('src') if tag in ('script','img','iframe','source') else attrs.get('href') if tag == 'link' and set((attrs.get('rel') or '').lower().split()) & {'stylesheet','preload','modulepreload'} else None
+        if resource and len(self.resource_urls) < 200:
+            self.resource_urls.append(resource[:4096])
         if tag == 'html':
             self.language = attrs.get('lang', '')
         if tag == 'base' and not self.base:
@@ -51,10 +59,16 @@ class PageParser(HTMLParser):
                     self.anchor = {'href': attrs['href'], 'text': [],
                         'rel': (attrs.get('rel') or '').lower().split(), 'locator': f'html:{self.getpos()[0]}:{self.getpos()[1]}'}
                     self.link_details.append(self.anchor)
+                    if attrs.get('data-cfemail') or '__cf_email__' in attrs.get('class', '').split():
+                        self.protected_email_locators.append(self.anchor['locator'])
+        if tag == 'span' and self.anchor and '__cf_email__' in attrs.get('class', '').split():
+            self.protected_email_locators.append(self.anchor['locator'])
         if tag == 'img' and self.anchor and attrs.get('alt'):
             self.anchor['text'].append(attrs['alt'])
 
     def handle_endtag(self, tag):
+        if tag in ('svg', 'math'):
+            self.foreign_depth = max(0, self.foreign_depth-1)
         if tag == 'a':
             self.anchor = None
         if tag in ('script', 'style', 'noscript'):
@@ -108,7 +122,7 @@ def extract_page(result):
         reasons.append('noindex')
     if canonical_elsewhere:
         reasons.append('canonical_elsewhere')
-    fields = {'extractor_version': 'html-v2', 'indexability_reasons': reasons,
+    fields = {'extractor_version': 'html-v3', 'protected_email_locators': parser.protected_email_locators, 'resource_urls': [urljoin(base, value) for value in parser.resource_urls], 'indexability_reasons': reasons,
         'robot_directives': parser.robot_directives + ([{'source': 'header', 'agent': 'unspecified', 'value': result.headers['x-robots-tag']}] if result.headers.get('x-robots-tag') else []),
         'link_count': parser.link_count, 'links_truncated': parser.link_count > len(parser.links),
         'link_details': [{'url': urljoin(base, link['href']), 'anchor_text': ' '.join(' '.join(link['text']).split()), 'rel': link['rel'], 'locator': link['locator']} for link in parser.link_details],

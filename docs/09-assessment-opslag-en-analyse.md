@@ -159,3 +159,15 @@ web, worker en scan-worker draaien de nieuwe code. Productie is niet gewijzigd.
 Browserbatches leveren eveneens getypeerde paginametingen en links, met
 `discovery_mode=rendered`. Bevindingen kunnen via `FindingEvidence.browser_artifact`
 naar browserbewijs verwijzen. De actuele suite telt 307 geslaagde tests.
+
+## Extractie- en regelcorrectie versie 2
+
+`html-v3` sluit SVG-/MathML-titels uit van paginatitels; echte dubbele HTML-titels
+blijven zichtbaar. `assessment-v2` / basisregels versie 2 herkennen e-maillinks
+met Cloudflare-markering én hetzelfde hostpad `/cdn-cgi/l/email-protection`.
+Een gemeten 404 op zo’n link blijft als bronfeit behouden, maar wordt in het
+analysesamenvatting geteld als `protected_email_links` (browsercontrole nodig),
+zonder harde kapotte-linkbevinding. De linkcontrole wordt daarmee onbekend,
+geen pass. Ongekenmerkte links naar hetzelfde pad blijven gewone 404-bevindingen.
+Heranalyse uit opgeslagen HTML maakt een nieuwe analyse en behoudt historische
+resultaten en oorspronkelijke bronrecords.

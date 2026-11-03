@@ -17,8 +17,8 @@ from scans.models import ScanDocument
 from .models import (PageMeasurement, LinkObservation, AnalysisDefinition, AnalysisRun,
                      AnalysisResult, Finding, FindingEvidence)
 
-EXTRACTOR_VERSION = 'assessment-v1'
-RULE_VERSION = '1'
+EXTRACTOR_VERSION = 'assessment-v2'
+RULE_VERSION = '2'
 
 
 def chunks(iterator, size=100):
@@ -98,7 +98,7 @@ def rebuild_batch(batch_id, *, recover_documents=False):
             coverage['legacy_link_limit_unknown'] += bool(page_coverage['legacy_link_limit_unknown'])
             coverage['documents_recovered'] += recovered
             names = ('titles', 'meta_descriptions', 'h1', 'h2', 'canonicals', 'robots', 'robot_directives',
-                     'redirects', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count')
+                     'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count')
             facts = {key: data[key] for key in names if key in data}
             for field in ('titles', 'meta_descriptions'):
                 values = facts.get(field)
@@ -206,17 +206,30 @@ def analyze(batch, coverage):
     for link_chunk in chunks(links.filter(target_final_status=404).select_related('source').iterator(chunk_size=500), 500):
         results = {r.source_record_id: r for r in AnalysisResult.objects.filter(run=run, source_record_id__in={link.source.source_record_id for link in link_chunk})}
         findings = []
+        finding_links = []
         for link in link_chunk:
             result = results[link.source.source_record_id]
+            from urllib.parse import urlsplit
+            protected = (urlsplit(link.destination).path == '/cdn-cgi/l/email-protection'
+                and urlsplit(link.destination).netloc == urlsplit(link.source.final_url).netloc
+                and link.locator in link.source.facts.get('protected_email_locators', []))
+            if protected:
+                if result.answer['checks']['links_to_404'] != 'issue':
+                    result.answer['checks']['links_to_404'] = 'unknown'
+                if result.outcome == 'pass': result.outcome = 'unknown'
+                result.answer['cloudflare_email_review_required'] = True
+                summary['protected_email_links'] += 1
+                continue
             result.outcome = 'issue'
             result.answer['checks']['links_to_404'] = 'issue'
+            finding_links.append(link)
             findings.append(Finding(result=result, rule='link_to_404', severity='high',
                 title='Link leidt naar een 404', recommendation='Herstel of verwijder de link; controleer een eventuele redirectketen.',
                 details={'source_url': link.source.final_url, 'destination': link.destination, 'anchor_text': link.anchor_text,
                          'rel': link.rel, 'locator': link.locator, 'target_status': link.target_status, 'target_final_status': link.target_final_status}))
         Finding.objects.bulk_create(findings, batch_size=500)
         evidence = []
-        for finding, link in zip(findings, link_chunk):
+        for finding, link in zip(findings, finding_links):
             evidence.extend([
                 FindingEvidence(finding=finding, source_record_id=link.source.source_record_id, document_id=link.source.coverage.get('document_id'), role='source', snapshot=finding.details),
                 FindingEvidence(finding=finding, source_record_id=link.target_record, document_id=link.target_document, role='target', snapshot={'url': link.destination, 'http_status': link.target_status, 'final_http_status': link.target_final_status})])

@@ -193,3 +193,19 @@ baselineonderzoek. [Stap 3](11-privacy-technologie.md) voegt optionele onafhanke
 toestemmingsscenario’s toe met tijdelijke native cookies, opslagmetadata en
 automatische technologie-/DNS-verrijking. Cookiewaarden komen niet in de nieuwe
 opslagwaarnemingen; oorspronkelijke HTML/DOM/screenshot blijven ongeredigeerd bewijs.
+
+## Correcties na de eerste praktijkscan
+
+De selectie gebruikt nu alleen succesvolle HTML-waarnemingen en verdeelt het budget
+roulerend over hoofdpaden en subpaden. Per URL-pad wordt één variant geselecteerd;
+een URL zonder query heeft voorrang. `/cdn-cgi/`-infrastructuur valt buiten de
+browserselectie. Ook nieuw ontdekte browserlinks herhalen geen reeds onderzocht pad.
+Dit vergroot templatevariatie, maar bewijst geen volledige templatedekking.
+
+Uit opgeslagen server-HTML van de geselecteerde pagina’s worden maximaal twintig
+exacte resource-subdomeinen van de toegestane websitehosts toegevoegd. Dit maakt
+bijvoorbeeld `analytics.website.nl` bereikbaar zonder de navigatiescope uit te
+breiden. Externe domeinen vereisen nog expliciete invoer. Iedere request behoudt
+publieke DNS-validatie en IP-pinning. De concrete automatisch toegevoegde hosts
+staan apart in `discovered_resource_hosts`. De broncrawl wordt daarvoor niet opnieuw
+bezocht. Privacyonderzoek blijft een afzonderlijke expliciete keuze.

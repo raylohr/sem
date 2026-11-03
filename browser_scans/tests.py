@@ -91,6 +91,15 @@ class BrowserTests(TestCase):
         self.assertTrue(form.is_valid())
         return create_run(self.source, self.owner, form.cleaned_data)
 
+    def test_discovered_resource_subdomains_do_not_expand_navigation_or_external_hosts(self):
+        from scans.models import ScanDocument
+        ScanDocument.objects.create(batch=self.source,index=0,url='https://example.com/',status=200,fetched_at=timezone.now(),
+            content_type='text/html',body=b'<script src="https://analytics.example.com/script.js"></script><script src="https://example.com.attacker.org/x"></script><script src="http://127.0.0.1/x"></script>')
+        run=self.make_run(max_pages=2)
+        self.assertEqual(run.config['resource_hosts'],['analytics.example.com'])
+        self.assertEqual(run.config['allowed_hosts'],['example.com'])
+        self.assertEqual(run.batch.request_metadata['discovered_resource_hosts'],['analytics.example.com'])
+
     def test_creates_separate_batch_and_fixed_budgets(self):
         run = self.make_run(max_pages=2, resource_hosts='cdn.example.com')
         self.assertNotEqual(run.batch_id, self.source.pk)
@@ -288,3 +297,21 @@ class BrokerPolicyTests(SimpleTestCase):
     def test_final_browser_url_cannot_escape_navigation_scope(self):
         with self.assertRaises(ScanError):
             self.broker([{'type':'result','final_url':'http://127.0.0.1/private'}])
+
+
+class SamplingTests(SimpleTestCase):
+    def test_spreads_paths_and_excludes_parameter_duplicates_and_infrastructure(self):
+        from .sampling import select_urls
+        urls=['https://example.com/']+['https://example.com/?topic='+str(i) for i in range(20)]+[
+            'https://example.com/cdn-cgi/l/email-protection','https://example.com/city/amsterdam/',
+            'https://example.com/city/rotterdam/','https://example.com/help/faq/','https://other.example/x']
+        selected=select_urls(urls,['example.com'],5)
+        self.assertEqual(set(selected),{'https://example.com/','https://example.com/city/amsterdam/','https://example.com/city/rotterdam/','https://example.com/help/faq/'})
+        self.assertEqual(len(select_urls(urls,['example.com'],2)),2)
+
+    def test_large_city_section_keeps_a_distinct_deeper_template(self):
+        from .sampling import select_urls
+        urls=['https://example.com/city/']+['https://example.com/city/a'+str(i)+'/' for i in range(100)]+['https://example.com/city/place/village/']
+        selected=select_urls(urls,['example.com'],4)
+        self.assertIn('https://example.com/city/place/village/',selected)
+        self.assertEqual(len(selected),4)
