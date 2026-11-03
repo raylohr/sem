@@ -69,6 +69,7 @@ def batch(request, project_id, batch_id):
     from scans.diagnostics import MESSAGES
     counts = item.request_metadata.get('scan_outcome',{}).get('errors_by_code',{})
     labels = {**MESSAGES,'legacy_http_error':'HTTP-fout (historisch; technische oorzaak niet opgeslagen)', 'scan_error':'Download- of verwerkingsfout'}
+    context['browser_run'] = getattr(item, 'browser_run', None) if item.scan_kind == 'browser' else None
     context.update(scan_error_counts=[{'label': labels.get(code, code.replace('http_', 'HTTP ')), 'count': count} for code, count in counts.items()],
         scan_stale=stale_scan(item),batch=item,records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [],
         documents=item.scan_documents.defer('body').order_by('index')[:50],

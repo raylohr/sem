@@ -193,7 +193,7 @@ class ScanAccessTests(TestCase):
 
     def make_batch(self):
         return ImportBatch.objects.create(project=self.project, created_by=self.editor, scan_target=self.target,
-            source='crawler', method='scan', label='Crawl', request_metadata={
+            source='semscan', method='scan', label='Crawl', request_metadata={
                 'scan':'crawl', 'url':self.target.url, 'allowed_hosts':['example.com'], 'duration':10, 'max_urls':2,'max_depth':1})
 
     def test_target_requires_admin(self):
@@ -329,7 +329,8 @@ class ScanAccessTests(TestCase):
         self.assertEqual(response.status_code,200)
         response=self.client.get(reverse('ui:batch',args=[self.project.pk,batch.pk]))
         self.assertContains(response,'Deze scan is onvolledig')
-        response=self.client.get(reverse('projects:urls:list',args=[self.project.pk]))
+        # Failed downloads have no MIME type; request all types to inspect both outcomes.
+        response=self.client.get(reverse('projects:urls:list',args=[self.project.pk]), {'content': ''})
         self.assertEqual(response.json()['total'],2)
         with patch('scans.tasks.SafeClient') as client:
             process_scan(str(batch.pk))

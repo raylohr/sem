@@ -1,0 +1,9 @@
+{% extends 'ui/base.html' %}{% load assessment_tags %}
+{% block title %}Browseronderzoek starten · {{ project.name }}{% endblock %}
+{% block content %}
+<a href="{% url 'ui:browser:overview' project.id %}">← Browseronderzoeken</a>
+<h2 class="h4 mt-3">Browseronderzoek starten</h2>
+<p>Bron: {{ source.label }}. Dit maakt een afzonderlijke scan; de oorspronkelijke crawl blijft behouden.</p>
+<p class="text-muted">De selectie neemt eerst een pagina per host en hoofdpaden mee en vult daarna op URL-volgorde aan. Nieuw ontdekte JavaScript-links worden gevolgd zolang er ruimte is. Externe resources worden alleen geladen van expliciet toegestane hosts. Toestemmingsinteracties zijn optioneel. Formulier-/POST-verzoeken blijven geblokkeerd; een daardoor niet-verifieerbaar scenario blijft onbekend.</p>
+<form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}<p class="small text-muted">Per pagina maximaal 100 verzoeken en 20 MiB; maximaal drie scrollstappen en linkdiepte 3. De meting gebruikt een begrensde wachttijd. Laadtijden bevatten de invloed van het ingestelde verzoektempo.</p><button class="btn btn-primary align-self-start">Browseronderzoek starten</button></form>
+{% endblock %}

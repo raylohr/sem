@@ -1,0 +1,10 @@
+{% extends 'ui/base.html' %}{% load assessment_tags %}{% load l10n %}
+{% block title %}Browseronderzoek · {{ project.name }}{% endblock %}
+{% block content %}
+<a href="{% url 'ui:assessments:overview' project.id %}">← Alle bevindingen</a>
+<h2 class="h4 mt-3">Browseronderzoek, assets en toegankelijkheid</h2>
+<p>Onderzoek een begrensde selectie uit een bestaande crawl met JavaScript. Vergelijk server-HTML met de gerenderde pagina en bekijk resources, screenshots en automatische toegankelijkheidscontroles.</p>
+{% if can_edit %}<div class="card card-body mb-4"><h3 class="h6">Nieuw browseronderzoek</h3>{% for source in sources %}<div class="mb-2"><a href="{% url 'ui:browser:start' project.id source.id %}">{{ source.label }}</a> <span class="small text-muted">{{ source.imported_at|date:'d-m-Y H:i' }}</span></div>{% empty %}<p class="mb-0">Start eerst een websitecrawl met een actief scandoel.</p>{% endfor %}</div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Onderzoek</th><th>Status</th><th>Pagina’s</th><th>Meetprofiel</th></tr></thead><tbody>{% for run in page %}<tr><td><a href="{% url 'ui:browser:run' project.id run.id %}">{{ run.batch.label }}</a><div class="small text-muted">{{ run.batch.imported_at|date:'d-m-Y H:i' }}</div></td><td>{{ run.batch.get_status_display }}</td><td>{{ run.coverage.visited|default:'—' }} / {{ run.config.max_pages }}</td><td>{{ run.config.profile }}</td></tr>{% empty %}<tr><td colspan="4">Nog geen browseronderzoeken.</td></tr>{% endfor %}</tbody></table></div></div>
+{% if page.has_other_pages %}<nav class="mt-3" aria-label="Browseronderzoeken">{% if page.has_previous %}<a href="?page={{ page.previous_page_number|unlocalize }}">Vorige</a>{% endif %} {{ page.number }} / {{ page.paginator.num_pages }} {% if page.has_next %}<a href="?page={{ page.next_page_number|unlocalize }}">Volgende</a>{% endif %}</nav>{% endif %}
+{% endblock %}

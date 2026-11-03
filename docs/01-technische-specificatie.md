@@ -7,6 +7,15 @@ Status: eerste specificatie; infrastructuurgegevens deels nog open
 
 Een webapp op sem.lohr.nl die per project SEO/SEM-brongegevens, eigen scans en inhoudelijke beoordelingen samenbrengt. Het platform ondersteunt meerdere gebruikers met afzonderlijk instelbare projecttoegang. Werknaam: SEM; projectdirectory: /srv/sem. De naam kan later veranderen.
 
+## Uitbreiding website-assessment — 3 november 2026
+
+De aanvullende technische crawlereisen staan in
+[08-crawler-assessment-eisen.md](08-crawler-assessment-eisen.md): prospectscans met
+categoriescores en bewijs, browserrendering, SEO-/resourcegegevens, performance,
+toegankelijkheid, privacy/toestemming en Europese leveranciersafhankelijkheid.
+Klantdata uit GA4, GSC, Ahrefs en optionele logs verrijkt de analyse afzonderlijk.
+Dit is doelontwerp met fasering en acceptatiecriteria, geen implementatiestatus.
+
 ## Eerste productieversie
 
 - Accounts op uitnodiging of aangemaakt door een beheerder; geen publieke registratie.
@@ -203,3 +212,18 @@ Indexering is atomair met publicatie; batchverwijdering ruimt afgeleide waarnemi
 op zonder andere bronnen te wijzigen. 127 tests slagen. Alle 18 echte voorbeelden
 zijn tijdelijk gevalideerd (10.158 URL's); testdata is teruggedraaid. De testomgeving
 is bijgewerkt; productie niet. Zie 04-url-overzicht.md voor beleid en beperkingen.
+
+## Crawlerassessment — stap 1
+
+Getypeerde crawlmetingen, linkmodel, lokale herextractie en versieerbare basisanalyses
+met bewijs zijn toegevoegd. Zie [opslagmodel en gebruik](09-assessment-opslag-en-analyse.md)
+voor de gerealiseerde scope, indexen en resterend vervolgwerk.
+
+## Crawlerassessment — stap 2
+
+Browseronderzoek met geïsoleerd Playwright, assets, server/rendervergelijking,
+automatische toegankelijkheidscontroles en diagnostische performance is toegevoegd.
+Zie [10-browseronderzoek.md](10-browseronderzoek.md) voor gerealiseerde scope en meetgrenzen.
+
+Stap 3 voegt `site_intelligence` en scenario-/opslagmetingen aan `browser_scans`
+toe. Zie [technologie, privacy en gegevensmodel](11-privacy-technologie.md).

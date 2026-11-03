@@ -103,7 +103,7 @@ def process_scan(batch_id):
                 if batch.status in ('complete','incomplete'):
                     work.clean = True
                     return
-                publish_records(batch_id=batch_id,records=records)
+                publish_records(batch_id=batch_id,records=records,derive_assessment=False)
                 documents = iter(client.documents)
                 index = 0
                 while chunk := list(islice(documents,5)):
@@ -118,6 +118,9 @@ def process_scan(batch_id):
                     if summary['incomplete']:
                         batch.status = 'incomplete'
                 batch.save(update_fields=['warnings','request_metadata','status'])
+                if config['scan'] == 'crawl':
+                    from assessments.services import rebuild_batch
+                    rebuild_batch(batch.pk)
             work.clean = True
     except (ImportBatch.DoesNotExist,ScanCancelled,ScanBusy):
         return

@@ -90,9 +90,9 @@ class CatalogTests(TestCase):
         self.a=self.publish('ahrefs',[{'values':{'URL':'HTTPS://EXAMPLE.com:443/','Title':'Home','HTTP status code':'200','Organic traffic':'900','Is indexable page':'true'}}])
         self.b=self.publish('semscan',[{'url':'https://example.com/','measured_at':'2026-10-02T10:00:00+00:00','status':404,'is_indexable':False,'titles':['Missing'],'content_type':'text/html'}],method='scan')
 
-    def publish(self,source,rows,method='upload',project=None):
+    def publish(self,source,rows,method='upload',project=None,scan_kind='crawl'):
         project=project or self.project
-        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source,request_metadata={'scan':'crawl'} if source=='semscan' else {})
+        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source,request_metadata={'scan':scan_kind} if source=='semscan' else {})
         if project==self.hidden:
             Membership.objects.get_or_create(project=project,user=self.other,defaults={'role':'admin'})
         publish_records(batch_id=batch.pk,records=[{'locator':f'row:{i}','data':data} for i,data in enumerate(rows)])
@@ -104,7 +104,7 @@ class CatalogTests(TestCase):
 
     def test_combined_identity_preserves_two_sources_and_conflicting_signals(self):
         self.assertEqual(ProjectURL.objects.filter(project=self.project).count(),1)
-        result=self.client.get(self.url()).json()
+        result=self.client.get(self.url(), {'content': ''}).json()
         self.assertEqual(result['total'],1)
         self.assertEqual(result['urls'][0]['observation_count'],2)
         self.assertEqual(set(result['urls'][0]['sources']),{'ahrefs','semscan'})
@@ -119,7 +119,7 @@ class CatalogTests(TestCase):
     def test_known_dates_do_not_fall_back_to_import_time(self):
         result=self.client.get(self.url(),{'date_from':'2026-10-02','date_to':'2026-10-02'}).json()
         self.assertEqual(result['urls'][0]['observation_count'],1)
-        result=self.client.get(self.url(),{'date_from':'2026-10-02','date_to':'2026-10-02','include_unknown':'on'}).json()
+        result=self.client.get(self.url(),{'date_from':'2026-10-02','date_to':'2026-10-02','include_unknown':'on','content':''}).json()
         self.assertEqual(result['urls'][0]['observation_count'],2)
 
     def test_other_project_and_foreign_batch_are_rejected(self):
@@ -134,7 +134,7 @@ class CatalogTests(TestCase):
         delete_batch(batch_id=self.b.pk,project=self.project,actor=self.owner)
         self.assertTrue(ProjectURL.objects.filter(pk=item.pk).exists())
         self.assertEqual(URLObservation.objects.filter(url=item).count(),1)
-        result=self.client.get(self.url()).json()
+        result=self.client.get(self.url(), {'content': ''}).json()
         self.assertEqual(result['urls'][0]['http_signals'],[200])
         delete_batch(batch_id=self.a.pk,project=self.project,actor=self.owner)
         self.assertFalse(ProjectURL.objects.filter(pk=item.pk).exists())
@@ -176,9 +176,11 @@ class CatalogTests(TestCase):
         self.assertEqual(self.client.get(reverse('ui:record',args=[self.project.pk,self.a.pk,record.pk])).status_code,404)
 
     def test_html_overview_filters_render_and_escape_search(self):
-        response=self.client.get(reverse('ui:catalog:overview',args=[self.project.pk]))
+        response=self.client.get(reverse('ui:catalog:overview',args=[self.project.pk]), {'content': ''})
         self.assertEqual(response.status_code,200)
-        self.assertContains(response,'Verschillend per meting')
+        self.assertEqual(response.context['page'].object_list[0].indexability_label, 'Verschillend per meting')
+        self.assertContains(response, '>200</span>')
+        self.assertContains(response, '>404</span>')
         response=self.client.get(reverse('ui:catalog:overview',args=[self.project.pk]),{'q':'<script>alert(1)</script>'})
         self.assertEqual(response.status_code,200)
         self.assertNotContains(response,'<script>alert(1)</script>')
@@ -219,9 +221,9 @@ class CatalogTests(TestCase):
             self.assertTrue(row['source_record_id'])
 
     def test_url_pagination_has_stable_order(self):
-        self.publish('sitemap',[{'url':f'https://example.com/page-{i:02d}'} for i in range(30)])
-        first=self.client.get(self.url()).json()
-        second=self.client.get(self.url(),{'page':2}).json()
+        self.publish('semscan',[{'url':f'https://example.com/page-{i:02d}'} for i in range(30)],method='scan',scan_kind='sitemap')
+        first=self.client.get(self.url(), {'content': ''}).json()
+        second=self.client.get(self.url(),{'page':2, 'content': ''}).json()
         self.assertEqual(len(first['urls']),25)
         self.assertEqual(len(second['urls']),6)
         self.assertFalse({row['id'] for row in first['urls']} & {row['id'] for row in second['urls']})
@@ -230,7 +232,8 @@ class CatalogTests(TestCase):
     def read_export(self, **filters):
         import io
         import zipfile
-        response = self.client.get(reverse('ui:catalog:export', args=[self.project.pk]), filters)
+        # These tests inspect complete source datasets, including unknown MIME types.
+        response = self.client.get(reverse('ui:catalog:export', args=[self.project.pk]), {'content': '', **filters})
         self.assertEqual(response.status_code, 200)
         payload = b''.join(response.streaming_content)
         return zipfile.ZipFile(io.BytesIO(payload))
@@ -295,13 +298,13 @@ class CatalogTests(TestCase):
 
     def test_multiple_sources_combine_and_keep_measurement_filters(self):
         self.publish('gsc', [{'url': 'https://example.com/gsc-only', 'raw': {'clicks': 12}}], method='api')
-        result = self.client.get(self.url(), {'source': ['ahrefs', 'semscan']}).json()
+        result = self.client.get(self.url(), {'source': ['ahrefs', 'semscan'], 'content': ''}).json()
         self.assertEqual(result['total'], 1)
         self.assertEqual(set(result['urls'][0]['sources']), {'ahrefs', 'semscan'})
         self.assertEqual(result['urls'][0]['observation_count'], 2)
         result = self.client.get(self.url(), {'source': ['ahrefs', 'gsc'], 'http': 404}).json()
         self.assertEqual(result['total'], 0)
-        self.assertEqual(self.client.get(self.url(), {'source': ''}).json()['total'], 2)
+        self.assertEqual(self.client.get(self.url(), {'source': '', 'content': ''}).json()['total'], 2)
         self.assertEqual(self.client.get(self.url(), {'source': ['ahrefs', 'invalid']}).status_code, 400)
 
     def test_multiple_sources_persist_in_html_links_and_export(self):

@@ -43,3 +43,13 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 64m
+
+  browser-worker:
+    image: ${SEM_PROD_IMAGE:?Set SEM_PROD_IMAGE}
+    environment:
+      DB_NAME: sem_prod
+      DB_USER: sem_prod_app
+      DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_PROD}
+  browser-sandbox:
+    image: ${SEM_PROD_BROWSER_IMAGE:?Set SEM_PROD_BROWSER_IMAGE}

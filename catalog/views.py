@@ -9,7 +9,7 @@ from core.ui import project_context
 from sources.models import ImportBatch
 from .forms import URLFilterForm
 from .models import ProjectURL,URLObservation,Label,URLLabel
-from .queries import url_overview,summarize_urls
+from .queries import url_overview,summarize_urls,selected_observations
 
 SOURCE_LABELS=dict(ImportBatch.Source.choices)
 FACT_LABELS={
@@ -61,6 +61,12 @@ def overview_context(request,project_id):
         queryset=URLLabel.objects.filter(label__project=context['project']).select_related('label').order_by('label__name', 'label_id'),
         to_attr='overview_labels'))
     query=request.GET.copy();query.pop('page',None)
+    excluded_unknown_content = 0
+    if valid and filters.get('content') == 'html' and (filters.get('scope') or 'page') == 'page':
+        excluded_unknown_content = selected_observations(context['project'], {**filters, 'content': 'unknown'}).count()
+    unknown_query = query.copy(); unknown_query['content'] = 'unknown'
+    all_content_query = query.copy(); all_content_query['content'] = ''
+
     sort=filters.get('sort') or 'url'
     direction=filters.get('direction') or 'asc'
     columns=[]
@@ -77,7 +83,9 @@ def overview_context(request,project_id):
             'indicator':('↓' if direction=='desc' else '↑') if active else '↕',
             'next_direction_label':'aflopend' if next_direction=='desc' else 'oplopend','help':explanations.get(key,'')})
     context.update(form=form,page=page,url_count=page.paginator.count,observation_count=observations.count(),
-        scope=filters.get('scope') or 'page',filter_query=query.urlencode(),valid=valid,columns=columns)
+        scope=filters.get('scope') or 'page',filter_query=query.urlencode(),valid=valid,columns=columns,
+        excluded_unknown_content=excluded_unknown_content, unknown_content_query=unknown_query.urlencode(),
+        all_content_query=all_content_query.urlencode())
     return context
 
 
@@ -103,7 +111,8 @@ def api_overview(request,project_id):
             'observation_count':item.observation_count,'first_measurement':item.first_measurement,
             'last_measurement':item.last_measurement,'unknown_dates':item.unknown_dates})
     return JsonResponse({'urls':rows,'total':context['url_count'],'observation_count':context['observation_count'],
-        'page':context['page'].number,'scope':context['scope']})
+        'page':context['page'].number,'scope':context['scope'],
+        'excluded_unknown_content_observations':context['excluded_unknown_content']})
 
 
 @never_cache
@@ -114,7 +123,13 @@ def detail(request,project_id,url_id):
     item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status__in=('complete','incomplete')).distinct(),pk=url_id,project=context['project'])
     observations=item.observations.filter(batch__project=context['project'],batch__status__in=('complete','incomplete')).select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
     page=Paginator(observations,25).get_page(request.GET.get('page'))
+    from assessments.models import PageMeasurement
+    measurements = {item.source_record_id: item for item in PageMeasurement.objects.filter(source_record_id__in=[obs.source_record_id for obs in page.object_list], batch__project=context['project'])}
+    from browser_scans.models import BrowserVisit
+    browser_visits = {visit.source_record_id: visit for visit in BrowserVisit.objects.filter(source_record_id__in=[obs.source_record_id for obs in page.object_list], run__batch__project=context['project'])}
     for observation in page.object_list:
+        observation.browser_visit = browser_visits.get(observation.source_record_id)
+        observation.crawl_measurement = measurements.get(observation.source_record_id)
         observation.fact_items=[(FACT_LABELS.get(key,key),('Ja' if value else 'Nee') if isinstance(value,bool) else value) for key,value in observation.facts.items()]
     context.update(url=item,page=page,label_assignments=item.label_assignments.select_related('label').prefetch_related('evidence__source_record__batch').order_by('label__name'))
     return render(request,'catalog/detail.html',context)

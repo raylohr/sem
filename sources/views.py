@@ -187,7 +187,12 @@ def retry(request, project_id, batch_id):
         batch.status = "pending"
         batch.error = ""
         batch.save(update_fields=["status", "error"])
-        if batch.scan_target_id:
+        if batch.scan_kind == 'browser':
+            from browser_scans.views import enqueue
+            from browser_scans.models import BrowserRun
+            run = get_object_or_404(BrowserRun, batch=batch)
+            transaction.on_commit(lambda: enqueue(run))
+        elif batch.scan_target_id:
             from scans.tasks import enqueue_scan
             transaction.on_commit(lambda: enqueue_scan(batch.id))
         elif batch.gsc_connection_id:

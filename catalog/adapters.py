@@ -100,7 +100,7 @@ def adapt_record(batch, data, context=None):
     facts = {}
     source = batch.source
     if source == "semscan":
-        source = "crawler" if batch.scan_kind == "crawl" else batch.scan_kind
+        source = "crawler" if batch.scan_kind in ("crawl", "browser") else batch.scan_kind
     scope = "subtree" if "site structure" in str(data.get("sheet", "")).lower() else "page"
     def add(key, value):
         if value is not None:
@@ -171,6 +171,11 @@ def adapt_record(batch, data, context=None):
             for key in ("robots_allowed", "googlebot_allowed", "robots_respected"):
                 add(key, boolean(data.get(key)))
         add("word_count", number(data.get("word_count") if source == "crawler" else values.get("Word Count"), integer=True))
+        if source == "crawler":
+            for key in ("meta_descriptions", "h1", "h2", "depth", "response_time", "final_url",
+                        "redirects", "privacy_scenario", "text_hash", "body_hash", "indexability_reasons", "links_truncated", "text_truncated"):
+                add(key, data.get(key))
+
     if source == "ahrefs":
         mapping = {"organic_traffic_estimate": ["Organic traffic"], "referring_domains": ["No. of referring domains", "Referring domains"],
             "backlinks": ["No. of backlinks", "Links to target"], "dofollow_backlinks": ["No. of dofollow backlinks", "Dofollow"],

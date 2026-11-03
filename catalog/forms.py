@@ -32,7 +32,7 @@ class URLFilterForm(forms.Form):
     http=forms.IntegerField(min_value=100,max_value=599,required=False,label='Gemeten HTTP-status')
     indexability=forms.ChoiceField(choices=[('','Alle beoordelingen'),('yes','Technisch indexeerbaar'),('no','Niet indexeerbaar'),('unknown','Geen beoordeling')],required=False,label='Indexeerbaarheid')
     signal=forms.ChoiceField(choices=[('','Alle signalen'),('http_error','HTTP-fout (4xx/5xx)'),('missing_title','Ontbrekende titel'),('robots_blocked','Geblokkeerd door robots.txt')],required=False,label='Signaal')
-    content=forms.ChoiceField(choices=[('','Alle bestandstypen'),('html','HTML'),('image','Afbeeldingen'),('other','Overige bestandstypen')],required=False,label='Bestandstype')
+    content=forms.ChoiceField(choices=[('','Alle bestandstypen'),('html','HTML'),('unknown','Onbekend bestandstype'),('image','Afbeeldingen'),('other','Overige bestandstypen')],required=False,label='Bestandstype')
     date_from=forms.DateField(required=False,label='Meetdatum vanaf',widget=forms.DateInput(attrs={'type':'date'}))
     date_to=forms.DateField(required=False,label='Meetdatum tot',widget=forms.DateInput(attrs={'type':'date'}))
     include_unknown=forms.BooleanField(required=False,label='Ook onbekende meetdatums')
@@ -55,11 +55,17 @@ class URLFilterForm(forms.Form):
             url__project=project, batch__project=project,
             batch__status__in=('complete', 'incomplete'),
         ).values_list('batch__source', flat=True).distinct()
+        scope = self.data.get('scope') if self.is_bound else self.initial.get('scope', 'page')
+        if scope == URLObservation.Scope.SUBTREE:
+            # A section-level observation has no page response MIME type.
+            self.fields['content'].disabled = True
+            self.fields['content'].initial = ''
         self.fields['source'].choices = [
             (value, label) for value, label in ImportBatch.Source.choices
-            if value != ImportBatch.Source.AUDIT and value in available
+            if value in available
         ]
-        default_sources = [value for value, _ in self.fields['source'].choices]
+        default_sources = [value for value, _ in self.fields['source'].choices
+                           if value != ImportBatch.Source.AUDIT or scope == URLObservation.Scope.SUBTREE]
         if self.is_bound and not self.data.get('source'):
             self.data = self.data.copy()
             if hasattr(self.data, 'setlist'):
@@ -71,14 +77,14 @@ class URLFilterForm(forms.Form):
         signal_help = ('HTTP-status en indexeerbaarheid tonen signalen uit de geselecteerde bronnen en meetmomenten. '
                        'Ze beschrijven niet automatisch de huidige situatie. Klik op een URL voor de herkomst en cijfers per bron.')
         explanations = {
-            'source': 'Standaard zijn alle beschikbare bronnen geselecteerd. Vink bronnen uit om de selectie te beperken. Zonder selectie worden alle beschikbare bronnen meegenomen.',
+            'source': 'Standaard zijn alle beschikbare bronnen behalve Contentaudit geselecteerd. Bij sitestructuur wordt Contentaudit ook meegenomen. Je kunt bronnen afzonderlijk selecteren; zonder selectie gelden opnieuw deze standaardbronnen.',
             'batch': 'Beperk de selectie tot één import of scan. Bijvoorbeeld: de laatste SEMScan.',
             'expertise': 'Toon URL’s met het gekozen expertiselabel. De labels zijn afkomstig uit het labelregister van dit project.',
             'scope': 'Kies individuele URL-metingen of sitestructuur / paden. Bij sitestructuur kunnen cijfers een heel pad met onderliggende pagina’s omvatten. Bijvoorbeeld: /diensten/.',
             'http': 'Filter op een gemeten HTTP-status. Bijvoorbeeld: 404 voor niet gevonden. ' + signal_help,
             'indexability': 'Filter op de technische indexeerbaarheid volgens de meting. Bijvoorbeeld: Niet indexeerbaar. ' + signal_help,
             'signal': 'Toon metingen met een bepaald signaal. Bijvoorbeeld: een ontbrekende titel.',
-            'content': 'Filter op het gemeten bestandstype. Bijvoorbeeld: HTML voor webpagina’s.',
+            'content': 'Filter op het gemeten bestandstype. HTML sluit metingen zonder bekend bestandstype uit. Kies Onbekend bestandstype of Alle bestandstypen om die te bekijken. Dit filter geldt niet voor sitestructuur.',
             'date_from': 'Neem metingen vanaf deze datum mee, inclusief die dag. Bijvoorbeeld: 01-10-2026.',
             'date_to': 'Neem metingen tot en met deze datum mee. Bijvoorbeeld: 31-10-2026.',
             'include_unknown': 'Neem bij een datumfilter ook metingen zonder bekende meetdatum mee. Bijvoorbeeld: een import zonder meetdatum.',

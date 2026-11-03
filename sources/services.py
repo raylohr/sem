@@ -31,7 +31,7 @@ def delete_batch(*, batch_id, project, actor):
 
 
 @transaction.atomic
-def publish_records(*, batch_id, records):
+def publish_records(*, batch_id, records, derive_assessment=True):
     """Worker entry point: lock, recheck access and publish a whole batch once."""
     project_id = ImportBatch.objects.values_list("project_id", flat=True).get(pk=batch_id)
     project = Project.objects.select_for_update().get(pk=project_id)
@@ -51,5 +51,5 @@ def publish_records(*, batch_id, records):
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status"])
     from catalog.services import index_batch
-    index_batch(batch.id)
+    index_batch(batch.id, derive_assessment=derive_assessment)
     return batch.record_count

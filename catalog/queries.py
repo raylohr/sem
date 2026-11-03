@@ -12,7 +12,7 @@ def selected_observations(project,filters):
         assignments = URLLabel.objects.filter(url_id=OuterRef('url_id'), label=filters['expertise'],
             label__project=project, label__label_type=Label.Type.EXPERTISE)
         query = query.filter(Exists(assignments))
-    if filters.get('source'):
+    if 'source' in filters:
         query=query.filter(batch__source__in=filters['source'])
     if filters.get('batch'):
         query=query.filter(batch=filters['batch'])
@@ -28,12 +28,16 @@ def selected_observations(project,filters):
         query=query.filter(facts__http_status__gte=400)
     elif filters.get('signal') in ('missing_title','robots_blocked'):
         query=query.filter(**{'facts__'+filters['signal']:True})
-    if filters.get('content')=='html':
-        query=query.filter(facts__content_type__icontains='html')
-    elif filters.get('content')=='image':
-        query=query.filter(facts__content_type__istartswith='image/')
-    elif filters.get('content')=='other':
-        query=query.filter(facts__has_key='content_type').exclude(facts__content_type__icontains='html').exclude(facts__content_type__istartswith='image/')
+    unknown_content = Q(facts__content_type__isnull=True) | Q(facts__content_type=None) | Q(facts__content_type='')
+    if (filters.get('scope') or 'page') == URLObservation.Scope.PAGE:
+        if filters.get('content')=='html':
+            query=query.filter(facts__content_type__icontains='html')
+        elif filters.get('content')=='unknown':
+            query=query.filter(unknown_content)
+        elif filters.get('content')=='image':
+            query=query.filter(facts__content_type__istartswith='image/')
+        elif filters.get('content')=='other':
+            query=query.exclude(unknown_content).exclude(facts__content_type__icontains='html').exclude(facts__content_type__istartswith='image/')
     date_query=Q()
     if filters.get('date_from'):
         date_query &= Q(measured_date__gte=filters['date_from'])

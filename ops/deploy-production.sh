@@ -15,18 +15,21 @@ if [[ "$revision" != "$(git rev-parse HEAD)" ]]; then
 fi
 export SEM_PROD_IMAGE="sem-app:prod-$revision"
 export SEM_PROD_GATEWAY_IMAGE="sem-gateway:prod-$revision"
+export SEM_PROD_BROWSER_IMAGE="sem-browser:prod-$revision"
 build_dir=$(mktemp -d /tmp/sem-release.XXXXXX)
 trap 'rm -rf "$build_dir"' EXIT
 git archive "$revision" | tar -x -C "$build_dir"
 docker build -t "$SEM_PROD_IMAGE" "$build_dir"
+docker build -t "$SEM_PROD_BROWSER_IMAGE" -f "$build_dir/Dockerfile.browser" "$build_dir"
 docker build -t "$SEM_PROD_GATEWAY_IMAGE" -f "$build_dir/ops/proxy/Dockerfile" "$build_dir/ops/proxy"
 compose=(docker compose -f compose.yaml -f compose.prod.yaml)
 # Let scan slices finish before changing their metadata/schema. Queued
 # continuations remain in Redis and resume using the new immutable image.
-"${compose[@]}" stop scan-worker
+"${compose[@]}" stop scan-worker browser-worker
 "${compose[@]}" --profile tools run --rm migrate
 "${compose[@]}" up -d --no-build web gateway
-"${compose[@]}" up -d --no-build worker scan-worker beat
+"${compose[@]}" up -d --no-build browser-sandbox
+"${compose[@]}" up -d --no-build worker scan-worker browser-worker beat
 "${compose[@]}" exec -T web python manage.py check
 curl --fail --silent --retry 15 --retry-connrefused --retry-delay 2 http://127.0.0.1:8002/ready/
 printf '\nProductiecommit: %s\nImage: %s\n' "$revision" "$SEM_PROD_IMAGE"

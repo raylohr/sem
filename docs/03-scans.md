@@ -1,5 +1,9 @@
 # Sitemapimport en basiscrawler
 
+Dit document beschrijft de bestaande implementatie. Aanvullende technische eisen
+voor de doorontwikkeling staan in [08-crawler-assessment-eisen.md](08-crawler-assessment-eisen.md).
+Die eisen zijn doelontwerp en worden hier niet als beschikbaar aangemerkt.
+
 Scans draaien op een aparte Celery-queue (scans) met twee scanprocessen, samen
 maximaal twee CPU-cores en 1 GiB geheugen. Per websitecrawl worden standaard
 acht HTTP-verzoeken parallel verwerkt; checkpoints en databasewerk blijven op de
@@ -336,3 +340,20 @@ verzoek en maximaal één verzoek per seconde blijven de standaard.
 De standaard robotsmodus voor nieuwe scans is op verzoek **Niet blokkeren (audit)**
 (`robots_mode=ignore`). De huidige overige defaults zijn 100.000 URL’s, diepte 99,
 één gelijktijdig verzoek en maximaal één verzoek per seconde.
+
+## Afgeleide crawlmetingen en analyses
+
+Nieuwe crawls publiceren ook getypeerde paginametingen, linkobservaties en een
+basisanalyse. Bestaande HTML kan opnieuw worden uitgelezen zonder netwerkcrawl.
+Zie [opslag en analyse](09-assessment-opslag-en-analyse.md) voor model, rechten,
+beperkingen en beheercommando's.
+
+## Afzonderlijk browseronderzoek
+
+De standaard websitecrawl blijft server-HTML. Vanuit de gepubliceerde crawl kan
+een afzonderlijke browserbatch worden gestart. Zie [browseronderzoek](10-browseronderzoek.md)
+voor sampling, JavaScript-links, assets, toegankelijkheid en performance-diagnostiek.
+
+Voor optionele toestemmingsscenario’s en technologie-/DNS-verrijking na
+browseronderzoek: [stap 3](11-privacy-technologie.md). Het baselineonderzoek blijft
+zonder consentinteracties; de optionele scenario’s gebruiken tijdelijke cookies.

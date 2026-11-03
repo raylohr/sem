@@ -70,10 +70,29 @@ Als meerdere metingen verschillen, blijven beide signalen zichtbaar.
 ## Filters en paginering
 
 Filters: URL-deel, exacte host, bron, afzonderlijke import/scan, scope, gemeten HTTP,
-indexeerbaarheid, HTTP-fout/ontbrekende titel/robotsblokkade, HTML/afbeelding/overig,
+indexeerbaarheid, HTTP-fout/ontbrekende titel/robotsblokkade, HTML/onbekend/afbeelding/overig,
 en meetdatum van/tot. Onbekende meetdatums kunnen expliciet worden meegenomen.
 Alle bron-/signaal-/datumfilters gelden voor dezelfde waarneming. Zo wordt een
 GSC-signaal niet per ongeluk gecombineerd met de HTTP-status van een andere bron.
+
+Standaard gelden de primaire projecthost en bestandstype HTML. HTML vereist een
+bekend HTML-contenttype; onbekend wordt niet als HTML ingevuld. Het overzicht meldt
+hoeveel bronmetingen met onbekend bestandstype binnen de overige filters vallen,
+met links naar `content=unknown` of alle bestandstypen (`content=`). Onbekend omvat
+een ontbrekende sleutel, JSON-null of een lege contenttypewaarde. Deze waarden vallen
+niet onder Overige bestandstypen. Het API-veld
+`excluded_unknown_content_observations` geeft hetzelfde aantal uitgesloten metingen.
+
+Bronnen zonder expliciete selectie volgen de standaard: alle beschikbare bronnen
+behalve Contentaudit voor paginametingen; bij sitestructuur ook Contentaudit.
+Contentaudit kan expliciet worden geselecteerd. Een uitsluitend uit auditdata
+bestaand project toont die gegevens niet ongemerkt als standaard paginametingen.
+Sitestructuur heeft geen paginacontenttype: het bestandstypefilter is daar
+uitgeschakeld. Zo blijft oorspronkelijke Ahrefs-sitestructuurdata uit samengestelde
+auditbestanden bereikbaar. De export bewaart daarvan alleen oorspronkelijke
+bronkolommen en sluit auditbeoordelingen uit. Alle filters blijven projectgebonden
+en gelden voor dezelfde waarneming. Expliciet gekozen bronnen worden niet aangevuld
+met andere bronnen.
 
 Per pagina worden 25 URL's getoond. Samenvattingen worden alleen voor die zichtbare
 URL's berekend. Het dossier toont 25 waarnemingen per pagina; ieder feit blijft bij

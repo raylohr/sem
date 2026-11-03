@@ -55,7 +55,7 @@ class ImportBatch(models.Model):
 
     @property
     def scan_kind_display(self):
-        return {'crawl':'Websitecrawl', 'sitemap':'Sitemapimport'}.get(self.scan_kind, '')
+        return {'crawl':'Websitecrawl', 'sitemap':'Sitemapimport', 'browser':'Browseronderzoek'}.get(self.scan_kind, '')
 
     class Meta:
         ordering = ["-imported_at", "-id"]

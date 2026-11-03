@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import MD5
 from projects.models import Project
 
 
@@ -28,4 +29,5 @@ class ScanDocument(models.Model):
     fetched_at = models.DateTimeField()
     body = models.BinaryField()
     class Meta:
+        indexes = [models.Index('batch', MD5('url'), name='scan_document_url_digest')]
         constraints = [models.UniqueConstraint(fields=["batch", "index"], name="unique_batch_scan_document")]

@@ -207,3 +207,26 @@ Uit Ahrefs-werkbladen in een contentaudit worden alleen oorspronkelijke bronmetr
 meegenomen, zonder toegevoegde auditannotaties. Alleen gekoppelde URL-records uit
 voltooide/onvolledige imports vallen binnen de selectie. De export voegt geen
 SEO-aanbevelingen toe. Projectlezers hebben dezelfde toegang als tot het URL-overzicht.
+
+## Crawlbevindingen en heranalyse
+
+De projecttab **Bevindingen** toont basisanalyses met bewijs: metadata, exacte
+duplicaten en links naar 404's. Opgeslagen HTML kan zonder nieuwe netwerkcrawl
+worden herverwerkt. Het URL-dossier biedt crawlmetingen en inkomende/uitgaande links.
+Zie [opslagmodel en beheer](docs/09-assessment-opslag-en-analyse.md).
+
+## Browseronderzoek — stap 2
+
+Vanuit een gepubliceerde crawl kan een begrensd Playwright-onderzoek worden gestart.
+Dit vergelijkt server-HTML en gerenderde inhoud, volgt JavaScript-links binnen het
+paginabudget en bewaart resources, screenshots, axe-bevindingen en diagnostische
+laadtijden. De browser draait netwerkgeïsoleerd achter de bestaande veilige HTTP-client.
+Zie [browseronderzoek](docs/10-browseronderzoek.md) voor gebruik en beperkingen.
+
+## Technologie en privacy — stap 3
+
+Optioneel browseronderzoek in vier toestemmingsscenario’s, technologieherkenning
+met bewijs, DNS/ASN-verrijking en een versieerbaar leveranciersregister zijn
+beschikbaar onder **Technologie & privacy**. Europese uitgeversafhankelijkheid en
+privacysignalen blijven afzonderlijk; onbekende landen en gegevenslocaties worden
+niet ingevuld met aannames. Zie [gebruik en opslagmodel](docs/11-privacy-technologie.md).

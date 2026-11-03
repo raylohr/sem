@@ -17,7 +17,17 @@ def bounded_metadata(fields):
                             ('h2',50,1024),('canonicals',5,4096),('robots',20,2048),('outlinks',100,4096)]:
         fields[key] = [value[:width] for value in fields.get(key,[])[:count]]
     fields['language'] = fields.get('language','')[:256]
+    fields['link_details'] = [{**link, 'anchor_text': link.get('anchor_text', '')[:1024], 'rel': [value[:128] for value in link.get('rel', [])[:20]]} for link in fields.get('link_details', [])[:100] if len(link.get('url', '')) <= 8192]
+    fields['robot_directives'] = [{**item, 'value': item.get('value', '')[:2048]} for item in fields.get('robot_directives', [])[:20]]
+    fields['links_truncated'] = True
     fields['analysis_truncated'] = True
+    # New structured fields must not silently bypass the existing metadata budget.
+    while len(json.dumps(fields, ensure_ascii=False).encode('utf-8')) > 1024**2:
+        arrays = [key for key, value in fields.items() if isinstance(value, list) and value]
+        if not arrays:
+            break
+        for key in arrays:
+            fields[key] = fields[key][:len(fields[key]) // 2]
     return fields
 
 

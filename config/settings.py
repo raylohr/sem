@@ -19,7 +19,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog",
+    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog", "assessments", "browser_scans", "site_intelligence",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -131,3 +131,8 @@ OTP_STATIC_THROTTLE_FACTOR = 1
 PASSWORD_RESET_TIMEOUT = 3600
 SESSION_COOKIE_AGE = 8 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+BROWSER_SOCKET = os.environ.get("BROWSER_SOCKET", "/run/sem-browser/renderer.sock")
+CELERY_TASK_ROUTES["browser_scans.tasks.*"] = {"queue": "browser"}
+
+CELERY_TASK_ROUTES["site_intelligence.tasks.*"] = {"queue": "celery"}

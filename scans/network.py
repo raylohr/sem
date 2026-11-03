@@ -119,6 +119,7 @@ class FetchResult:
     robots_allowed: bool | None = None
     googlebot_allowed: bool | None = None
     robots_checked: bool = False
+    set_cookies: list = field(default_factory=list)
 
 
 class SafeClient:
@@ -192,7 +193,7 @@ class SafeClient:
                         return
             time.sleep(min(remaining, 0.1))
 
-    def _request(self, url, delay):
+    def _request(self, url, delay, cookie_header=""):
         self.guard()
         parts = urlsplit(url)
         host = parts.hostname
@@ -225,8 +226,13 @@ class SafeClient:
         started = time.monotonic()
         stage = "connect_or_headers"
         try:
+            request_headers = {"Host": parts.netloc, "User-Agent": USER_AGENT, "Accept-Encoding": "identity"}
+            if cookie_header:
+                if len(cookie_header) > 16384 or any(char in cookie_header for char in ('\r', '\n')):
+                    raise ScanError("Ongeldige tijdelijke cookieheader.")
+                request_headers['Cookie'] = cookie_header
             response = pool.urlopen("GET", parts.path + ("?" + parts.query if parts.query else ""),
-                headers={"Host": parts.netloc, "User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
+                headers=request_headers,
                 redirect=False, retries=False, preload_content=False, assert_same_host=False)
             stage = "read_body"
             raw = bytearray()
@@ -259,6 +265,8 @@ class SafeClient:
                 raise ScanBudgetExceeded("Totale documentomvang bereikt; scanresultaat is onvolledig.")
             result = FetchResult(url=url, status=response.status, headers=headers, body=body,
                                  elapsed=round(time.monotonic() - started, 3))
+            getlist = getattr(response.headers, 'getlist', None)
+            result.set_cookies = list(getlist('set-cookie')) if callable(getlist) else ([headers['set-cookie']] if headers.get('set-cookie') else [])
             stage = "record_document"
             sink = self.documents if threading.get_ident() == self.owner else self.pending_documents
             document = {"url": url, "status": result.status, "body": body,
@@ -336,35 +344,41 @@ class SafeClient:
             self.robots[origin] = parser, delay
         return self.robots[origin]
 
+    def fetch_once(self, url, enforce_robots=True, cookie_header=""):
+        """One validated hop; browser redirects re-enter this transport individually."""
+        self.guard()
+        url = normalize_url(url, self.allowed_hosts)
+        delay = self.delay
+        allowed = google_allowed = None
+        if enforce_robots:
+            try:
+                parser, robot_delay = self._robot_policy(url)
+                allowed = parser.can_fetch(USER_AGENT, url)
+                google_allowed = parser.can_fetch('Googlebot', url) if parser.sem_available else None
+                if not parser.sem_available and not self.respect_robots:
+                    allowed = None
+                if self.respect_robots:
+                    delay = max(robot_delay, self.delay)
+                    if not allowed:
+                        denied = RobotsDenied("robots.txt staat deze URL niet toe of kon niet worden vertrouwd.")
+                        denied.googlebot_allowed = google_allowed
+                        raise denied
+            except ScanBudgetExceeded:
+                raise
+            except ScanError:
+                if self.respect_robots:
+                    raise
+        result = self._request(url, delay, cookie_header=cookie_header) if cookie_header else self._request(url, delay)
+        result.robots_checked = enforce_robots
+        result.robots_allowed = allowed
+        result.googlebot_allowed = google_allowed
+        return result
+
     def fetch(self, url, enforce_robots=True):
         redirects = []
         for hop in range(6):
-            self.guard()
-            url = normalize_url(url, self.allowed_hosts)
-            delay = self.delay
-            allowed = google_allowed = None
-            if enforce_robots:
-                try:
-                    parser, robot_delay = self._robot_policy(url)
-                    allowed = parser.can_fetch(USER_AGENT, url)
-                    google_allowed = parser.can_fetch('Googlebot', url) if parser.sem_available else None
-                    if not parser.sem_available and not self.respect_robots:
-                        allowed = None
-                    if self.respect_robots:
-                        delay = max(robot_delay, self.delay)
-                        if not allowed:
-                            denied = RobotsDenied("robots.txt staat deze URL niet toe of kon niet worden vertrouwd.")
-                            denied.googlebot_allowed = google_allowed
-                            raise denied
-                except ScanBudgetExceeded:
-                    raise
-                except ScanError:
-                    if self.respect_robots:
-                        raise
-            result = self._request(url, delay)
-            result.robots_checked = enforce_robots
-            result.robots_allowed = allowed
-            result.googlebot_allowed = google_allowed
+            result = self.fetch_once(url, enforce_robots=enforce_robots)
+            url = result.url
             if result.status not in (301, 302, 303, 307, 308) or not result.headers.get("location"):
                 result.redirects = redirects
                 return result
@@ -376,6 +390,6 @@ class SafeClient:
                 result.blocked_redirect = "Redirect naar niet-toegestane URL is niet gevolgd."
                 return result
             redirects.append({"url": url, "status": result.status, "destination": destination,
-                              "robots_allowed": allowed, "googlebot_allowed": google_allowed})
+                              "robots_allowed": result.robots_allowed, "googlebot_allowed": result.googlebot_allowed})
             url = destination
         raise ScanError("Te veel redirects.")
