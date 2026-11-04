@@ -40,6 +40,10 @@ def add_warning(work, message):
 
 def crawl_checkpointed(client, *, url, max_urls, max_depth, work):
     work.add('crawl', normalize_url(url, client.allowed_hosts), 0)
+    if getattr(client,'discover_sitemaps',False) is True:
+        from .seeding import initialize, origin
+        initialize(work)
+        origin(work,normalize_url(url,client.allowed_hosts),'start')
     discovered = work.count('crawl')
     parallel = getattr(client, 'concurrency', 1)
     if not isinstance(parallel, int):
@@ -59,7 +63,16 @@ def crawl_checkpointed(client, *, url, max_urls, max_depth, work):
 
 
 def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor, ready, fetch):
-    while len(work.records) < max_urls and (item := work.next('crawl')):
+    auto=getattr(client,'discover_sitemaps',False) is True
+    while len(work.records) < max_urls:
+        if auto and len(work.records) and not work.get('seed_maps_done'):
+            from .seeding import discover
+            try:discover(client,work,url,max_urls)
+            except ScanBudgetExceeded as exc:
+                add_warning(work,str(exc));break
+            discovered=work.count('crawl')
+        item=work.next('crawl')
+        if not item:break
         item_id, current, depth = item
         try:
             work.check_disk()
@@ -126,6 +139,9 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
                 add_warning(work, result.blocked_redirect)
                 if depth==0:
                     add_warning(work,'De startpagina verwijst buiten de toegestane hosts; de eigenlijke website is niet onderzocht. Beoordeel de hostkeuzes bij Websitescans.')
+            if auto:
+                from .seeding import links as remember_links
+                remember_links(work,client,current,result.url,links,max_urls)
             stop = False
         except ScanBudgetExceeded as exc:
             add_warning(work, str(exc))
@@ -145,6 +161,9 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
             break
     if work.next('crawl'):
         add_warning(work,'URL- of tijdslimiet bereikt; niet alle ontdekte pagina’s zijn bezocht.')
+    if auto:
+        from .seeding import finalize
+        finalize(client,work,normalize_url(url,client.allowed_hosts),max_depth)
     add_warning(work,'Basiscrawl zonder JavaScript-rendering; indexeerbaarheid is een technische beoordeling.')
     return work.records, work.get('warnings',[])
 

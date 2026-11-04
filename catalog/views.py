@@ -13,6 +13,7 @@ from .queries import url_overview,summarize_urls,selected_observations
 
 SOURCE_LABELS=dict(ImportBatch.Source.choices)
 FACT_LABELS={
+ 'discovery_sources':'Gevonden via','link_depth_basis':'Grondslag linkdiepte','depth':'Linkdiepte vanaf startadres',
  'gsc_index_verdict':'Google-indexstatus','gsc_robots_state':'Robotsstatus volgens Google',
  'gsc_indexing_state':'Indexeringsregels volgens Google','gsc_fetch_state':'Ophaalstatus volgens Google',
  'gsc_google_canonical':'Door Google gekozen canonical','gsc_user_canonical':'Opgegeven canonical',
@@ -131,6 +132,11 @@ def detail(request,project_id,url_id):
         observation.browser_visit = browser_visits.get(observation.source_record_id)
         observation.crawl_measurement = measurements.get(observation.source_record_id)
         observation.fact_items=[(FACT_LABELS.get(key,key),('Ja' if value else 'Nee') if isinstance(value,bool) else value) for key,value in observation.facts.items()]
+        if 'discovery_sources' in observation.facts:
+            labels={'start_url':'Startadres','sitemap':'Sitemap','internal_link':'Interne link'}
+            observation.fact_items=[(label,', '.join(labels.get(item,item) for item in value) if label=='Gevonden via' else 'Niet vastgesteld' if label=='Linkdiepte vanaf startadres' and value is None else value) for label,value in observation.fact_items]
+            if 'depth' not in observation.facts:
+                observation.fact_items.append(('Linkdiepte vanaf startadres','Niet vastgesteld'))
     context.update(url=item,page=page,label_assignments=item.label_assignments.select_related('label').prefetch_related('evidence__source_record__batch').order_by('label__name'))
     return render(request,'catalog/detail.html',context)
 

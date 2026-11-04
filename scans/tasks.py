@@ -79,9 +79,13 @@ def process_scan(batch_id):
             client.transferred = work.get('transferred',0)
             from .scope import HostDiscovery, registered_domain
             client.host_discovery = HostDiscovery(batch)
+            client.discover_sitemaps = config.get('discover_sitemaps',False)
             client.decoded_bytes = work.get('decoded_bytes',0)
             checkpoint(batch,work)
             runner = crawl if config['scan']=='crawl' else sitemap
+            if config.get('discover_sitemaps'):
+                from .seeding import initialize
+                initialize(work)
             try:
                 records,warnings = runner(client,url=config['url'],max_urls=config['max_urls'],max_depth=config['max_depth'],work=work)
             except ScanPause:
@@ -97,6 +101,12 @@ def process_scan(batch_id):
                 client.close()
             checkpoint(batch,work,client)
             summary = summarize(records) if config['scan'] == 'crawl' else None
+            if summary and config.get('discover_sitemaps'):
+                limited=not work.get('seed_maps_done',False) or work.get('seed_maps_truncated',False) or bool(work.next('crawl'))
+                summary['discovery_limited']=bool(limited)
+                summary['incomplete']=summary['incomplete'] or bool(limited)
+                if limited:
+                    warnings=list(warnings)+['Onvolledige URL-dekking: sitemapontdekking of de pagina-wachtrij is begrensd. Bekijk de sitemapdekking en crawllimieten.']
             from .models import HostPolicy
             pending=[p.host for p in HostPolicy.objects.filter(project_id=batch.project_id,navigation='pending').order_by('host')
                      if p.host not in config['allowed_hosts'] and registered_domain(p.host)==client.host_discovery.domain][:100]
@@ -127,6 +137,14 @@ def process_scan(batch_id):
                         batch.status = 'incomplete'
                 batch.request_metadata={**batch.request_metadata,'host_scope_report':{'pending_hosts':pending,
                     'allowed_hosts':config['allowed_hosts'],'blocked_hosts':config.get('blocked_hosts',[])}}
+                if config.get('discover_sitemaps'):
+                    batch.request_metadata['sitemap_discovery']={
+                        'completed':work.get('seed_maps_done',False),'documents':work.get('seed_maps_found',0),
+                        'truncated':work.get('seed_maps_truncated',False),'provenance_truncated':work.get('provenance_truncated',False),
+                        'urls':work.connection.execute('SELECT count(*) FROM crawl_origins WHERE sitemap=1').fetchone()[0],
+                        'sitemap_only':work.connection.execute("SELECT count(*) FROM crawl_origins o JOIN frontier f ON f.url=o.url AND f.kind='crawl' WHERE o.sitemap=1 AND o.link=0 AND o.start=0 AND f.done=1").fetchone()[0],
+                        'sitemap_and_links':work.connection.execute("SELECT count(*) FROM crawl_origins o JOIN frontier f ON f.url=o.url AND f.kind='crawl' WHERE o.sitemap=1 AND o.link=1 AND f.done=1").fetchone()[0],
+                        'visited_sitemap_urls':work.connection.execute("SELECT count(*) FROM crawl_origins o JOIN frontier f ON f.url=o.url AND f.kind='crawl' WHERE o.sitemap=1 AND f.done=1").fetchone()[0]}
                 batch.save(update_fields=['warnings','request_metadata','status'])
                 if config['scan'] == 'crawl':
                     from assessments.services import rebuild_batch

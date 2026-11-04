@@ -90,7 +90,7 @@ def scans(request, project_id):
         from scans.scope import host_scope
         target.scope = host_scope(target)
     modes = [
-        {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s en volgt links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
+        {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s uit gevonden sitemaps en interne links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
          'url_label':'Start-URL','depth_label':'Maximale linkdiepte','depth_help':'Aantal linkstappen vanaf de startpagina; maximaal 100.',
          'url_help':'Leeg laten gebruikt de startpagina van deze website.'},
         {'kind':'sitemap','title':'Sitemap inlezen','button_label':'Sitemapimport starten','description':'Leest URL’s en gegevens uit sitemapbestanden en onderliggende sitemapindexen. De gevonden webpagina’s worden hierbij niet opgehaald.',

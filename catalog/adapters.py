@@ -172,7 +172,7 @@ def adapt_record(batch, data, context=None):
                 add(key, boolean(data.get(key)))
         add("word_count", number(data.get("word_count") if source == "crawler" else values.get("Word Count"), integer=True))
         if source == "crawler":
-            for key in ("meta_descriptions", "h1", "h2", "depth", "response_time", "final_url",
+            for key in ("meta_descriptions", "h1", "h2", "depth", "response_time", "final_url", "discovery_sources", "sitemap_url", "link_depth_basis",
                         "redirects", "privacy_scenario", "text_hash", "body_hash", "indexability_reasons", "links_truncated", "text_truncated"):
                 add(key, data.get(key))
 

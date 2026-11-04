@@ -125,7 +125,7 @@ def start(request, project_id, target_id):
         max_urls = data.get('max_urls') or DEFAULT_SCAN_SETTINGS['max_urls']
         robots_mode = data.get('robots_mode') or DEFAULT_SCAN_SETTINGS['robots_mode']
         duration, transfer = scan_budget(data['kind'], max_urls)
-        config = {'scan': data['kind'], 'url': url, **scope,
+        config = {'scan': data['kind'], 'url': url, **scope, 'discover_sitemaps':data['kind']=='crawl',
             'max_urls': max_urls,
             'max_depth': data['max_depth'] if data.get('max_depth') is not None else DEFAULT_SCAN_SETTINGS['max_depth'],
             'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': robots_mode == 'respect',

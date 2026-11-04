@@ -117,7 +117,8 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                      'language', 'hreflang', 'hreflang_truncated', 'canonical_sources', 'heading_sequence', 'headings_truncated',
                      'images', 'images_truncated', 'image_count', 'resource_urls', 'jsonld', 'jsonld_count', 'jsonld_truncated',
                      'headers_observed', 'response_headers', 'robots_allowed', 'googlebot_allowed', 'error', 'error_code',
-                     'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count')
+                     'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count',
+                     'discovery_sources','sitemap_url','link_depth_basis','exploration_depth')
             facts = {key: data[key] for key in names if key in data}
             for field in ('titles', 'meta_descriptions'):
                 values = facts.get(field)
