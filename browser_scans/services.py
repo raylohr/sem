@@ -45,7 +45,11 @@ def create_run(source_batch, actor, values):
         'respect_robots': source.request_metadata.get('respect_robots', True),
         'sampling': 'round-robin across top-level paths and subpaths; one URL per path, query variants deduplicated; successful HTML only; infrastructure excluded',
         'scenario': 'four isolated consent contexts; ephemeral cookie transport; GET only' if values.get('privacy_enabled') else 'no consent interaction; stateless GET transport; service workers and websockets blocked'}
-    if not set(config['allowed_hosts']).issubset(set(target.allowed_hosts)):
+    from scans.scope import host_scope
+    scope=host_scope(target)
+    config['resource_hosts']=sorted((set(config['resource_hosts'])|set(scope['resource_hosts']))-set(scope['blocked_resource_hosts']))
+    config['blocked_resource_hosts']=scope['blocked_resource_hosts']
+    if not set(config['allowed_hosts']).issubset(set(scope['allowed_hosts'])):
         raise PermissionDenied
     batch = ImportBatch.objects.create(project=project, created_by=actor, scan_target=target,
         source='semscan', method='scan', label='Browseronderzoek: ' + target.name,
@@ -76,7 +80,7 @@ def create_run(source_batch, actor, values):
             if any(host.endswith('.'+parent) for parent in config['allowed_hosts']) and host not in config['allowed_hosts']:
                 if len(discovered) < 20: discovered.add(host)
     config['discovered_resource_hosts'] = sorted(discovered)
-    config['resource_hosts'] = sorted(set(config['resource_hosts']) | discovered)
+    config['resource_hosts'] = sorted((set(config['resource_hosts']) | discovered)-set(scope['blocked_resource_hosts']))
     run.config = config
     run.save(update_fields=['config'])
     batch.request_metadata = {'scan':'browser', **config}
@@ -96,8 +100,14 @@ def check_run(run_id):
         raise PermissionDenied('Browseronderzoek geannuleerd.')
     if not can_edit(batch.created_by, batch.project) or not target or not target.active or target.project_id != batch.project_id:
         raise PermissionDenied('Toegang of scandoel ingetrokken.')
-    if not set(run.config['allowed_hosts']).issubset(set(target.allowed_hosts)):
+    from scans.scope import host_scope
+    scope=host_scope(target)
+    if not set(run.config['allowed_hosts']).issubset(set(scope['allowed_hosts'])):
         raise PermissionDenied('Toegestane hosts gewijzigd.')
+    resource_scope=set(run.config['allowed_hosts'])|set(run.config.get('resource_hosts',[]))
+    newly_blocked=set(scope['blocked_resource_hosts'])-set(run.config.get('blocked_resource_hosts',[]))
+    if resource_scope & newly_blocked:
+        raise PermissionDenied('Toegestane bestandshosts gewijzigd.')
     return run
 
 

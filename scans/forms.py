@@ -6,6 +6,9 @@ from .network import normalize_host, normalize_url, ScanError
 
 
 class TargetForm(forms.ModelForm):
+    blocked_hosts = forms.JSONField(required=False)
+    resource_hosts = forms.JSONField(required=False)
+    blocked_resource_hosts = forms.JSONField(required=False)
     class Meta:
         model = ScanTarget
         fields = ["name", "url", "kind", "allowed_hosts"]
@@ -16,9 +19,17 @@ class TargetForm(forms.ModelForm):
         try:
             url = normalize_url(values["url"])
             hosts = values.get("allowed_hosts") or []
-            if not isinstance(hosts, list) or len(hosts) > 10:
-                raise ScanError("Geef maximaal 10 exacte hostnamen op.")
-            hosts = sorted(set([normalize_host(h) for h in hosts] + [urlsplit(url).hostname]))
+            if not isinstance(hosts, list) or len(hosts) > 100:
+                raise ScanError("Geef maximaal 100 exacte hostnamen op.")
+            from .scope import default_hosts
+            hosts = sorted(set([normalize_host(h) for h in hosts]) | default_hosts(url))
+            for key in ('blocked_hosts','resource_hosts','blocked_resource_hosts'):
+                items = values.get(key) or []
+                if not isinstance(items,list) or len(items)>100:
+                    raise ScanError('Geef maximaal 100 exacte hostnamen per lijst op.')
+                values[key] = sorted({normalize_host(item) for item in items})
+            if urlsplit(url).hostname in values['blocked_hosts']:
+                raise ScanError('Het startadres mag niet op de uitgesloten lijst staan.')
             values["url"] = url
             values["allowed_hosts"] = hosts
         except ScanError as exc:

@@ -116,6 +116,7 @@ class FetchResult:
     elapsed: float = 0
     redirects: list = field(default_factory=list)
     blocked_redirect: str = ""
+    blocked_destination: str = ""
     robots_allowed: bool | None = None
     googlebot_allowed: bool | None = None
     robots_checked: bool = False
@@ -388,6 +389,10 @@ class SafeClient:
             except ScanError:
                 result.redirects = redirects
                 result.blocked_redirect = "Redirect naar niet-toegestane URL is niet gevolgd."
+                try:
+                    result.blocked_destination = normalize_url(destination)
+                except ScanError:
+                    result.blocked_destination = ''
                 return result
             redirects.append({"url": url, "status": result.status, "destination": destination,
                               "robots_allowed": result.robots_allowed, "googlebot_allowed": result.googlebot_allowed})

@@ -33,7 +33,8 @@ def check_scan(batch_id):
     metadata = batch.request_metadata
     if not target or not target.active or target.project_id != batch.project_id:
         raise PermissionDenied
-    if not set(metadata.get('allowed_hosts', [])).issubset(set(target.allowed_hosts)):
+    from .scope import host_scope
+    if not set(metadata.get('allowed_hosts', [])).issubset(set(host_scope(target)['allowed_hosts'])):
         raise PermissionDenied
     return batch
 
@@ -76,6 +77,8 @@ def process_scan(batch_id):
                 respect_robots=config.get('respect_robots',True),
                 concurrency=config.get('concurrency',DEFAULT_SCAN_SETTINGS['concurrency']),delay=1/config.get('requests_per_second',DEFAULT_SCAN_SETTINGS['requests_per_second']),shared_rate=True)
             client.transferred = work.get('transferred',0)
+            from .scope import HostDiscovery, registered_domain
+            client.host_discovery = HostDiscovery(batch)
             client.decoded_bytes = work.get('decoded_bytes',0)
             checkpoint(batch,work)
             runner = crawl if config['scan']=='crawl' else sitemap
@@ -94,6 +97,11 @@ def process_scan(batch_id):
                 client.close()
             checkpoint(batch,work,client)
             summary = summarize(records) if config['scan'] == 'crawl' else None
+            from .models import HostPolicy
+            pending=[p.host for p in HostPolicy.objects.filter(project_id=batch.project_id,navigation='pending').order_by('host')
+                     if p.host not in config['allowed_hosts'] and registered_domain(p.host)==client.host_discovery.domain][:100]
+            if pending:
+                warnings=list(warnings)+['Het toegestane deel is onderzocht. Andere subdomeinen wachten op beoordeling bij Websitescans: '+', '.join(pending)+'. Start na toestemming een nieuwe crawl.']
             if summary and summary['incomplete']:
                 warnings = list(warnings) + [outcome_warning(summary)]
             with transaction.atomic():
@@ -117,6 +125,8 @@ def process_scan(batch_id):
                     batch.request_metadata = {**batch.request_metadata,'scan_outcome':summary}
                     if summary['incomplete']:
                         batch.status = 'incomplete'
+                batch.request_metadata={**batch.request_metadata,'host_scope_report':{'pending_hosts':pending,
+                    'allowed_hosts':config['allowed_hosts'],'blocked_hosts':config.get('blocked_hosts',[])}}
                 batch.save(update_fields=['warnings','request_metadata','status'])
                 if config['scan'] == 'crawl':
                     from assessments.services import rebuild_batch

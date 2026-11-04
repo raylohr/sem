@@ -203,7 +203,7 @@ class ScanAccessTests(TestCase):
     def test_target_adds_primary_host_and_rejects_private_hosts(self):
         response = self.client.post(self.url('target-create'), json.dumps({'name':'Own', 'url':'https://example.org/', 'kind':'own'}), content_type='application/json')
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()['allowed_hosts'], ['example.org'])
+        self.assertEqual(response.json()['allowed_hosts'], ['example.org', 'www.example.org'])
         response = self.client.post(self.url('target-create'), json.dumps({'name':'Private', 'url':'http://192.168.178.152/', 'kind':'own'}), content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
@@ -222,7 +222,7 @@ class ScanAccessTests(TestCase):
             enqueue.assert_called_once()
         batch = ImportBatch.objects.get()
         self.assertEqual(batch.created_by, self.editor)
-        self.assertEqual(batch.request_metadata['allowed_hosts'], ['example.com'])
+        self.assertEqual(batch.request_metadata['allowed_hosts'], ['example.com', 'www.example.com'])
         self.assertEqual(batch.request_metadata['max_depth'], 0)
         self.assertEqual(batch.source,'semscan')
         self.assertFalse(batch.request_metadata['respect_robots'])
@@ -388,7 +388,8 @@ class ScanAccessTests(TestCase):
 
     def test_host_permission_removed_prevents_network(self):
         batch=self.make_batch()
-        ScanTarget.objects.filter(pk=self.target.pk).update(allowed_hosts=['example.org'])
+        from scans.models import HostPolicy
+        HostPolicy.objects.create(project=self.project,host='example.com',navigation='blocked')
         with patch('scans.tasks.SafeClient') as client:
             process_scan(str(batch.pk))
             client.assert_not_called()

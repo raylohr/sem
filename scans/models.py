@@ -31,3 +31,20 @@ class ScanDocument(models.Model):
     class Meta:
         indexes = [models.Index('batch', MD5('url'), name='scan_document_url_digest')]
         constraints = [models.UniqueConstraint(fields=["batch", "index"], name="unique_batch_scan_document")]
+
+
+class HostPolicy(models.Model):
+    NAV_CHOICES = [('pending','Te beoordelen'),('allowed','Toestaan'),('blocked','Uitsluiten')]
+    RESOURCE_CHOICES = [('pending','Standaard'),('allowed','Toestaan'),('blocked','Uitsluiten')]
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='host_policies')
+    host = models.CharField(max_length=253)
+    navigation = models.CharField(max_length=10, default='pending', choices=[('pending','Te beoordelen'),('allowed','Toestaan'),('blocked','Uitsluiten')])
+    resources = models.CharField(max_length=10, default='pending', choices=[('pending','Standaard'),('allowed','Toestaan'),('blocked','Uitsluiten')])
+    discovered_batch = models.ForeignKey('sources.ImportBatch', null=True, on_delete=models.SET_NULL)
+    example_url = models.CharField(max_length=4096, blank=True)
+    source_url = models.CharField(max_length=4096, blank=True)
+    purpose = models.CharField(max_length=20, default='navigation')
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project','host'],name='unique_project_host_policy')]

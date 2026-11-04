@@ -19,9 +19,15 @@ def crawl(client, *, url, max_urls, max_depth, work=None):
         try:
             result = client.fetch(current)
             fields, links = extract_page(result)
+            discovery=getattr(client,'host_discovery',None)
+            if discovery:
+                discovery.observe(links,current)
+                discovery.observe(fields.get('resource_urls',[]),current,'resources')
+                if result.blocked_redirect and result.blocked_destination:discovery.observe([result.blocked_destination],current)
             data = {'url': current, 'final_url': result.url, 'status': result.redirects[0]['status'] if result.redirects else result.status,
                 'final_status': result.status, 'redirects': result.redirects,
                 'blocked_redirect': result.blocked_redirect, 'depth': depth,
+                'blocked_destination': result.blocked_destination,
                 'measured_at': timezone.now().isoformat(), 'content_type': result.headers.get('content-type', ''),
                 'response_time': result.elapsed, 'body_hash': hashlib.sha256(result.body).hexdigest(), **fields}
             if depth < max_depth:

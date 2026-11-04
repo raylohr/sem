@@ -15,11 +15,12 @@ from .forms import TargetForm, ScanForm
 from .network import normalize_url, ScanError
 from .tasks import enqueue_scan
 from .limits import scan_budget, DEFAULT_SCAN_SETTINGS
+from .scope import host_scope, save_scope
 
 
 def target_data(target):
     return {'id': str(target.id), 'name': target.name, 'url': target.url, 'kind': target.kind,
-            'allowed_hosts': target.allowed_hosts, 'active': target.active}
+            **host_scope(target), 'active': target.active}
 
 
 def json_body(request):
@@ -52,7 +53,40 @@ def target_create(request, project_id):
         target = form.save(commit=False)
         target.project, target.created_by = project, request.user
         target.save()
+        save_scope(target, form.cleaned_data, request.user)
         return JsonResponse(target_data(target), status=201)
+
+
+@login_required
+@require_POST
+def target_update(request, project_id, target_id):
+    with transaction.atomic():
+        project=get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=('self',)),pk=project_id)
+        if not can_manage(request.user,project):return JsonResponse({'error':'Geen beheerrechten.'},status=403)
+        target=get_object_or_404(ScanTarget,project=project,pk=target_id)
+        try:form=TargetForm(json_body(request),instance=target)
+        except (ValueError,TypeError):return JsonResponse({'error':'Ongeldige JSON.'},status=400)
+        if not form.is_valid():return JsonResponse({'errors':form.errors.get_json_data()},status=400)
+        target=form.save()
+        save_scope(target,form.cleaned_data,request.user,replace=True)
+        return JsonResponse(target_data(target))
+
+
+@login_required
+@require_POST
+def host_decision(request, project_id, policy_id):
+    from .models import HostPolicy
+    with transaction.atomic():
+        project=get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=('self',)),pk=project_id)
+        if not can_manage(request.user,project):return JsonResponse({'error':'Geen beheerrechten.'},status=403)
+        policy=get_object_or_404(HostPolicy,project=project,pk=policy_id)
+        try:data=json_body(request)
+        except (ValueError,TypeError):return JsonResponse({'error':'Ongeldige JSON.'},status=400)
+        if any(data.get(field) not in ('allowed','blocked','pending') for field in ('navigation','resources')):
+            return JsonResponse({'error':'Ongeldige hostkeuze.'},status=400)
+        policy.navigation=data['navigation'];policy.resources=data['resources'];policy.decided_by=request.user
+        policy.save()
+        return JsonResponse({'saved':True})
 
 
 @login_required
@@ -83,14 +117,15 @@ def start(request, project_id, target_id):
         if not form.is_valid():
             return JsonResponse({'errors': form.errors.get_json_data()}, status=400)
         data = form.cleaned_data
+        scope=host_scope(target)
         try:
-            url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), target.allowed_hosts)
+            url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), scope['allowed_hosts'])
         except ScanError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
         max_urls = data.get('max_urls') or DEFAULT_SCAN_SETTINGS['max_urls']
         robots_mode = data.get('robots_mode') or DEFAULT_SCAN_SETTINGS['robots_mode']
         duration, transfer = scan_budget(data['kind'], max_urls)
-        config = {'scan': data['kind'], 'url': url, 'allowed_hosts': list(target.allowed_hosts),
+        config = {'scan': data['kind'], 'url': url, **scope,
             'max_urls': max_urls,
             'max_depth': data['max_depth'] if data.get('max_depth') is not None else DEFAULT_SCAN_SETTINGS['max_depth'],
             'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': robots_mode == 'respect',

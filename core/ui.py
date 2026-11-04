@@ -87,6 +87,8 @@ def scans(request, project_id):
     targets = list(context['project'].scan_targets.all())
     for target in targets:
         target.default_sitemap_url = urljoin(target.url, '/sitemap.xml')
+        from scans.scope import host_scope
+        target.scope = host_scope(target)
     modes = [
         {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s en volgt links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
          'url_label':'Start-URL','depth_label':'Maximale linkdiepte','depth_help':'Aantal linkstappen vanaf de startpagina; maximaal 100.',
@@ -95,7 +97,7 @@ def scans(request, project_id):
          'url_label':'Sitemap-URL','depth_label':'Maximale sitemapdiepte','depth_help':'Aantal niveaus met onderliggende sitemapindexen; maximaal 100.',
          'url_help':'Leeg laten gebruikt /sitemap.xml op deze website. Een andere locatie kun je hier invullen.'},
     ]
-    context.update(targets=targets,scan_modes=modes,
+    context.update(targets=targets,scan_modes=modes,host_policies=context['project'].host_policies.order_by('navigation','host'),
         scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth','robots_mode','concurrency','requests_per_second')},
         recent=context['project'].import_batches.filter(method='scan')[:10])
     return render(request,'ui/scans.html',context)

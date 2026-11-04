@@ -90,6 +90,12 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
                     continue
             fields, links = extract_page(result)
             fields = bounded_metadata(fields)
+            discovery = getattr(client,'host_discovery',None)
+            if discovery:
+                discovery.observe(links,current)
+                discovery.observe(fields.get('resource_urls',[]),current,'resources')
+                if result.blocked_redirect and result.blocked_destination:
+                    discovery.observe([result.blocked_destination],current)
             if getattr(result,"googlebot_allowed",None) is False:
                 fields["is_indexable"] = False
             elif getattr(result,"robots_checked",False) and result.googlebot_allowed is None and fields.get("is_indexable"):
@@ -98,6 +104,7 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
                 'status': result.redirects[0]['status'] if result.redirects else result.status,
                 'final_status': result.status, 'redirects': result.redirects,
                 'blocked_redirect': result.blocked_redirect, 'depth': depth,
+                'blocked_destination': result.blocked_destination,
                 'measured_at': timezone.now().isoformat(), 'content_type': result.headers.get('content-type',''),
                 'robots_allowed': getattr(result,'robots_allowed',None),
                 'googlebot_allowed': getattr(result,'googlebot_allowed',None),
@@ -117,6 +124,8 @@ def _crawl_loop(client, *, url, max_urls, max_depth, work, discovered, executor,
                 add_warning(work, 'Dieptelimiet bereikt; dieper gelinkte pagina’s zijn niet ingepland.')
             if result.blocked_redirect:
                 add_warning(work, result.blocked_redirect)
+                if depth==0:
+                    add_warning(work,'De startpagina verwijst buiten de toegestane hosts; de eigenlijke website is niet onderzocht. Beoordeel de hostkeuzes bij Websitescans.')
             stop = False
         except ScanBudgetExceeded as exc:
             add_warning(work, str(exc))
@@ -149,6 +158,9 @@ def sitemap_checkpointed(client, *, url, max_urls, max_depth, work):
         try:
             work.check_disk()
             result = client.fetch(current)
+            discovery=getattr(client,'host_discovery',None)
+            if discovery and result.blocked_redirect and result.blocked_destination:
+                discovery.observe([result.blocked_destination],current)
             if result.status != 200 or result.blocked_redirect:
                 raise ScanError('Sitemap niet bereikbaar met HTTP 200 binnen toegestane hosts.')
             kind, entries = parse_sitemap(result.body)
@@ -162,6 +174,8 @@ def sitemap_checkpointed(client, *, url, max_urls, max_depth, work):
             work.finish(item_id)
             continue
         offset = work.get(f'offset:{item_id}',0)
+        discovery=getattr(client,'host_discovery',None)
+        if discovery:discovery.observe([entry['loc'] for entry in entries],current)
         for position in range(offset,len(entries)):
             if position % 100 == 0:
                 try:

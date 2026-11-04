@@ -237,7 +237,7 @@ class BrowserTests(TestCase):
 
 
 class BrokerPolicyTests(SimpleTestCase):
-    def broker(self, messages, resource_hosts=None, error=None):
+    def broker(self, messages, resource_hosts=None, error=None, blocked_resource_hosts=None):
         from .client import render
         class Duplex:
             def __init__(self):
@@ -266,6 +266,7 @@ class BrokerPolicyTests(SimpleTestCase):
             def close(self):
                 pass
         config = {'allowed_hosts':['example.com'], 'resource_hosts':resource_hosts or [], 'timeout_ms':5000,
+            'blocked_resource_hosts':blocked_resource_hosts or [],
             'requests_per_second':1,'max_bytes':100000,'respect_robots':False,'settle_ms':100,'scroll_steps':0,'profile':'desktop','max_requests':10}
         with patch('browser_scans.client.socket.socket') as socket:
             socket.return_value.makefile.return_value = stream
@@ -285,6 +286,15 @@ class BrokerPolicyTests(SimpleTestCase):
         self.assertEqual([row['allowed'] for row in outputs[1:]], [False,False,True,False])
         self.assertNotIn('set-cookie', outputs[3]['headers'])
         self.assertNotIn('authorization', outputs[3]['headers'])
+
+    def test_resource_blacklist_overrides_allowed_hosts_without_blocking_main_page(self):
+        requests=[{'type':'request','url':'https://example.com/style.css','method':'GET','main_navigation':False},
+                  {'type':'request','url':'https://cdn.example.com/script.js','method':'GET','main_navigation':False},
+                  {'type':'request','url':'https://example.com/','method':'GET','main_navigation':True},
+                  {'type':'result','final_url':'https://example.com/'}]
+        _,calls,outputs=self.broker(requests,['cdn.example.com'],blocked_resource_hosts=['example.com','cdn.example.com'])
+        self.assertEqual(calls,['https://example.com/'])
+        self.assertEqual([row['allowed'] for row in outputs[1:]],[False,False,True])
 
     def test_byte_budget_stops_subsequent_network_fetches(self):
         from scans.network import ScanBudgetExceeded

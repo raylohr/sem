@@ -17,8 +17,9 @@ RESPONSE_HEADERS = {'strict-transport-security', 'referrer-policy', 'server', 'x
 def render(url, config, *, check_access, batch_id, transport_factory=SafeClient):
     hosts = set(config['allowed_hosts'])
     resource_hosts = hosts | set(config.get('resource_hosts', []))
+    resource_hosts -= set(config.get('blocked_resource_hosts', []))
     normalize_url(url, hosts)
-    client = transport_factory(resource_hosts, check_access=check_access,
+    client = transport_factory(resource_hosts | hosts, check_access=check_access,
         duration=config['timeout_ms']/1000+5, delay=1/config['requests_per_second'],
         max_transfer=config['max_bytes'], document_sink=[], respect_robots=config['respect_robots'],
         shared_rate=True, batch_id=batch_id)
