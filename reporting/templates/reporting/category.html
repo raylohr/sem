@@ -1,0 +1,12 @@
+{% extends 'ui/base.html' %}{% load report_tags %}
+{% block title %}{{ category.title }} · {{ project.name }}{% endblock %}
+{% block content %}
+<a href="{% url 'ui:reports:dossier' project.id dossier.id %}">← Onderzoeksdossier</a><h2 class="h4 mt-3">{{ category.title }}</h2>
+<p>{% if category.score != None %}<strong>{{ category.score }} / 100</strong>{% else %}{{ category.state|report_label }}{% endif %} · dekking {{ category.coverage.percent|default:'—' }}% · {{ category.coverage.url_count|default:'—' }} URL’s</p>
+{% if rules %}<p>Per URL en controle is maximaal één uitkomst geteld. Een geslaagde controle verdient het getoonde gewicht; een signaal of onbekende controle verdient geen punten. Niet-toepasselijke controles vallen buiten de berekening. Onder 80% onderzochte toepasselijke controles verschijnt geen cijfer.</p>
+<p>{{ category.calculation.earned_weight }} verdiende punten / {{ category.calculation.possible_weight }} mogelijke punten × 100. Afronding vindt pas bij de weergave plaats.</p>
+<div class="table-responsive"><table class="table small"><thead><tr><th>Controle</th><th>Gewicht</th><th>Geslaagd</th><th>Signaal</th><th>Onbekend</th><th>Niet van toepassing</th></tr></thead><tbody>{% for row in rules %}<tr><td>{{ row.key|report_label }}</td><td>{{ row.weight }}</td><td>{{ row.pass }}</td><td>{{ row.issue }}</td><td>{{ row.unknown }}</td><td>{{ row.not_applicable }}</td></tr>{% endfor %}</tbody></table></div>
+<p>Een technisch signaal kan een bewuste keuze of een aanwijzing voor beoordeling zijn. Het cijfer drukt de technische controles uit; het voorspelt geen zoekpositie, omzet of juridische conformiteit.</p>
+<a href="{% url 'ui:reports:dossier' project.id dossier.id %}?category={{ category.key }}">Problemen en bewijs in deze categorie</a>
+{% else %}<p>Deze categorie heeft een afzonderlijke status of afhankelijkheidsprofiel en geen numerieke kwaliteitsscore.</p>{% endif %}
+{% endblock %}

@@ -8,7 +8,7 @@ from scans.network import SafeClient, ScanError, ScanBudgetExceeded, normalize_u
 from .protocol import send, receive
 from .privacy import redacted_url
 
-RESPONSE_HEADERS = {'server', 'x-powered-by', 'x-generator', 'via', 'x-cache', 'content-type', 'location', 'cache-control', 'expires', 'etag', 'last-modified',
+RESPONSE_HEADERS = {'strict-transport-security', 'referrer-policy', 'server', 'x-powered-by', 'x-generator', 'via', 'x-cache', 'content-type', 'location', 'cache-control', 'expires', 'etag', 'last-modified',
     'x-robots-tag', 'link', 'content-security-policy', 'content-security-policy-report-only',
     'x-frame-options', 'x-content-type-options', 'access-control-allow-origin',
     'access-control-allow-credentials', 'cross-origin-resource-policy', 'cross-origin-opener-policy'}

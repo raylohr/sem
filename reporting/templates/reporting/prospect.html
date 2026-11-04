@@ -1,0 +1,7 @@
+{% extends 'ui/base.html' %}
+{% block title %}Prospectrapport · {{ project.name }}{% endblock %}
+{% block head %}<style>@media print{header,footer,.project-nav,.project-heading,.report-controls,.skip-link{display:none!important}.card{break-inside:avoid}main{padding:0!important}a{color:inherit!important}}</style>{% endblock %}
+{% block content %}
+<div class="report-controls d-flex flex-wrap gap-2 mb-4"><a class="btn btn-outline-primary" href="{% url 'ui:reports:dossier' project.id dossier.id %}">← Dossier</a><a class="btn btn-primary" href="?download=1">Zelfstandig rapport downloaden (HTML)</a><span class="small text-muted align-self-center">Via Afdrukken in de browser ook als PDF te bewaren.</span></div>
+{% include 'reporting/prospect_body.html' %}
+{% endblock %}

@@ -15,9 +15,9 @@ class Command(BaseCommand):
         batches = batches.filter(pk=options['batch']) if options['batch'] else batches.filter(project_id=options['project'])
         count = 0
         for batch in batches.iterator():
-            if batch.scan_kind != 'crawl':
+            if batch.scan_kind not in ('crawl','browser'):
                 continue
             run = rebuild_batch(batch.pk, recover_documents=options['recover_documents'])
             count += 1
             self.stdout.write(f'{batch.pk}: {run.coverage["pages"]} pagina’s, analyse {run.pk}')
-        self.stdout.write(f'{count} crawls geanalyseerd; oorspronkelijke bronrecords behouden.')
+        self.stdout.write(f'{count} crawl-/browserbatches geanalyseerd; oorspronkelijke bronrecords behouden.')

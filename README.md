@@ -230,3 +230,17 @@ met bewijs, DNS/ASN-verrijking en een versieerbaar leveranciersregister zijn
 beschikbaar onder **Technologie & privacy**. Europese uitgeversafhankelijkheid en
 privacysignalen blijven afzonderlijk; onbekende landen en gegevenslocaties worden
 niet ingevuld met aannames. Zie [gebruik en opslagmodel](docs/11-privacy-technologie.md).
+
+## Pagina- en relatieanalyse — stap 4
+
+Bevindingen omvatten nu canonical-/hreflangrelaties, HTTP/redirects, robots,
+assets, JSON-LD-syntaxis en interne ondersteuning. De analyse toont dekking per
+controle en detailresultaten per pagina. Zie [uitvoering en grenzen](docs/13-pagina-en-relatieanalyse.md).
+
+## Onderzoeksdossier en acties — stap 5
+
+De tab **Onderzoeksdossier** bundelt crawl- en browseranalyses in categorieën met
+scores én dekking, gegroepeerde problemen, bewijs en een projectactielijst.
+Een prospectrapport is afdrukbaar/downloadbaar. Acties worden pas opgelost na
+controle met een nieuwere meting en bevestigde acceptatiecriteria.
+Zie [scoremodel, workflow en opslag](docs/14-onderzoeksdossier-en-acties.md).

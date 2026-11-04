@@ -12,7 +12,7 @@ from core.ui import project_context
 from projects.models import Project
 from projects.permissions import can_edit
 from sources.models import ImportBatch
-from .models import AnalysisRun, Finding, ReprocessingJob, PageMeasurement, LinkObservation
+from .models import AnalysisRun, AnalysisResult, Finding, ReprocessingJob, PageMeasurement, LinkObservation
 from .tasks import process_reprocessing
 
 
@@ -23,7 +23,7 @@ def overview(request, project_id):
     context = project_context(request, project_id, 'assessments')
     project = context['project']
     runs = AnalysisRun.objects.filter(batch__project=project, status='complete', batch__status__in=('complete', 'incomplete')).select_related('batch', 'definition').order_by('-started_at')
-    batches = ImportBatch.objects.filter(project=project, source__in=('semscan', 'crawler'), status__in=('complete', 'incomplete')).filter(request_metadata__scan='crawl')
+    batches = ImportBatch.objects.filter(project=project, source__in=('semscan', 'crawler'), status__in=('complete', 'incomplete')).filter(request_metadata__scan__in=('crawl','browser'))
     # Legacy source names may have no scan metadata.
     legacy = ImportBatch.objects.filter(project=project, source='crawler', status__in=('complete', 'incomplete'))
     context.update(page=Paginator(runs, 25).get_page(request.GET.get('page')), batches=(batches | legacy).order_by('-imported_at'),
@@ -50,7 +50,7 @@ def reprocess(request, project_id, batch_id=None):
                 from django.http import Http404
                 raise Http404
         batch = get_object_or_404(ImportBatch, pk=batch_id, project=project, status__in=('complete', 'incomplete'))
-        if batch.scan_kind != 'crawl' or batch.source not in ('semscan', 'crawler'):
+        if batch.scan_kind not in ('crawl','browser') or batch.source not in ('semscan', 'crawler'):
             raise PermissionDenied
         job, created = ReprocessingJob.objects.get_or_create(batch=batch, status__in=('pending', 'processing'), defaults={'actor': request.user, 'status': 'pending'})
     if created:
@@ -89,10 +89,29 @@ def run_detail(request, project_id, run_id):
         findings = findings.filter(result__source_record__data__url__icontains=query)
     filters = request.GET.copy()
     filters.pop('page', None)
-    context.update(run=run, page=Paginator(findings.order_by('rule', 'id'), 25).get_page(request.GET.get('page')),
+    from .advanced import RULES
+    result_rows=run.results.all()
+    outcome=request.GET.get('outcome','')
+    if outcome in ('issue','pass','unknown','not_applicable'):result_rows=result_rows.filter(outcome=outcome)
+    if query:result_rows=result_rows.filter(answer__input__url__icontains=query)
+    check_coverage=[{'rule':key,'title':RULES[key][2],**counts} for key,counts in run.coverage.get('advanced_checks',{}).items() if key in RULES]
+    context.update(result_page=Paginator(result_rows.order_by('id').values('id','outcome','answer__input__url'),25).get_page(request.GET.get('result_page')),
+        selected_outcome=outcome,check_coverage=check_coverage,run=run, page=Paginator(findings.order_by('rule', 'id'), 25).get_page(request.GET.get('page')),
         filter_query=filters.urlencode(), rule=rule, severity=severity, query=query,
         outcomes=run.results.values('outcome').annotate(total=Count('id')).order_by('outcome'))
     return render(request, 'assessments/run.html', context)
+
+
+@never_cache
+@login_required
+@require_GET
+def result_detail(request,project_id,result_id):
+    context=project_context(request,project_id,'assessments')
+    result=get_object_or_404(AnalysisResult.objects.select_related('run__batch','run__definition','source_record'),pk=result_id,
+        run__batch__project=context['project'],run__batch__status__in=('complete','incomplete'),run__status='complete')
+    context.update(result=result,checks=result.answer.get('checks',{}),metrics=result.answer.get('internal_links',{}),
+        findings=result.findings.order_by('rule'))
+    return render(request,'assessments/result.html',context)
 
 
 @never_cache

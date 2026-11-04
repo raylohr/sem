@@ -4,6 +4,7 @@ from integrations import settings_views, guide_views
 from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("projects/<uuid:project_id>/reports/",include("reporting.urls")),
     path("handleiding/gsc/",guide_views.work_instructions,name="gsc-guide"),
     path("projects/<uuid:project_id>/connections/handleiding/",guide_views.work_instructions,name="gsc-project-guide"),
     path("settings/google/",settings_views.oauth_settings,name="gsc-settings"),

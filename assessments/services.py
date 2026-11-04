@@ -5,7 +5,7 @@ import math
 import hashlib
 from types import SimpleNamespace
 from django.db import transaction
-from django.db.models import Count, OuterRef, Subquery
+from django.db.models import Count
 from django.db.models.functions import MD5
 from django.utils import timezone
 from catalog.adapters import normalize_url
@@ -17,8 +17,8 @@ from scans.models import ScanDocument
 from .models import (PageMeasurement, LinkObservation, AnalysisDefinition, AnalysisRun,
                      AnalysisResult, Finding, FindingEvidence)
 
-EXTRACTOR_VERSION = 'assessment-v2'
-RULE_VERSION = '2'
+EXTRACTOR_VERSION = 'assessment-v3'
+RULE_VERSION = '3'
 
 
 def chunks(iterator, size=100):
@@ -37,10 +37,16 @@ def reextract(data, document=None):
     recovered = False
     if document and ('html' in document.content_type.lower()):
         recovered_fields, _ = extract_page(SimpleNamespace(url=document.url, status=document.status,
-            headers={'content-type': document.content_type}, body=bytes(document.body)))
+            headers={**data.get('response_headers',{}),'content-type': document.content_type}, body=bytes(document.body)))
         # The original robots/indexability facts include non-retained HTTP headers.
         for key in ('robots', 'robot_directives', 'is_indexable', 'indexability_reasons', 'indexability_basis'):
             recovered_fields.pop(key, None)
+        recovered_fields['headers_observed'] = data.get('headers_observed', False)
+        if not data.get('headers_observed'):
+            recovered_fields.pop('response_headers', None)
+        if not data.get('headers_observed') and data.get('canonical_sources'):
+            recovered_fields['canonical_sources'] += [item for item in data['canonical_sources'] if item.get('source')=='header']
+            recovered_fields['canonicals'] += [item['url'] for item in data['canonical_sources'] if item.get('source')=='header']
         fields.update(recovered_fields)
         recovered = True
     return fields, document, recovered
@@ -68,6 +74,11 @@ def rebuild_batch(batch_id, *, recover_documents=False):
             document_query = document_query.defer('body')
         for document in document_query.order_by('index').iterator(chunk_size=5):
             documents[(document.url, document.status)] = document
+        artifacts = {}
+        if recover_documents and batch.scan_kind == 'browser':
+            from browser_scans.models import BrowserArtifact
+            artifacts = {item.visit.source_record_id:item for item in BrowserArtifact.objects.filter(
+                visit__source_record_id__in=[obs.source_record_id for obs in observations],kind='rendered_dom').select_related('visit')}
         pages = []
         link_rows = []
         for obs in observations:
@@ -77,6 +88,11 @@ def rebuild_batch(batch_id, *, recover_documents=False):
             recovered = False
             if recover_documents:
                 data, document, recovered = reextract(data, document)
+            artifact = artifacts.get(obs.source_record_id)
+            if artifact:
+                evidence_document = SimpleNamespace(url=artifact.visit.final_url or artifact.visit.url, status=artifact.visit.http_status,
+                    content_type='text/html; charset=utf-8',body=artifact.body)
+                data, _, recovered = reextract(data, evidence_document)
             html = 'html' in str(data.get('content_type', '')).lower()
             # A network error is not an empty, successfully inspected HTML page.
             inspected = html and not data.get('error') and data.get('final_status', data.get('status')) is not None
@@ -87,7 +103,7 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                 'link_details_known': bool(detailed), 'links_truncated': data.get('links_truncated'),
                 'legacy_link_limit_unknown': links_known and 'links_truncated' not in data,
                 'analysis_truncated': bool(data.get('analysis_truncated')), 'recovered_from_document': recovered,
-                'document_id': document.pk if document else None,
+                'document_id': document.pk if document else None, 'browser_artifact_id':artifact.pk if artifact else None,
                 'headers_recovered': False, 'rendering': 'browser' if batch.scan_kind == 'browser' else 'server'}
             if page_coverage['legacy_link_limit_unknown'] and len(links) >= 2000:
                 page_coverage['links_truncated'] = True
@@ -98,6 +114,9 @@ def rebuild_batch(batch_id, *, recover_documents=False):
             coverage['legacy_link_limit_unknown'] += bool(page_coverage['legacy_link_limit_unknown'])
             coverage['documents_recovered'] += recovered
             names = ('titles', 'meta_descriptions', 'h1', 'h2', 'canonicals', 'robots', 'robot_directives',
+                     'language', 'hreflang', 'hreflang_truncated', 'canonical_sources', 'heading_sequence', 'headings_truncated',
+                     'images', 'images_truncated', 'image_count', 'resource_urls', 'jsonld', 'jsonld_count', 'jsonld_truncated',
+                     'headers_observed', 'response_headers', 'robots_allowed', 'googlebot_allowed', 'error', 'error_code',
                      'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count')
             facts = {key: data[key] for key in names if key in data}
             for field in ('titles', 'meta_descriptions'):
@@ -141,22 +160,15 @@ def rebuild_batch(batch_id, *, recover_documents=False):
 
 def analyze(batch, coverage):
     definition, _ = AnalysisDefinition.objects.get_or_create(key='crawl-basics', version=RULE_VERSION,
-        defaults={'question': 'Welke interne links leiden naar een gemeten 404 en welke basiscontent ontbreekt?',
+        defaults={'question': 'Welke technische pagina-, canonical-, taal- en interne linkproblemen zijn aantoonbaar in deze metingen?',
                   'output_schema': {'outcome': ['issue', 'pass', 'unknown', 'not_applicable']}})
     run = AnalysisRun.objects.create(batch=batch, definition=definition, extractor_version=EXTRACTOR_VERSION,
         coverage={**coverage, 'batch_status_at_analysis': batch.status, 'batch_warnings': batch.warnings,
                   'input_kind': 'published source records and optional stored HTML',
                   'scope': 'same batch only; external and unvisited destinations are not assumed reachable'})
     pages = PageMeasurement.objects.filter(batch=batch)
-    # Correlated indexed lookup avoids joining entire link and page inventories.
-    targets = pages.filter(url__project_id=batch.project_id, url__url_hash=OuterRef('destination_hash')).order_by('source_record_id')
-    if batch.request_metadata.get('privacy_enabled'):
-        targets = targets.filter(facts__privacy_scenario=OuterRef('source__facts__privacy_scenario'))
-    links = LinkObservation.objects.filter(source__batch=batch).annotate(
-        target_record=Subquery(targets.values('source_record_id')[:1]),
-        target_status=Subquery(targets.values('http_status')[:1]),
-        target_final_status=Subquery(targets.values('final_http_status')[:1]),
-        target_document=Subquery(targets.values('coverage__document_id')[:1]))
+    from .advanced import load_target_index, broken_links
+    target_index=load_target_index(batch)
     summary = Counter()
     duplicate_hashes = set(pages.filter(final_http_status=200).exclude(text_hash='').values('text_hash').annotate(n=Count('final_url', distinct=True)).filter(n__gt=1).values_list('text_hash', flat=True))
     duplicates = {}
@@ -202,8 +214,9 @@ def analyze(batch, coverage):
                 summary[rule] += 1
         Finding.objects.bulk_create(findings, batch_size=500)
         FindingEvidence.objects.bulk_create([FindingEvidence(finding=finding, source_record_id=finding.result.source_record_id,
-            document_id=checks_by_record[finding.result.source_record_id][0].coverage.get('document_id'), role='page', snapshot=finding.details) for finding in findings], batch_size=500)
-    for link_chunk in chunks(links.filter(target_final_status=404).select_related('source').iterator(chunk_size=500), 500):
+            document_id=checks_by_record[finding.result.source_record_id][0].coverage.get('document_id'),
+            browser_artifact_id=checks_by_record[finding.result.source_record_id][0].coverage.get('browser_artifact_id'), role='page', snapshot=finding.details) for finding in findings], batch_size=500)
+    for link_chunk in chunks(broken_links(batch,target_index), 500):
         results = {r.source_record_id: r for r in AnalysisResult.objects.filter(run=run, source_record_id__in={link.source.source_record_id for link in link_chunk})}
         findings = []
         finding_links = []
@@ -236,21 +249,12 @@ def analyze(batch, coverage):
         FindingEvidence.objects.bulk_create(evidence, batch_size=500)
         AnalysisResult.objects.bulk_update(list(results.values()), ['outcome', 'answer'], batch_size=500)
         summary['link_to_404'] += len(findings)
-    link_totals = links.values('source__source_record_id').annotate(total=Count('id'), measured=Count('target_final_status'))
-    for rows in chunks(link_totals.iterator(chunk_size=500), 500):
-        counts = {row['source__source_record_id']: row for row in rows}
-        results = list(AnalysisResult.objects.filter(run=run, source_record_id__in=counts))
-        for result in results:
-            row = counts[result.source_record_id]
-            result.answer['links'] = {'total': row['total'], 'measured_targets': row['measured'], 'unmeasured_targets': row['total'] - row['measured']}
-            if row['total'] != row['measured']:
-                if result.answer['checks']['links_to_404'] != 'issue':
-                    result.answer['checks']['links_to_404'] = 'unknown'
-                if result.outcome == 'pass':
-                    result.outcome = 'unknown'
-        AnalysisResult.objects.bulk_update(results, ['answer', 'outcome'], batch_size=500)
+    from .advanced import update_link_coverage
+    update_link_coverage(run,batch,target_index)
+    from .advanced import extend_analysis
+    extend_analysis(run, batch, summary,target_index)
     run.summary = dict(summary)
     run.status = 'complete'
     run.completed_at = timezone.now()
-    run.save(update_fields=['summary', 'status', 'completed_at'])
+    run.save(update_fields=['summary', 'status', 'completed_at', 'coverage'])
     return run

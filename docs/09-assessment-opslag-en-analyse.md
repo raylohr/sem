@@ -171,3 +171,7 @@ zonder harde kapotte-linkbevinding. De linkcontrole wordt daarmee onbekend,
 geen pass. Ongekenmerkte links naar hetzelfde pad blijven gewone 404-bevindingen.
 Heranalyse uit opgeslagen HTML maakt een nieuwe analyse en behoudt historische
 resultaten en oorspronkelijke bronrecords.
+
+De uitgebreide pagina-/relatieregels, paginaresultaten en herextractie van browser-DOM
+zijn beschreven in [stap 4](13-pagina-en-relatieanalyse.md). Deze gebruikt basisregels
+versie 3; oudere analyseruns blijven historische rapporten met hun eigen versie.

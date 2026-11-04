@@ -53,6 +53,10 @@ LABELS = {
 }
 
 
+from assessments.advanced import RULES
+LABELS.update({key: value[2] for key,value in RULES.items()})
+LABELS.update({'observed_inlinks':'Unieke interne verwijzende URL’s','unique_internal_outlinks':'Unieke interne doel-URL’s','graph_depth':'Linkafstand vanaf de start-URL','root':'Start-URL','scope':'Meetbereik','graph':'Interne linkstructuur','advanced_checks':'Dekking per controle','analysis_module':'Analysemodule'})
+
 @register.filter
 def assessment_label(value):
     return LABELS.get(value, value)

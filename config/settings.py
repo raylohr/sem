@@ -19,7 +19,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog", "assessments", "browser_scans", "site_intelligence",
+    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog", "assessments", "browser_scans", "site_intelligence", "reporting",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -136,3 +136,5 @@ BROWSER_SOCKET = os.environ.get("BROWSER_SOCKET", "/run/sem-browser/renderer.soc
 CELERY_TASK_ROUTES["browser_scans.tasks.*"] = {"queue": "browser"}
 
 CELERY_TASK_ROUTES["site_intelligence.tasks.*"] = {"queue": "celery"}
+
+CELERY_TASK_ROUTES["reporting.tasks.*"] = {"queue": "celery"}

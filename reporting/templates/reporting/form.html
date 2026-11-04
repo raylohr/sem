@@ -1,0 +1,6 @@
+{% extends 'ui/base.html' %}
+{% block title %}{{ title }} · {{ project.name }}{% endblock %}
+{% block content %}
+<a href="{% url 'ui:reports:overview' project.id %}">← Onderzoeksdossiers</a><h2 class="h4 mt-3">{{ title }}</h2>
+<form method="post" class="card card-body mt-3">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}{% if field.is_hidden %}{{ field }}{% else %}<div class="mb-3">{{ field.label_tag }}{{ field }}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}{{ field.errors }}</div>{% endif %}{% endfor %}<button class="btn btn-primary align-self-start">Opslaan</button></form>
+{% endblock %}
