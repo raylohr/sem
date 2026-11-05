@@ -132,7 +132,8 @@ class SafeClient:
         if not 1<=connect_timeout<=60 or not 1<=read_timeout<=120:
             raise ScanError('Ongeldige netwerk-time-out.')
         self.connect_timeout,self.read_timeout=connect_timeout,read_timeout
-        self.allowed_hosts = set(allowed_hosts)
+        from .host_rules import HostRules
+        self.allowed_hosts = allowed_hosts if isinstance(allowed_hosts, HostRules) else set(allowed_hosts)
         self.check_access = check_access
         self.deadline = time.monotonic() + duration
         self.slice_deadline = time.monotonic() + slice_seconds if slice_seconds else None

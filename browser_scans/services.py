@@ -19,6 +19,7 @@ from scans.large import bounded_metadata
 from scans.network import normalize_url, ScanError, MAX_BODY, USER_AGENT
 from assessments.models import AnalysisDefinition, AnalysisRun, AnalysisResult, Finding, FindingEvidence
 from .sampling import select_urls,select_pages
+from scans.host_rules import navigation_hosts
 from .models import BrowserRun, BrowserVisit, BrowserResource, AccessibilityIssue, BrowserArtifact, StorageObservation, DiscoveredLink
 
 MAX_RUN_ARTIFACTS = 256 * 1024 * 1024
@@ -49,9 +50,10 @@ def create_run(source_batch, actor, values):
         'scenario': 'four isolated consent contexts; ephemeral cookie transport; GET only' if values.get('privacy_enabled') else 'no consent interaction; stateless GET transport; service workers and websockets blocked'}
     from scans.scope import host_scope
     scope=host_scope(target)
+    config.update({key:scope[key] for key in ('host_policy_version','domain','include_subdomains','allow_external_resources','blocked_hosts')})
     config['resource_hosts']=sorted((set(config['resource_hosts'])|set(scope['resource_hosts']))-set(scope['blocked_resource_hosts']))
     config['blocked_resource_hosts']=scope['blocked_resource_hosts']
-    if not set(config['allowed_hosts']).issubset(set(scope['allowed_hosts'])):
+    if any(host not in navigation_hosts(scope) for host in config['allowed_hosts']):
         raise PermissionDenied
     batch = ImportBatch.objects.create(project=project, created_by=actor, scan_target=target,
         source='semscan', method='scan', label='Browseronderzoek: ' + target.name,
@@ -63,10 +65,10 @@ def create_run(source_batch, actor, values):
     candidates=PageMeasurement.objects.filter(batch=source,final_http_status=200,coverage__html_inspected=True).values('final_url','word_count','facts__h1','facts__resource_urls').order_by('final_url')
     rows=({'final_url':row['final_url'],'facts':{'word_count':row['word_count'],**{key.removeprefix('facts__'):value for key,value in row.items() if key.startswith('facts__')}}} for row in candidates.iterator(chunk_size=50))
     initial_limit=max(1,config['max_pages']-config['dynamic_pages']) if not config['privacy_enabled'] else config['max_pages']
-    selected,selection=select_pages(rows,config['allowed_hosts'],initial_limit)
+    selected,selection=select_pages(rows,navigation_hosts(config),initial_limit)
     if not selected:
-        selected=select_urls(eligible.iterator(chunk_size=500),config['allowed_hosts'],initial_limit)
-        if not selected:selected=[normalize_url(source.request_metadata.get('url') or target.url,config['allowed_hosts'])]
+        selected=select_urls(eligible.iterator(chunk_size=500),navigation_hosts(config),initial_limit)
+        if not selected:selected=[normalize_url(source.request_metadata.get('url') or target.url,navigation_hosts(config))]
         selection=[{'url':url,'reasons':['fallbackselectie; aanvullende paginakenmerken onbekend']} for url in selected]
     # Discover only exact subdomains from the sampled server HTML. Every request
     # still goes through public DNS pinning; navigation remains unchanged.
@@ -110,11 +112,14 @@ def check_run(run_id):
         raise PermissionDenied('Toegang of scandoel ingetrokken.')
     from scans.scope import host_scope
     scope=host_scope(target)
-    if not set(run.config['allowed_hosts']).issubset(set(scope['allowed_hosts'])):
+    current_hosts=navigation_hosts(scope) if run.config.get('include_subdomains') else set(scope['allowed_hosts'])
+    if any(host not in current_hosts for host in run.config['allowed_hosts']):
         raise PermissionDenied('Toegestane hosts gewijzigd.')
+    if run.config.get('include_subdomains') and any(host in navigation_hosts(run.config) for host in set(scope['blocked_hosts'])-set(run.config.get('blocked_hosts',[]))):
+        raise PermissionDenied('Paginahosts uitgesloten tijdens browseronderzoek.')
     resource_scope=set(run.config['allowed_hosts'])|set(run.config.get('resource_hosts',[]))
     newly_blocked=set(scope['blocked_resource_hosts'])-set(run.config.get('blocked_resource_hosts',[]))
-    if resource_scope & newly_blocked:
+    if resource_scope & newly_blocked or run.config.get('allow_external_resources') and newly_blocked:
         raise PermissionDenied('Toegestane bestandshosts gewijzigd.')
     return run
 
@@ -136,7 +141,7 @@ def store_visit(visit_id, response):
         raise ScanError('Geen gemeten hoofddocument.')
     if 'html' not in main['headers'].get('content-type', '').lower():
         raise ScanError('Het hoofddocument is geen HTML-pagina.')
-    final_url = normalize_url(response['final_url'], run.config['allowed_hosts'])
+    final_url = normalize_url(response['final_url'], navigation_hosts(run.config))
     server_body = decode_artifact(main['body'])
     dom = decode_artifact(response['dom'])
     screenshot = decode_artifact(response['screenshot'])

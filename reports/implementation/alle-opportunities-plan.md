@@ -189,3 +189,7 @@ Begin met R0 en R1. Leg de baseline, schema's en scorecontracten vast; bouw verv
 | R6 | G17 | Dunne inhoud en leesbaarheid | 3/5 | 3/5 | G09, G11 |
 | R6 | G24 | Schema-validatie van gestructureerde gegevens | 4/5 | 3/5 | G09, G23 |
 | R6 | G25 | Van signalen naar concrete herstelopdrachten | 3/5 | 5/5 | G03, G04, G06, G10, G15, G22, G26 |
+
+## Productiebenchmark na R6 — 5 november 2026
+
+De implementatie is op productie getoetst met een nieuwe crawl van vandersteenhoven.nl. Op de 59 gedeelde SF-pagina’s komen de basisgegevens, 828 hyperlinkparen en 456 afbeeldingsparen overeen; 11 zware referentieafbeeldingen hebben gelijke bytegroottes. Dit is geen bewijs van volledige productpariteit. Statusclassificatie (999), integratie van doelmetingen, aparte doelherpogingen, browserselectie en bundeling vragen vervolgwerk. Zie [actuele gap-matrix](../benchmarks/2026-11-05-post-r6/gap-matrix.md) en [geprioriteerde aanbevelingen met effort/effect](../benchmarks/2026-11-05-post-r6/aanbevelingen.md). De oorspronkelijke releaseplanning blijft hierboven historisch behouden.

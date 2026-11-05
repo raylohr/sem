@@ -18,6 +18,7 @@ from .models import ScanRetryTarget
 from .network import normalize_url,ScanError
 from .reliability import TRANSIENT
 from .scope import host_scope
+from .host_rules import navigation_hosts
 from .views import json_body
 from .tasks import enqueue_scan
 
@@ -42,7 +43,7 @@ def retry_downloads(request,project_id,batch_id):
         batch=None;buffer=[];count=skipped=0
         for source in query.iterator(chunk_size=100):
             if count>=100000:break
-            try:url=normalize_url(source.data.get('url'),scope['allowed_hosts'])
+            try:url=normalize_url(source.data.get('url'),navigation_hosts(scope))
             except ScanError:skipped+=1;continue
             if batch is None:
                 batch=ImportBatch.objects.create(project=project,created_by=request.user,scan_target=target,source='semscan',method='scan',

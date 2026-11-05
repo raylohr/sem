@@ -1,6 +1,7 @@
 from urllib.parse import urlsplit
 from django import forms
 from .models import ScanTarget
+from .host_rules import excluded
 from .limits import MAX_URLS, MAX_DEPTH, MAX_DURATION, DEFAULT_SCAN_SETTINGS
 from .network import normalize_host, normalize_url, ScanError
 
@@ -22,14 +23,16 @@ class TargetForm(forms.ModelForm):
             hosts = values.get("allowed_hosts") or []
             if not isinstance(hosts, list) or len(hosts) > 100:
                 raise ScanError("Geef maximaal 100 exacte hostnamen op.")
-            from .scope import default_hosts
+            from .scope import default_hosts,registered_domain
             hosts = sorted(set([normalize_host(h) for h in hosts]) | default_hosts(url))
+            root=registered_domain(urlsplit(url).hostname)
+            if any(registered_domain(host)!=root for host in hosts):raise ScanError('Paginahosts moeten bij hetzelfde projectdomein horen.')
             for key in ('blocked_hosts','resource_hosts','blocked_resource_hosts','blocked_external_hosts'):
                 items = values.get(key) or []
                 if not isinstance(items,list) or len(items)>100:
                     raise ScanError('Geef maximaal 100 exacte hostnamen per lijst op.')
                 values[key] = sorted({normalize_host(item) for item in items})
-            if urlsplit(url).hostname in values['blocked_hosts']:
+            if excluded(urlsplit(url).hostname,values['blocked_hosts']):
                 raise ScanError('Het startadres mag niet op de uitgesloten lijst staan.')
             values["url"] = url
             values["allowed_hosts"] = hosts
@@ -45,7 +48,7 @@ class ScanForm(forms.Form):
     browser_max_pages=forms.IntegerField(min_value=1,max_value=100,required=False,initial=20)
     browser_timeout_seconds=forms.IntegerField(min_value=5,max_value=60,required=False,initial=30)
     check_resources=forms.BooleanField(required=False,initial=True)
-    check_external_links=forms.BooleanField(required=False,initial=False)
+    check_external_links=forms.BooleanField(required=False,initial=True)
     resource_max_targets=forms.IntegerField(min_value=1,max_value=50000,required=False,initial=10000)
     external_max_targets=forms.IntegerField(min_value=1,max_value=10000,required=False,initial=1000)
     resource_max_bytes=forms.IntegerField(min_value=65536,max_value=5*1024**3,required=False,initial=250*1024**2)

@@ -11,7 +11,7 @@ RULES={
  'external_http_error':('technical','medium','Externe linkbestemming geeft een HTTP-fout','Controleer de externe bestemming en werk de verwijzing zo nodig bij. De externe site is niet verder gecrawld.'),
 }
 
-CONTROL_VERSION='resource-controls-v1'
+CONTROL_VERSION='resource-controls-v2'
 
 
 def checks(target,threshold,types=None):
@@ -19,7 +19,7 @@ def checks(target,threshold,types=None):
     if types is None:types=set(target.references.values_list('kind',flat=True))
     mime=target.headers.get('content-type','').split(';')[0].strip().lower()
     measured=status is not None
-    unknown=target.outcome in ('blocked','redirect_blocked','download_error','interrupted_unknown','not_measured_budget','not_measured_time','not_measured')
+    unknown=target.outcome in ('blocked','redirect_blocked','download_error','interrupted_unknown','not_measured_budget','not_measured_time','not_measured','unknown_response') or measured and not 200<=status<600
     failed=measured and (status in (404,410) or 500<=status<=599 or 400<=status<500 and status not in (401,403,408,425,429,451))
     states={}
     if target.purpose=='external':
@@ -86,5 +86,6 @@ def attach(run,batch,summary):
         AnalysisResult.objects.filter(pk=result[0]).update(outcome='issue')
         if len(findings)>=200:flush()
     if findings:flush()
+    run.coverage['resource_controls_version']=CONTROL_VERSION
     run.coverage['resource_checks']={rule:dict(states) for rule,states in coverage.items()}
     run.coverage['resource_scan']=batch.request_metadata.get('resource_scan',{})

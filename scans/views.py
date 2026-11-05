@@ -1,5 +1,5 @@
 import json
-from urllib.parse import urljoin
+from urllib.parse import urljoin,urlsplit
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
@@ -17,6 +17,7 @@ from .tasks import enqueue_scan
 from .limits import scan_budget, DEFAULT_SCAN_SETTINGS
 from assessments.r2 import DEFAULT_SETTINGS as ANALYSIS_DEFAULTS
 from .scope import host_scope, save_scope
+from .host_rules import navigation_hosts
 
 
 def target_data(target):
@@ -86,6 +87,9 @@ def host_decision(request, project_id, policy_id):
         if any(data.get(field) not in ('allowed','blocked','pending') for field in ('navigation','resources')):
             return JsonResponse({'error':'Ongeldige hostkeuze.'},status=400)
         if 'external' in data and data['external'] not in ('allowed','blocked','pending'):return JsonResponse({'error':'Ongeldige externe hostkeuze.'},status=400)
+        from .scope import registered_domain
+        if data['navigation']=='allowed' and not any(registered_domain(policy.host)==registered_domain(urlsplit(t.url).hostname) for t in project.scan_targets.filter(active=True)):
+            return JsonResponse({'error':'Pagina’s bezoeken is beperkt tot het projectdomein en de subdomeinen.'},status=400)
         policy.external=data.get('external',policy.external)
         policy.navigation=data['navigation'];policy.resources=data['resources'];policy.decided_by=request.user
         policy.save()
@@ -122,7 +126,7 @@ def start(request, project_id, target_id):
         data = form.cleaned_data
         scope=host_scope(target)
         try:
-            url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), scope['allowed_hosts'])
+            url = normalize_url(data.get('url') or (urljoin(target.url, '/sitemap.xml') if data['kind'] == 'sitemap' else target.url), navigation_hosts(scope))
         except ScanError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
         max_urls = data.get('max_urls') or DEFAULT_SCAN_SETTINGS['max_urls']
@@ -130,8 +134,8 @@ def start(request, project_id, target_id):
         duration, transfer = scan_budget(data['kind'], max_urls)
         from .resources import DEFAULTS as RESOURCE_DEFAULTS
         config = {'schema_profiles':data['schema_profiles'] if 'schema_profiles' in form.data else ['google-breadcrumb-v1','google-product-snippet-v1'],'browser_requests_per_second':data.get('browser_requests_per_second') or 5,'browser_phase':data['kind']=='crawl' and data['browser_phase'],'browser_max_pages':data.get('browser_max_pages') or 20,'browser_timeout_seconds':data.get('browser_timeout_seconds') or 30,'resource_version':'resources-v1' if data['kind']=='crawl' else '',
-            'check_resources':data['kind']=='crawl' and data['check_resources'],
-            'check_external_links':data['kind']=='crawl' and data['check_external_links'],
+            'check_resources':data['kind']=='crawl' and (data['check_resources'] if 'check_resources' in form.data else True),
+            'check_external_links':data['kind']=='crawl',
             **{key:data.get(key) if data.get(key) is not None else default for key,default in RESOURCE_DEFAULTS.items()},
             'scan': data['kind'], 'url': url, **scope, 'discover_sitemaps':data['kind']=='crawl',
             'analysis_settings':{key:data.get(key) if data.get(key) is not None else default for key,default in ANALYSIS_DEFAULTS.items()},

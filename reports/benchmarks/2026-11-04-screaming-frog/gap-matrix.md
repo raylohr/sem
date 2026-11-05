@@ -1,3 +1,5 @@
+> Historische nulmeting van 4 november 2026. De actuele productiebenchmark na R1–R6 staat in [het rapport van 5 november](../2026-11-05-post-r6/rapport.md), met een [bijgewerkte gap-matrix](../2026-11-05-post-r6/gap-matrix.md).
+
 | ID | Onderdeel | Inspanning | Scanwaarde | Huidige staat |
 |---|---|---:|---:|---|
 | G01 | Automatische herdownload en aanpasbare time-outs | 3/5 | 5/5 | Gedeeltelijk; herstel nu handmatig |

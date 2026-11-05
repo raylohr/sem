@@ -116,7 +116,7 @@ def verify_action(action_id,dossier_id,actor,acceptance_confirmed=False):
         if not item.measured_at:undated.add(key)
         if target_hash:
             from assessments.r4 import CONTROL_VERSION
-            resource_versions.setdefault(key,set()).add(item.snapshot.get('control_version') or (CONTROL_VERSION if item.snapshot.get('rule_version')=='6' else None))
+            resource_versions.setdefault(key,set()).add(item.snapshot.get('control_version') or ('resource-controls-v1' if item.snapshot.get('rule_version')=='6' else None))
         versions.setdefault(key,set()).add((item.snapshot.get('definition'),item.snapshot.get('rule_version')))
         previous=observations.get(key)
         if previous is None or item.measured_at and (not previous.measured_at or item.measured_at>previous.measured_at):observations[key]=item
@@ -137,7 +137,7 @@ def verify_action(action_id,dossier_id,actor,acceptance_confirmed=False):
                 compatible=compatible and page.snapshot.get('threshold_bytes')==old.snapshot.get('resource',{}).get('threshold_bytes')
             if key[3]:
                 from assessments.r4 import CONTROL_VERSION
-                original_version=old.snapshot.get('control_version') or (CONTROL_VERSION if old.snapshot.get('rule_version')=='6' else None)
+                original_version=old.snapshot.get('control_version') or ('resource-controls-v1' if old.snapshot.get('rule_version')=='6' else None)
                 compatible=page and key not in undated and None not in resource_versions.get(key,{None}) and all(page.snapshot.get('control_versions',{}).get(key[2])==version for version in resource_versions[key])
                 if page and key[2]=='resource_image_large':compatible=compatible and page.snapshot.get('threshold_bytes')==old.snapshot.get('resource',{}).get('threshold_bytes')
                 source_page=pages.get((key[0],key[1]))

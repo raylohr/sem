@@ -1,3 +1,5 @@
+> Historische nulmeting van 4 november 2026. De actuele productiebenchmark na R1–R6 staat in [het rapport van 5 november](../2026-11-05-post-r6/rapport.md), met een [bijgewerkte gap-matrix](../2026-11-05-post-r6/gap-matrix.md).
+
 **Inhoudelijke gap-analyse: onze crawler versus de aangeleverde Screaming Frog-scan**
 
 Onderzoek: vandersteenhoven.nl, 4 november 2026. Dit rapport beoordeelt het aangeleverde bestand, opgeslagen productiemetingen en de huidige implementatie. Er zijn geen nieuwe websitecrawls uitgevoerd en geen productiegegevens gewijzigd voor deze analyse.

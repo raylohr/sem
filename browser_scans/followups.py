@@ -1,3 +1,4 @@
+from scans.host_rules import navigation_hosts
 import hashlib
 import json
 from django.contrib.auth.decorators import login_required
@@ -38,7 +39,7 @@ def start(request,project_id,run_id):
             from .models import DiscoveredLink
             for candidate in DiscoveredLink.objects.filter(visit_id=visit_id,followup=None,state__in=('budget','queued_browser','already_selected')).order_by('id'):
                 if candidate.url_hash in measured:continue
-                try:url=normalize_url(candidate.url,scope['allowed_hosts'])
+                try:url=normalize_url(candidate.url,navigation_hosts(scope))
                 except ScanError:continue
                 selected.setdefault(url,(record_id,candidate,source_url))
                 if len(selected)>=1000:break

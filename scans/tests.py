@@ -254,7 +254,7 @@ class ScanAccessTests(TestCase):
             self.assertEqual(response.status_code,400)
 
     def test_seed_outside_scope_rejected(self):
-        response = self.client.post(self.url('start'), json.dumps({'kind':'crawl','url':'https://other.example.com/'}), content_type='application/json')
+        response = self.client.post(self.url('start'), json.dumps({'kind':'crawl','url':'https://example.com.other.net/'}), content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
     def test_crawl_cap_rejected(self):

@@ -6,6 +6,7 @@ import time
 from django.conf import settings
 from scans.network import SafeClient, ScanError, ScanBudgetExceeded, normalize_url, USER_AGENT
 from .protocol import send, receive
+from scans.host_rules import navigation_hosts,resource_hosts as resource_scope
 from .privacy import redacted_url
 
 RESPONSE_HEADERS = {'strict-transport-security', 'referrer-policy', 'server', 'x-powered-by', 'x-generator', 'via', 'x-cache', 'content-type', 'location', 'cache-control', 'expires', 'etag', 'last-modified',
@@ -15,11 +16,10 @@ RESPONSE_HEADERS = {'strict-transport-security', 'referrer-policy', 'server', 'x
 
 
 def render(url, config, *, check_access, batch_id, transport_factory=SafeClient):
-    hosts = set(config['allowed_hosts'])
-    resource_hosts = hosts | set(config.get('resource_hosts', []))
-    resource_hosts -= set(config.get('blocked_resource_hosts', []))
+    hosts = navigation_hosts(config)
+    resource_hosts = resource_scope(config)
     normalize_url(url, hosts)
-    client = transport_factory(resource_hosts | hosts, check_access=check_access,
+    client = transport_factory(resource_scope({**config,'blocked_resource_hosts':[]}), check_access=check_access,
         concurrency=2 if config['requests_per_second']>2 else 1,
         duration=config['timeout_ms']/1000+5, delay=1/config['requests_per_second'],
         max_transfer=config['max_bytes'], document_sink=[], respect_robots=config['respect_robots'],

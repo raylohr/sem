@@ -1,4 +1,4 @@
-"""Exact project host decisions; PSL includes private suffixes, never fetched at runtime."""
+"""Project-domain navigation and explicit exclusions; offline PSL includes private suffixes."""
 import ipaddress
 from functools import lru_cache
 from pathlib import Path
@@ -55,7 +55,7 @@ def host_scope(target):
     from .models import HostPolicy
     policies = list(HostPolicy.objects.filter(project_id=target.project_id))
     root = registered_domain(urlsplit(target.url).hostname)
-    navigation = set(target.allowed_hosts) | default_hosts(target.url)
+    navigation = {host for host in target.allowed_hosts if registered_domain(host)==root} | default_hosts(target.url)
     blocked = {p.host for p in policies if p.navigation=='blocked'}
     for policy in policies:
         if policy.navigation=='allowed' and registered_domain(policy.host)==root:
@@ -63,7 +63,11 @@ def host_scope(target):
     navigation -= blocked
     resource_blocked = {p.host for p in policies if p.resources=='blocked'}
     resources = {p.host for p in policies if p.resources=='allowed'} - resource_blocked
-    return {'allowed_hosts': sorted(navigation), 'blocked_hosts': sorted(blocked),
+    try:
+        ipaddress.ip_address(root);subdomains=False
+    except ValueError:
+        subdomains=root not in suffix_rules()
+    return {'host_policy_version':'discovered-hosts-v2','include_subdomains':subdomains,'allow_external_resources':True,'allowed_hosts': sorted(navigation), 'blocked_hosts': sorted(blocked),
             'resource_hosts': sorted(resources), 'blocked_resource_hosts': sorted(resource_blocked),
             'blocked_external_hosts':sorted(p.host for p in policies if p.external=='blocked'), 'domain': root}
 

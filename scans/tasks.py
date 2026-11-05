@@ -35,7 +35,11 @@ def check_scan(batch_id):
         raise PermissionDenied
     from .scope import host_scope
     batch.current_host_scope=host_scope(target)
-    if not set(metadata.get('allowed_hosts', [])).issubset(set(batch.current_host_scope['allowed_hosts'])):
+    from .host_rules import navigation_hosts
+    current_hosts=navigation_hosts(batch.current_host_scope) if metadata.get('include_subdomains') else set(batch.current_host_scope['allowed_hosts'])
+    if any(host not in current_hosts for host in metadata.get('allowed_hosts', [])):
+        raise PermissionDenied
+    if metadata.get('include_subdomains') and any(host in navigation_hosts(metadata) for host in set(batch.current_host_scope['blocked_hosts'])-set(metadata.get('blocked_hosts',[]))):
         raise PermissionDenied
     return batch
 
@@ -72,7 +76,8 @@ def process_scan(batch_id):
             config = batch.request_metadata
             _, transfer = scan_budget(config['scan'], config['max_urls'])
             remaining = max(0,config['duration']-(time.time()-work.started))
-            client = SafeClient(config['allowed_hosts'],check_access=lambda:check_scan(batch_id),
+            from .host_rules import navigation_hosts
+            client = SafeClient(navigation_hosts(config),check_access=lambda:check_scan(batch_id),
                 batch_id=batch_id,duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
                 document_sink=work.documents,robot_cache=work.get('robots',{}),
                 respect_robots=config.get('respect_robots',True),
@@ -95,7 +100,7 @@ def process_scan(batch_id):
                 import json
                 from .network import normalize_url
                 for target in batch.retry_targets.order_by('id').iterator(chunk_size=500):
-                    normalized=normalize_url(target.url,config['allowed_hosts'])
+                    normalized=normalize_url(target.url,navigation_hosts(config))
                     work.add('crawl',normalized,0)
                     with work.connection:work.connection.execute('INSERT OR REPLACE INTO retry_origins VALUES (?,?)',(normalized,json.dumps(target.snapshot)))
                 if config.get('retry_of_batch'):
@@ -147,6 +152,7 @@ def process_scan(batch_id):
             from .models import HostPolicy
             pending=[p.host for p in HostPolicy.objects.filter(project_id=batch.project_id,navigation='pending').order_by('host')
                      if p.host not in config['allowed_hosts'] and registered_domain(p.host)==client.host_discovery.domain][:100]
+            if config.get('include_subdomains'):pending=[]
             if pending:
                 warnings=list(warnings)+['Het toegestane deel is onderzocht. Andere subdomeinen wachten op beoordeling bij Websitescans: '+', '.join(pending)+'. Start na toestemming een nieuwe crawl.']
             if summary and summary['incomplete']:

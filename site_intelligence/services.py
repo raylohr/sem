@@ -10,6 +10,7 @@ from sources.models import ImportBatch
 from browser_scans.models import BrowserRun
 from browser_scans.privacy import redacted_url
 from scans.network import normalize_url, normalize_host, SafeClient, ScanError
+from scans.host_rules import navigation_hosts
 from scans.extraction import extract_page
 from types import SimpleNamespace
 from assessments.models import AnalysisDefinition, AnalysisRun, AnalysisResult, Finding, FindingEvidence
@@ -62,10 +63,10 @@ def fetch_policies(run, browser):
     candidates=[]
     for visit in browser.visits.all().only('coverage'):
         for link in visit.coverage.get('policy_links',[]):
-            try:url=normalize_url(link.get('url'),browser.config['allowed_hosts'])
+            try:url=normalize_url(link.get('url'),navigation_hosts(browser.config))
             except (ScanError,TypeError):continue
             if url not in candidates:candidates.append(url)
-    client=SafeClient(browser.config['allowed_hosts'],check_access=lambda:check_run(run.pk),duration=20,
+    client=SafeClient(navigation_hosts(browser.config),check_access=lambda:check_run(run.pk),duration=20,
         delay=1/browser.config['requests_per_second'],max_transfer=10*1024*1024,respect_robots=browser.config['respect_robots'])
     errors=[]
     try:

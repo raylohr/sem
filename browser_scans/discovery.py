@@ -3,6 +3,7 @@ from urllib.parse import urlsplit
 from catalog.adapters import normalize_url as identity
 from scans.network import normalize_url,ScanError
 from scans.resource_discovery import known_file
+from scans.host_rules import navigation_hosts
 from .models import DiscoveredLink,BrowserVisit
 
 
@@ -18,7 +19,7 @@ def retain_links(visit,run,response,server,rendered):
             url=normalize_url(link);url_hash=identity(url)[2]
         except (ScanError,TypeError):continue
         state='budget'
-        try:normalize_url(url,run.config['allowed_hosts'])
+        try:normalize_url(url,navigation_hosts(run.config))
         except ScanError:state='outside_scope'
         else:
             if known_file(url):state='file'

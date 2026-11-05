@@ -237,7 +237,7 @@ class BrowserTests(TestCase):
 
 
 class BrokerPolicyTests(SimpleTestCase):
-    def broker(self, messages, resource_hosts=None, error=None, blocked_resource_hosts=None):
+    def broker(self, messages, resource_hosts=None, error=None, blocked_resource_hosts=None,config_overrides=None):
         from .client import render
         class Duplex:
             def __init__(self):
@@ -268,6 +268,7 @@ class BrokerPolicyTests(SimpleTestCase):
         config = {'allowed_hosts':['example.com'], 'resource_hosts':resource_hosts or [], 'timeout_ms':5000,
             'blocked_resource_hosts':blocked_resource_hosts or [],
             'requests_per_second':1,'max_bytes':100000,'respect_robots':False,'settle_ms':100,'scroll_steps':0,'profile':'desktop','max_requests':10}
+        config.update(config_overrides or {})
         with patch('browser_scans.client.socket.socket') as socket:
             socket.return_value.makefile.return_value = stream
             result = render('https://example.com/',config,check_access=lambda:None,batch_id='test',transport_factory=Transport)

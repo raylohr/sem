@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from .network import SafeClient,ScanError,ScanBudgetExceeded,NetworkRequestError,RobotsDenied,normalize_url
 from .work import ScanPause
+from .host_rules import navigation_hosts,resource_hosts,excluded
 from .resource_transfer import SAFE_HEADERS
 
 DEFAULTS={'resource_max_targets':10000,'external_max_targets':1000,'resource_max_bytes':250*1024**2,
@@ -38,8 +39,8 @@ class ResourceClient(SafeClient):
 
     def permitted(self,url):
         host=urlsplit(normalize_url(url)).hostname
-        if self.purpose=='external':return self.config.get('check_external_links',False) and host not in self.config.get('blocked_external_hosts',[])
-        return host in set(self.config.get('allowed_hosts',[]))|set(self.config.get('resource_hosts',[])) and host not in self.config.get('blocked_resource_hosts',[])
+        if self.purpose=='external':return self.config.get('check_external_links',False) and not excluded(host,self.config.get('blocked_external_hosts',[]))
+        return host in resource_hosts(self.config)
 
     def fetch_once(self,url,enforce_robots=True,cookie_header=''):
         self.guard()
@@ -124,7 +125,7 @@ def seed(work,config,check_access):
                 for reference in data.get('link_details',[]):
                     try:host=urlsplit(normalize_url(reference.get('url'))).hostname
                     except ScanError:continue
-                    if host not in config.get('allowed_hosts',[]):
+                    if host not in navigation_hosts(config):
                         add(work,reference['url'],'external',{**reference,'source_url':source,'kind':'hyperlink'})
                 if data.get('links_truncated') or data.get('analysis_truncated'):work.set('resource_discovery_incomplete',True)
         work.set('resource_seed_after',index+1)
@@ -137,7 +138,7 @@ def result_for(client,url):
         measurements=dict(result.measurements)
         headers={key:str(value)[:4096] for key,value in result.headers.items() if key.lower() in SAFE_HEADERS}
         status=result.status
-        outcome='blocked' if status in (401,403,429) else 'http_error' if status>=400 else 'redirect_blocked' if result.blocked_redirect else 'success' if 200<=status<300 else 'response'
+        outcome='unknown_response' if not 200<=status<600 else 'blocked' if status in (401,403,429) else 'http_error' if status>=400 else 'redirect_blocked' if result.blocked_redirect else 'success' if 200<=status<300 else 'response'
         evidence={'redirects':result.redirects,'response_time_ms':round(result.elapsed*1000),
             'body_hash':hashlib.sha256(result.body).hexdigest(),'hash_scope':'retained decoded body; full only if body_complete',
             'blocked_redirect':result.blocked_redirect,'request_profile':'baseline GET; no cookies or authorization'}
@@ -180,7 +181,7 @@ def run(batch,work,config,check_access):
         seen=set()
         for url,purpose in work.connection.execute('SELECT url,purpose FROM resource_targets ORDER BY rowid'):
             host=urlsplit(url).hostname
-            if host in seen or host in config.get('allowed_hosts',[]):continue
+            if host in seen or host in navigation_hosts(config):continue
             if len(seen)>=100:break
             seen.add(host)
             HostPolicy.objects.get_or_create(project_id=batch.project_id,host=host,defaults={'discovered_batch_id':batch.pk,'example_url':url,'purpose':'resources' if purpose=='resource' else 'external'})
