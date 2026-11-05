@@ -69,3 +69,12 @@ class ResearchTests(SimpleTestCase):
         facts=extract('<script type="application/ld+json">'+('x'*66000))
         self.assertEqual(self.checks(facts)['structured_syntax_invalid'],'unknown')
         self.assertEqual(self.checks(extract('<p>Some text</p>'))['main_content_thin'],'unknown')
+
+    def test_nonfinite_and_fractional_integer_values_are_not_valid_numbers(self):
+        from scans.structured_data import literal_matches
+        for value in ('NaN','Infinity','-Infinity'):
+            self.assertFalse(literal_matches(value,['Number'],'https://example.com/'))
+        self.assertFalse(literal_matches('1.5',['Integer'],'https://example.com/'))
+        self.assertTrue(literal_matches('2',['Integer'],'https://example.com/'))
+        facts=extract('<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":NaN}</script>')
+        self.assertEqual(self.checks(facts)['structured_syntax_invalid'],'issue')

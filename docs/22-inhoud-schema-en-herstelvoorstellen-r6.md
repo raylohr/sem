@@ -11,3 +11,13 @@ Nieuwe dossiers bevatten regelgestuurde herstelvoorstellen met bewijs, bereik, v
 Een verdwenen melding bewijst geen herstel. Verificatie vereist nieuwe positieve meetgegevens en gebruikersacceptatie. Voor bewust verwijderde directe scripts is een volledige nieuwere broninventaris nodig. Nieuwe diagnostiek verandert de bestaande report-v1-scorecatalogus niet. Bestaande afgeronde dossiers worden niet automatisch herschreven.
 
 Releaseverificatie: 506 tests geslaagd en drie aanvullende integratietests voor bundeling, idempotente actiecreatie en afgeschermde AI-import geslaagd. R5 heeft daarnaast een echte Chromium-probe en crawl→browser→dossier-workflow doorlopen. Dit bewijst geen volledige gelijkwaardigheid aan Screaming Frog of Sitebulb.
+
+## Afronding R6
+
+Voorsteltemplate `action-templates-v2` bewaart maximaal tien exacte bewijslocaties per voorbeeld, inclusief elementpad/JSON-pad en gemeten bestemming wanneer aanwezig. De projectgebonden bewijslinks blijven beschikbaar. De inputhash omvat zowel het bewijs als het vastgezette invoermanifest. Het voorstel benoemt expliciet wanneer een exacte locatie niet beschikbaar is. Nieuwe inhouds- en schemabevindingen krijgen leesbare waarnemingen in hun rapportbewijs. Historische dossiers blijven ongewijzigd.
+
+De offline referentie omvat 59 unieke opgeslagen pagina’s uit de eerdere SF-benchmark; bij meerdere opgeslagen documenten voor dezelfde URL is het laatste document in de referentieset gebruikt. Bij 22 pagina’s is een main-element geselecteerd, bij 37 is de fallback nodig. De Nederlandse zinslengte-indicatie is bij acht pagina’s berekend, drie vragen juridische expertbeoordeling en 48 blijven onbekend. In deze opgeslagen HTML is geen ondersteunde gestructureerde markup gevonden. Daarom bewijst deze echte dataset geen schema-pariteit: syntaxis-, vocabulaire- en profielcontroles zijn aanvullend met expliciete JSON-LD-, Microdata- en RDFa-testgevallen gecontroleerd. De resultaten staan in reports/implementation/r6-verificatie.json.
+
+Regressietests dekken bronlocaties in geneste meetwaarnemingen, wijzigende invoermanifesten, toegangsrechten, bewuste afwijzingen zonder meetmutatie, niet-eindige getallen en scriptverwijdering met volledige nieuwe inventaris. Een schema-getal met waarde NaN/Infinity of een gebroken Integer-waarde krijgt geen geldige numerieke beoordeling.
+
+Afrondingsverificatie: 515 tests geslaagd. De echte workerketen opgeslagen HTML → heranalyse → dossier → voorstel met bewijslocatie → expliciete eigenaar en actie → export is geslaagd. Bronrecords blijven behouden en tijdelijke testgegevens zijn verwijderd. Geen nieuwe databasemigratie nodig voor deze afronding.

@@ -169,6 +169,27 @@ def signature(rule,details):
     return 'Zelfde controle; oorzaak nog te beoordelen',rule
 
 
+def evidence_locations(details):
+    """Freeze bounded public locators; never copy raw markup, headers or cookie values."""
+    locations=[]
+    def add(row):
+        if not isinstance(row,dict):return
+        result={key:str(row[key])[:500] for key in ('locator','element_path','path','format','destination','target') if row.get(key) is not None}
+        if result and result not in locations and len(locations)<10:locations.append(result)
+    pending=[(details,0)]
+    for _ in range(50):
+        if not pending or len(locations)>=10:break
+        row,depth=pending.pop(0)
+        if not isinstance(row,dict):continue
+        add(row)
+        add(row.get('main_content',{}).get('location'))
+        if depth<3:
+            for key in ('elements','observations','nodes','profiles'):
+                children=row.get(key,[])
+                if isinstance(children,list):pending.extend((child,depth+1) for child in children[:10])
+    return locations
+
+
 def evidence_summary(details):
     """Small public observations, without cookie values or raw headers."""
     labels={'destination':'Bestemming','target_final_status':'HTTP-eindstatus','final_status':'HTTP-eindstatus','http_status':'HTTP-status','status':'HTTP-status',
@@ -187,6 +208,14 @@ def evidence_summary(details):
             line=label+': '+' '.join(text.split())[:350]
             if line not in summaries:summaries.append(line)
             if len(summaries)>=5:return summaries
+    content=next((row.get('main_content') for row in sources if row.get('main_content')), {})
+    if content:
+        summaries.append('Hoofdinhoud: '+str(content.get('word_count','onbekend'))+' woorden; selectie: '+str(content.get('selection','onbekend')))
+        if details.get('minimum_words') is not None:summaries.append('Adviesgrens voor dit paginatype: '+str(details['minimum_words'])+' woorden')
+    for entry in [entry for row in sources for key in ('elements','profiles') for entry in row.get(key,[])[:3]][:3]:
+        if not isinstance(entry,dict):continue
+        message=entry.get('reason') or '; '.join(str(v) for v in entry.get('errors',[])[:3])
+        if message:summaries.append('Waarneming: '+' '.join(str(message).split())[:600])
     nodes=details.get('nodes',[])
     if nodes and isinstance(nodes[0],dict) and nodes[0].get('failureSummary'):
         summaries.append('Waarneming: '+' '.join(str(nodes[0]['failureSummary']).split())[:600])
@@ -259,7 +288,7 @@ def collect_groups(dossier,inputs,limits):
                 url,url_hash=url_identity(source_url)
                 snapshot={'rule':rule,'definition':item.snapshot['definition'],
                     'rule_version':item.snapshot['rule_version'],'run_id':item.snapshot['run_id'],'summary':evidence_summary(details),
-                    'certainty':details.get('certainty','technical signal; review required')}
+                    'certainty':details.get('certainty','technical signal; review required'),'locations':evidence_locations(details)}
                 if details.get('resource_id'):
                     from assessments.r4 import CONTROL_VERSION
                     snapshot['control_version']=CONTROL_VERSION

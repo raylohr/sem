@@ -166,7 +166,9 @@ def literal_matches(value,ranges,base):
         try:datetime.fromisoformat(value.replace('Z','+00:00'));return True
         except ValueError:pass
     if set(ranges)&{'Number','Integer','Float'}:
-        try:float(value);return True
+        try:
+            number=float(value)
+            return math.isfinite(number) and (bool(set(ranges)&{'Number','Float'}) or 'Integer' in ranges and number.is_integer())
         except ValueError:pass
     # Schema.org permits text/URL fallbacks for object-valued properties. Do not invent strict RDF errors.
     return not set(ranges)<= {'Date','DateTime','Number','Integer','Float','Boolean'}

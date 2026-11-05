@@ -46,3 +46,42 @@ class ProposalTests(TestCase):
             occurrence.url=f'https://example.com/berekenen/{i}/';occurrence.save()
         build(self.dossier)
         self.assertEqual(self.dossier.proposals.count(),4)
+
+    def test_reader_cannot_approve_or_import_and_other_project_is_hidden(self):
+        reader=get_user_model().objects.create_user('proposal-reader')
+        Membership.objects.create(project=self.project,user=reader,role='viewer')
+        self.client.force_login(reader)
+        for route in ('proposal-approve','proposal-supplement','proposal-dismiss'):
+            self.assertEqual(self.client.post(reverse('ui:reports:'+route,args=[self.project.pk,self.proposal.pk]),{}).status_code,403)
+        other=Project.objects.create(name='Other',created_by=self.user)
+        Membership.objects.create(project=other,user=self.user,role='admin')
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('ui:reports:proposal',args=[other.pk,self.proposal.pk])).status_code,404)
+
+    def test_dismissal_preserves_measurements_and_records_reason(self):
+        url=reverse('ui:reports:proposal-dismiss',args=[self.project.pk,self.proposal.pk])
+        self.assertEqual(self.client.post(url,{'reason':'Bewust aanvaard na technische beoordeling.'}).status_code,302)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status,'dismissed')
+        self.assertEqual(self.proposal.reviews.get().decision,'dismissed')
+        self.assertEqual(IssueOccurrence.objects.count(),4)
+        self.assertEqual(self.proposal.dossier.groups.count(),4)
+
+    def test_locations_and_target_are_frozen_and_input_manifest_is_hashed(self):
+        from .services import evidence_locations,evidence_summary
+        from .models import DossierInput
+        details={'elements':[{'element_path':'/html/body/script[1]','locator':'line:12','raw':'SECRET'}]}
+        frozen=evidence_locations(details)
+        self.assertEqual(frozen,[{'locator':'line:12','element_path':'/html/body/script[1]'}])
+        self.assertEqual(evidence_locations({'observations':[details]}),frozen)
+        occurrence=IssueOccurrence.objects.first()
+        occurrence.snapshot['locations']=frozen;occurrence.save()
+        self.dossier.proposals.all().delete();build(self.dossier)
+        original=self.dossier.proposals.get()
+        self.assertEqual(original.evidence['examples'][0]['locations'],frozen)
+        self.assertIn('/_sdk/',original.evidence['examples'][0]['destination'])
+        old_hash=original.provenance['input_sha256']
+        DossierInput.objects.create(dossier=self.dossier,kind='crawl',snapshot={'rule_version':'new'})
+        self.dossier.proposals.all().delete();build(self.dossier)
+        self.assertNotEqual(self.dossier.proposals.get().provenance['input_sha256'],old_hash)
+        self.assertTrue(evidence_summary({'elements':[{'reason':'Onbekend veld','path':'$.typo'}]}))

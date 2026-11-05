@@ -9,7 +9,7 @@ from .models import ActionProposal,IssueOccurrence,ProposalSupplement,ProposalRe
 from .services import allowed
 from .actions import create_action
 
-VERSION='action-templates-v1'
+VERSION='action-templates-v2'
 
 
 def build(dossier):
@@ -36,11 +36,13 @@ def build(dossier):
 def draft(dossier,rows,calculator=False,inputs=None):
     groups=[row[0] for row in rows];first=groups[0];rule=first.rule
     discipline='Webontwikkeling / SEO'
-    if first.category=='content':discipline='Content / SEO'
+    if rule.startswith('structured_'):discipline='Webontwikkeling / gestructureerde gegevens'
+    elif rule.startswith(('resource_','external_')):discipline='Webontwikkeling / technisch beheer'
+    elif first.category=='content':discipline='Content / SEO'
     elif first.category=='experience':discipline='Frontend / toegankelijkheid'
     elif first.category=='privacy':discipline='Privacy- en toestemmingsspecialist'
     elif first.category=='technology':discipline='Technisch beheer / leverancier'
-    examples=[{'group_id':g.pk,'rule':g.rule,'source_url':(sample or {}).get('url'),'occurrence_id':(sample or {}).get('id'),'summary':(sample or {}).get('snapshot',{}).get('summary',[])} for g,sample in rows]
+    examples=[{'group_id':g.pk,'rule':g.rule,'source_url':(sample or {}).get('url'),'occurrence_id':(sample or {}).get('id'),'summary':(sample or {}).get('snapshot',{}).get('summary',[]),'locations':(sample or {}).get('snapshot',{}).get('locations',[]),'destination':(sample or {}).get('snapshot',{}).get('resource',{}).get('destination')} for g,sample in rows]
     title='Herstel de vier SDK-verwijzingen in de calculator' if calculator else first.title
     hypothesis='Mogelijk gedeelde invoegcode of integratie van de calculator. Controleer de implementatie; dezelfde oorzaak is nog niet bewezen.' if calculator else 'Gedeelde template, configuratie of inhoud kan de signalen verklaren; oorzaak nog te bevestigen aan de hand van het bewijs.'
     direction='Bepaal of de vier SDK’s nodig zijn. Herstel zo nodig juiste script-URL’s en JavaScript-antwoorden; verwijder anders de overbodige directe verwijzingen en controleer de calculatorwerking.' if calculator else first.recommendation
@@ -54,7 +56,7 @@ def draft(dossier,rows,calculator=False,inputs=None):
     evidence={'examples':examples,'affected_urls':IssueOccurrence.objects.filter(group__in=groups).aggregate(n=Count('url_hash',distinct=True))['n'],
               'group_ids':[g.pk for g in groups],'technical_severities':sorted({g.severity for g in groups}),
               'status':'observed signals; cause is hypothesis; business priority and owner require user choice'}
-    provenance={'engine':'rules','template_version':VERSION,'inputs':source_refs,'input_sha256':hashlib.sha256(json.dumps(evidence,sort_keys=True,default=str).encode()).hexdigest()}
+    provenance={'engine':'rules','template_version':VERSION,'inputs':source_refs,'input_sha256':hashlib.sha256(json.dumps({'evidence':evidence,'inputs':source_refs},sort_keys=True,default=str).encode()).hexdigest()}
     return ActionProposal(dossier=dossier,fingerprint=identity,title=title,discipline=discipline,
         problem=('Vier afzonderlijk gemeten script-404’s op dezelfde calculator.' if calculator else first.title),hypothesis=hypothesis,direction=direction,
         acceptance=acceptance,evidence=evidence,provenance=provenance),groups
