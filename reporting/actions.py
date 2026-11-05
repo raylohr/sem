@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from projects.models import Project
-from .models import ActionItem,ActionIssue,ActionEvent,IssueGroup,IssueOccurrence,Dossier,DossierPage
+from .models import ActionItem,ActionIssue,ActionEvent,IssueGroup,IssueOccurrence,Dossier,DossierPage,DossierResource
 from .services import allowed
 from .catalog import BASE
 
@@ -75,17 +75,48 @@ def check_rule(rule):
     return BASE.get(rule,rule)
 
 
+def removed_direct_script(old,page,dossier):
+    """A complete, newer source inventory is affirmative absence evidence; no finding is not enough."""
+    resource=old.snapshot.get('resource',{})
+    if not page or not page.source_record_id or not page.measured_at or not old.measured_at or page.measured_at<=old.measured_at:return False
+    direct=resource.get('direct_script_reference',False)
+    if not direct and old.finding_id:
+        direct=any(e.get('source_url')==old.url and e.get('kind')=='script' and not e.get('parent_url') for e in old.finding.details.get('elements',[]))
+    if not direct:return False
+    data=page.source_record.data
+    if data.get('analysis_truncated') or data.get('resource_discovery',{}).get('version')!='resources-v1' or not data.get('resource_discovery',{}).get('complete') or 'resource_candidates' not in data:return False
+    if page.scope=='browser':
+        from browser_scans.models import BrowserVisit
+        if not BrowserVisit.objects.filter(source_record_id=page.source_record_id,status='complete',scenario='baseline').exists():return False
+    from .services import url_identity,signature,digest
+    import json
+    destination=resource.get('destination')
+    if not destination:return False
+    if any(url_identity(candidate.get('url'))[1]==url_identity(destination)[1] for candidate in data['resource_candidates']):return False
+    for rule in ('broken_resource','resource_http_error','resource_mime_mismatch'):
+        _,signal=signature(rule,{'destination':destination})
+        fingerprint=digest(json.dumps(['group-v1',rule,signal],ensure_ascii=False))
+        if dossier.groups.filter(fingerprint=fingerprint).exists():return False
+    return True
+
+
 @transaction.atomic
 def verify_action(action_id,dossier_id,actor,acceptance_confirmed=False):
     action=ActionItem.objects.select_for_update().select_related('project').get(pk=action_id);allowed(actor,action.project)
     dossier=Dossier.objects.get(pk=dossier_id,project=action.project,status='complete')
     if not dossier.inputs.exists() or dossier.inputs.filter(run=None).exists() or dossier.coverage.get('limits'):raise ValidationError('Het controledossier heeft ontbrekende of afgekapte brongegevens.')
     original=IssueOccurrence.objects.filter(group__actions=action).select_related('group').order_by('id')
-    observations={};undated=set();versions={};limited=False
+    observations={};undated=set();versions={};resource_versions={};limited=False
     for index,item in enumerate(original.iterator(chunk_size=200)):
         if index>=20000:limited=True;break
-        key=(item.url_hash,item.scope,check_rule(item.group.rule))
+        from .services import url_identity
+        resource=item.snapshot.get('resource')
+        target_hash=url_identity(resource.get('destination'))[1] if resource and resource.get('destination') else None
+        key=(item.url_hash,item.scope,check_rule(item.group.rule),target_hash,resource.get('purpose','external' if item.group.rule=='external_http_error' else 'resource') if resource else None)
         if not item.measured_at:undated.add(key)
+        if target_hash:
+            from assessments.r4 import CONTROL_VERSION
+            resource_versions.setdefault(key,set()).add(item.snapshot.get('control_version') or (CONTROL_VERSION if item.snapshot.get('rule_version')=='6' else None))
         versions.setdefault(key,set()).add((item.snapshot.get('definition'),item.snapshot.get('rule_version')))
         previous=observations.get(key)
         if previous is None or item.measured_at and (not previous.measured_at or item.measured_at>previous.measured_at):observations[key]=item
@@ -95,11 +126,22 @@ def verify_action(action_id,dossier_id,actor,acceptance_confirmed=False):
     for offset in range(0,len(keys),200):
         subset=keys[offset:offset+200]
         pages={(p.url_hash,p.scope):p for p in DossierPage.objects.filter(dossier=dossier,url_hash__in=[k[0] for k in subset])}
+        resources={(r.url_hash,r.purpose):r for r in DossierResource.objects.filter(dossier=dossier,url_hash__in=[k[3] for k in subset if k[3]])}
         present=set(IssueOccurrence.objects.filter(group__dossier=dossier,group__fingerprint__in=[observations[k].group.fingerprint for k in subset],
             url_hash__in=[k[0] for k in subset]).values_list('group__fingerprint','url_hash','scope'))
         for key in subset:
             old=observations[key];page=pages.get((key[0],key[1]));verdict='not_remeasured'
-            compatible=page and page.source_record_id is not None and key not in undated and all(page.snapshot.get('definitions',{}).get(definition)==version for definition,version in versions[key])
+            if key[3]:page=resources.get((key[3],key[4]))
+            compatible=page and (bool(key[3]) or page.source_record_id is not None) and key not in undated and all(page.snapshot.get('definitions',{}).get(definition)==version for definition,version in versions[key])
+            if key[3] and key[2]=='resource_image_large' and page:
+                compatible=compatible and page.snapshot.get('threshold_bytes')==old.snapshot.get('resource',{}).get('threshold_bytes')
+            if key[3]:
+                from assessments.r4 import CONTROL_VERSION
+                original_version=old.snapshot.get('control_version') or (CONTROL_VERSION if old.snapshot.get('rule_version')=='6' else None)
+                compatible=page and key not in undated and None not in resource_versions.get(key,{None}) and all(page.snapshot.get('control_versions',{}).get(key[2])==version for version in resource_versions[key])
+                if page and key[2]=='resource_image_large':compatible=compatible and page.snapshot.get('threshold_bytes')==old.snapshot.get('resource',{}).get('threshold_bytes')
+                source_page=pages.get((key[0],key[1]))
+                if page is None and key[2]=='resource_http_error' and key not in undated and removed_direct_script(old,source_page,dossier):verdict='pass'
             if compatible and page.measured_at and old.measured_at and page.measured_at>old.measured_at:
                 state=page.checks.get(key[2],'unknown')
                 verdict='remaining' if state=='issue' or (old.group.fingerprint,key[0],key[1]) in present else 'pass' if state=='pass' else 'not_remeasured'

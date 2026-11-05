@@ -1,0 +1,569 @@
+{
+  "release": "R4",
+  "measured_at": "2026-11-04T16:11:57Z",
+  "basis": "new bounded baseline GET measurements of 4 SDK URLs and 11 SF oversized-image URLs; original source pages from retained HTML; no production database writes",
+  "html_pages": 59,
+  "unique_discovered_resource_urls": 220,
+  "sf_sdk_scripts_discovered": 4,
+  "sf_large_image_urls_discovered": 11,
+  "sdk_404_confirmed": 4,
+  "images_successfully_measured": 11,
+  "images_over_102400_bytes": 11,
+  "sf_byte_comparison_limit": "SF supplied export lists the 11 URLs but has no byte-size column. Exact historical byte equality cannot be established.",
+  "measurements": [
+    {
+      "url": "https://www.vandersteenhoven.nl/_sdk/data_sdk.js",
+      "sf_expectation": "404 SDK script",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/transitie-vergoeding-berekenen/"
+      ],
+      "outcome": "http_error",
+      "http_status": 404,
+      "final_url": "https://www.vandersteenhoven.nl/_sdk/data_sdk.js",
+      "measured_at": "2026-11-04T16:11:44.231910+00:00",
+      "headers": {
+        "expires": "Wed, 11 Jan 1984 05:00:00 GMT",
+        "cache-control": "no-cache, must-revalidate, max-age=0, no-store, private",
+        "vary": "Accept-Encoding,User-Agent",
+        "transfer-encoding": "chunked",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "measurements": {
+        "declared_bytes": null,
+        "wire_bytes": 57316,
+        "decoded_bytes": 57316,
+        "wire_complete": true,
+        "representation_complete": false,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 1135,
+        "body_hash": "c1474977e8cca01a4031ea7af4a62cc69bb3ea960297db35bd2567fca3b17b81",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization",
+        "body_excerpt": "<!DOCTYPE html>\n<html lang=\"nl-NL\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n\t\t<title>Pagina niet gevonden &#8211; Van der Steenhoven Advocaten</title>\n<meta name='robots' content='max-image-preview:large' />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; feed\" href=\"https://www.vandersteenhoven.nl/feed/\" />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; "
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/_sdk/editing_sdk.js",
+      "sf_expectation": "404 SDK script",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/transitie-vergoeding-berekenen/"
+      ],
+      "outcome": "http_error",
+      "http_status": 404,
+      "final_url": "https://www.vandersteenhoven.nl/_sdk/editing_sdk.js",
+      "measured_at": "2026-11-04T16:11:45.408578+00:00",
+      "headers": {
+        "expires": "Wed, 11 Jan 1984 05:00:00 GMT",
+        "cache-control": "no-cache, must-revalidate, max-age=0, no-store, private",
+        "vary": "Accept-Encoding,User-Agent",
+        "transfer-encoding": "chunked",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "measurements": {
+        "declared_bytes": null,
+        "wire_bytes": 57316,
+        "decoded_bytes": 57316,
+        "wire_complete": true,
+        "representation_complete": false,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 1171,
+        "body_hash": "7face8acf746df87f88853790ceab114bc40754762383f553d8e0171aeff1d62",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization",
+        "body_excerpt": "<!DOCTYPE html>\n<html lang=\"nl-NL\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n\t\t<title>Pagina niet gevonden &#8211; Van der Steenhoven Advocaten</title>\n<meta name='robots' content='max-image-preview:large' />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; feed\" href=\"https://www.vandersteenhoven.nl/feed/\" />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; "
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/_sdk/resizing_sdk.js",
+      "sf_expectation": "404 SDK script",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/transitie-vergoeding-berekenen/"
+      ],
+      "outcome": "http_error",
+      "http_status": 404,
+      "final_url": "https://www.vandersteenhoven.nl/_sdk/resizing_sdk.js",
+      "measured_at": "2026-11-04T16:11:46.645253+00:00",
+      "headers": {
+        "expires": "Wed, 11 Jan 1984 05:00:00 GMT",
+        "cache-control": "no-cache, must-revalidate, max-age=0, no-store, private",
+        "vary": "Accept-Encoding,User-Agent",
+        "transfer-encoding": "chunked",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "measurements": {
+        "declared_bytes": null,
+        "wire_bytes": 57316,
+        "decoded_bytes": 57316,
+        "wire_complete": true,
+        "representation_complete": false,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 1231,
+        "body_hash": "3bcefe483cc4b704cdae1e4430b9944bc3204dbd3351359f926cf668130de384",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization",
+        "body_excerpt": "<!DOCTYPE html>\n<html lang=\"nl-NL\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n\t\t<title>Pagina niet gevonden &#8211; Van der Steenhoven Advocaten</title>\n<meta name='robots' content='max-image-preview:large' />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; feed\" href=\"https://www.vandersteenhoven.nl/feed/\" />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; "
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/_sdk/telemetry_sdk.js",
+      "sf_expectation": "404 SDK script",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/transitie-vergoeding-berekenen/"
+      ],
+      "outcome": "http_error",
+      "http_status": 404,
+      "final_url": "https://www.vandersteenhoven.nl/_sdk/telemetry_sdk.js",
+      "measured_at": "2026-11-04T16:11:47.827803+00:00",
+      "headers": {
+        "expires": "Wed, 11 Jan 1984 05:00:00 GMT",
+        "cache-control": "no-cache, must-revalidate, max-age=0, no-store, private",
+        "vary": "Accept-Encoding,User-Agent",
+        "transfer-encoding": "chunked",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "measurements": {
+        "declared_bytes": null,
+        "wire_bytes": 57316,
+        "decoded_bytes": 57316,
+        "wire_complete": true,
+        "representation_complete": false,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 1177,
+        "body_hash": "6fe76b88551b7f23af845f5126fcb0c34ddfc09ed5c7c6c2fc19b03bee76605d",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization",
+        "body_excerpt": "<!DOCTYPE html>\n<html lang=\"nl-NL\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n\t\t<title>Pagina niet gevonden &#8211; Van der Steenhoven Advocaten</title>\n<meta name='robots' content='max-image-preview:large' />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; feed\" href=\"https://www.vandersteenhoven.nl/feed/\" />\n<link rel=\"alternate\" type=\"application/rss+xml\" title=\"Van der Steenhoven Advocaten &raquo; "
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2024/08/LUSTRUM-ZOMERQUIZ-1-1024x1024.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-de-antwoorden/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-1/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-2-2/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-3/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-4/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-5/",
+        "https://www.vandersteenhoven.nl/lustrum-zomerquiz-vraag-6/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2024/08/LUSTRUM-ZOMERQUIZ-1-1024x1024.png",
+      "measured_at": "2026-11-04T16:11:47.853476+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"2d7c4-650beb3406044\"",
+        "content-length": "186308",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 186308,
+        "wire_bytes": 186308,
+        "decoded_bytes": 186308,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 19,
+        "body_hash": "c5013307234fa1f255be367836915b4f526ebaca690b1e82a71dd30a47b53b6f",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/05/17285788191311-4.jpg",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/wor-wekelijks-met-jan-eugenie-104/",
+        "https://www.vandersteenhoven.nl/wor-wekelijks-met-jan-eugenie-96/",
+        "https://www.vandersteenhoven.nl/wor-wekelijks-met-jan-eugenie-97/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/05/17285788191311-4.jpg",
+      "measured_at": "2026-11-04T16:11:48.869331+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"1b064-650beb3455d9c\"",
+        "content-length": "110692",
+        "content-type": "image/jpeg"
+      },
+      "measurements": {
+        "declared_bytes": 110692,
+        "wire_bytes": 110692,
+        "decoded_bytes": 110692,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 35,
+        "body_hash": "947958996b1719d5a84a820fa7ec162964036f2db671d99f10cc09729027392c",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/09/pexels-zozz-544554-zonnebloemen-21-scaled.jpg",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-vakantieopbouw-bij-ziekte/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/09/pexels-zozz-544554-zonnebloemen-21-scaled.jpg",
+      "measured_at": "2026-11-04T16:11:49.879278+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"865ab-650beb341fa6c\"",
+        "content-length": "550315",
+        "content-type": "image/jpeg"
+      },
+      "measurements": {
+        "declared_bytes": 550315,
+        "wire_bytes": 550315,
+        "decoded_bytes": 550315,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 45,
+        "body_hash": "5541c976097437508b8de98c09baa1723b4f499908098bfc0843da39cbf88ba2",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/11/Gele-kalkoen-1024x683.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-november-privacy-special/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/11/Gele-kalkoen-1024x683.png",
+      "measured_at": "2026-11-04T16:11:50.880067+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"f0f30-650beb34194dc\"",
+        "content-length": "986928",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 986928,
+        "wire_bytes": 986928,
+        "decoded_bytes": 986928,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 44,
+        "body_hash": "72e95134810c50f8fe454c60a3e5e0ee135f28350c10f12fd5e8fe8f4ccfc985",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/12/ChatGPT-Image-22-dec-2025-11_46_501-1024x683.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-december/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/12/ChatGPT-Image-22-dec-2025-11_46_501-1024x683.png",
+      "measured_at": "2026-11-04T16:11:51.887156+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"10820a-650beb345fdc4\"",
+        "content-length": "1081866",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 1081866,
+        "wire_bytes": 1081866,
+        "decoded_bytes": 1081866,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 51,
+        "body_hash": "5240031b922a6702489606d42d70db45198b8a9009def44f167a9702df91ce24",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/02/Website-1024x768.jpg",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-februari/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/02/Website-1024x768.jpg",
+      "measured_at": "2026-11-04T16:11:52.862693+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"25112-650beb344f424\"",
+        "content-length": "151826",
+        "content-type": "image/jpeg"
+      },
+      "measurements": {
+        "declared_bytes": 151826,
+        "wire_bytes": 151826,
+        "decoded_bytes": 151826,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 27,
+        "body_hash": "fa928f459fbb143f54b00b42d308d1ab20ae664b8c40e302e92c6e2b2cc66bbf",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/03/Header-nieuwsbrief-maart-2026-1024x683.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-maart/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/03/Header-nieuwsbrief-maart-2026-1024x683.png",
+      "measured_at": "2026-11-04T16:11:53.884148+00:00",
+      "headers": {
+        "last-modified": "Fri, 01 May 2026 10:04:01 GMT",
+        "etag": "\"b69ce-650beb34457e4\"",
+        "content-length": "747982",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 747982,
+        "wire_bytes": 747982,
+        "decoded_bytes": 747982,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 44,
+        "body_hash": "9b7326e94a80ea41f11563a2ab816c8a8b261c316feb09b4ee8890e956ac9d26",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880902944.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-januari-vds-vliegt-vooruit/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880902944.png",
+      "measured_at": "2026-11-04T16:11:54.912244+00:00",
+      "headers": {
+        "last-modified": "Mon, 29 Jun 2026 13:49:17 GMT",
+        "etag": "\"f3d98-65564b97a5111\"",
+        "content-length": "998808",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 998808,
+        "wire_bytes": 998808,
+        "decoded_bytes": 998808,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 47,
+        "body_hash": "62b569734eceaa00d53d952398a735d9a3ca500c7061f3917e55dba4f4fe1560",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880903626-1024x576.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-januari-vds-vliegt-vooruit/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880903626-1024x576.png",
+      "measured_at": "2026-11-04T16:11:55.880505+00:00",
+      "headers": {
+        "last-modified": "Mon, 29 Jun 2026 13:48:11 GMT",
+        "etag": "\"d7980-65564b58b199b\"",
+        "content-length": "883072",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 883072,
+        "wire_bytes": 883072,
+        "decoded_bytes": 883072,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 44,
+        "body_hash": "6c68f022736ed6929a3da9deb29b3d7c2c3afd98ffa6cb393e6169b53629133f",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880931603-1024x576.png",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/nieuwsbrief-januari-vds-vliegt-vooruit/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1769880931603-1024x576.png",
+      "measured_at": "2026-11-04T16:11:56.887109+00:00",
+      "headers": {
+        "last-modified": "Mon, 29 Jun 2026 13:45:31 GMT",
+        "etag": "\"b6bd0-65564ac024685\"",
+        "content-length": "748496",
+        "content-type": "image/png"
+      },
+      "measurements": {
+        "declared_bytes": 748496,
+        "wire_bytes": 748496,
+        "decoded_bytes": 748496,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 50,
+        "body_hash": "418c456f14d94d43cdc1c162a1b422799febf23f42b2cde699821cc85f61c6de",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1777994906200.jpg",
+      "sf_expectation": "image over 100 kB",
+      "source_pages": [
+        "https://www.vandersteenhoven.nl/werk-met-vds-mediation-akkoord-mits-maar-alleen-als/",
+        "https://www.vandersteenhoven.nl/werk-met-vds-mediation-en-een-onbedoeld-ontslag-op-staande-voet/",
+        "https://www.vandersteenhoven.nl/werk-met-vds-onrechtmatig-verkregen-priveberichten/",
+        "https://www.vandersteenhoven.nl/werk-met-vds-werknemer-weigert-verbetertraject-wat-nu/"
+      ],
+      "outcome": "success",
+      "http_status": 200,
+      "final_url": "https://www.vandersteenhoven.nl/wp-content/uploads/2026/06/1777994906200.jpg",
+      "measured_at": "2026-11-04T16:11:57.862288+00:00",
+      "headers": {
+        "last-modified": "Mon, 29 Jun 2026 14:47:30 GMT",
+        "etag": "\"2af69-6556589b0d861\"",
+        "content-length": "175977",
+        "content-type": "image/jpeg"
+      },
+      "measurements": {
+        "declared_bytes": 175977,
+        "wire_bytes": 175977,
+        "decoded_bytes": 175977,
+        "wire_complete": true,
+        "representation_complete": true,
+        "body_complete": true,
+        "body_truncated": false,
+        "body_error": ""
+      },
+      "evidence": {
+        "redirects": [],
+        "response_time_ms": 28,
+        "body_hash": "4edd8f26e3917911ddc51d3e51da02e9c6dd1e3c795430bd19be44daccd4ca2c",
+        "hash_scope": "retained decoded body; full only if body_complete",
+        "blocked_redirect": "",
+        "request_profile": "baseline GET; no cookies or authorization"
+      }
+    }
+  ],
+  "tests": {
+    "full_suite": 482,
+    "result": "passed",
+    "runtime_smoke": "passed; actual scan worker, four SDK-404s and one image, two synthetic pages, shared-source evidence, separate page denominators, report and exports",
+    "temporary_fixtures_removed": true
+  },
+  "activated_on": "test",
+  "production_changed": false,
+  "rule_version": "6",
+  "extractor": "html-v7"
+}

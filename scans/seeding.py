@@ -4,6 +4,7 @@ import io
 import json
 import zlib
 from urllib.parse import urlsplit, urlunsplit, urljoin
+from .resource_discovery import known_file
 from .network import normalize_url, ScanError, ScanBudgetExceeded, MAX_BODY
 
 MAX_SEED_MAPS = 100
@@ -130,6 +131,11 @@ def discover(client, work, start_url, max_urls):
                         work.add('crawl_sitemap',value,depth+1)
                     else:
                         work.set('seed_maps_truncated',True)
+                elif getattr(client,'separate_resources',False) is True and known_file(value):
+                    from .resources import initialize as resource_initialize,add as add_resource
+                    if not hasattr(work,'resource_target_count'):resource_initialize(work)
+                    with work.connection:add_resource(work,value,'resource',{'source_url':result.url,'kind':'download','reference_type':'sitemap','raw_url':entry['loc']})
+                    origin(work,value,'sitemap',result.url)
                 elif count<max_urls*5 or work.connection.execute("SELECT 1 FROM frontier WHERE kind='crawl' AND url=?",(value,)).fetchone():
                     count+=work.add('crawl',value,0)
                     origin(work,value,'sitemap',result.url)

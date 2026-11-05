@@ -18,8 +18,8 @@ from scans.extraction import extract_page
 from scans.large import bounded_metadata
 from scans.network import normalize_url, ScanError, MAX_BODY, USER_AGENT
 from assessments.models import AnalysisDefinition, AnalysisRun, AnalysisResult, Finding, FindingEvidence
-from .sampling import select_urls
-from .models import BrowserRun, BrowserVisit, BrowserResource, AccessibilityIssue, BrowserArtifact, StorageObservation
+from .sampling import select_urls,select_pages
+from .models import BrowserRun, BrowserVisit, BrowserResource, AccessibilityIssue, BrowserArtifact, StorageObservation, DiscoveredLink
 
 MAX_RUN_ARTIFACTS = 256 * 1024 * 1024
 
@@ -37,13 +37,15 @@ def create_run(source_batch, actor, values):
         'privacy_enabled': bool(values.get('privacy_enabled')),
         'scenarios': ['no_choice','reject','accept','withdraw'] if values.get('privacy_enabled') else ['baseline'],
         'consent_selectors': {key: values.get('consent_' + key, '') for key in ('accept','reject','preferences','withdraw')},
-        'timeout_ms': (values.get('timeout_seconds') or 30)*1000, 'settle_ms': 750, 'scroll_steps': 2,
+        'timeout_ms': (values.get('timeout_seconds') or 30)*1000, 'settle_ms':750,'scroll_steps':values.get('scroll_steps') if values.get('scroll_steps') is not None else 6,
+        'expand_details':bool(values.get('expand_details',True)),'exploration_ms':4000,
+        'dynamic_pages':values.get('dynamic_pages') if values.get('dynamic_pages') is not None else min(5,max(0,(values.get('max_pages') or 20)-1),((values.get('max_pages') or 20)+3)//4),
         'requests_per_second': values.get('requests_per_second') or 1,
         'duration': min(7200, max(120, (values.get('max_pages') or 20)*((values.get('timeout_seconds') or 30)+25)*(4 if values.get('privacy_enabled') else 1))), 'max_requests': 100,
         'max_bytes': 20*1024*1024, 'max_depth': 3, 'resource_hosts': values.get('resource_hosts') or [],
         'allowed_hosts': list(source.request_metadata.get('allowed_hosts') or target.allowed_hosts),
         'respect_robots': source.request_metadata.get('respect_robots', True),
-        'sampling': 'round-robin across top-level paths and subpaths; one URL per path, query variants deduplicated; successful HTML only; infrastructure excluded',
+        'sampling':'path diversity plus bounded dynamic/uncertainty candidates; reserved dynamic slots; successful HTML only; heuristic template classification',
         'scenario': 'four isolated consent contexts; ephemeral cookie transport; GET only' if values.get('privacy_enabled') else 'no consent interaction; stateless GET transport; service workers and websockets blocked'}
     from scans.scope import host_scope
     scope=host_scope(target)
@@ -57,9 +59,15 @@ def create_run(source_batch, actor, values):
     run = BrowserRun.objects.create(batch=batch, source_batch=source, config=config)
     eligible = source.url_observations.filter(facts__content_type__icontains='html').filter(
         Q(facts__final_http_status=200) | (Q(facts__http_status=200) & ~Q(facts__has_key='final_http_status'))).values_list('url__normalized_url', flat=True).distinct().order_by('url__normalized_url')
-    selected = select_urls(eligible.iterator(chunk_size=500), config['allowed_hosts'], config['max_pages'])
+    from assessments.models import PageMeasurement
+    candidates=PageMeasurement.objects.filter(batch=source,final_http_status=200,coverage__html_inspected=True).values('final_url','word_count','facts__h1','facts__resource_urls').order_by('final_url')
+    rows=({'final_url':row['final_url'],'facts':{'word_count':row['word_count'],**{key.removeprefix('facts__'):value for key,value in row.items() if key.startswith('facts__')}}} for row in candidates.iterator(chunk_size=50))
+    initial_limit=max(1,config['max_pages']-config['dynamic_pages']) if not config['privacy_enabled'] else config['max_pages']
+    selected,selection=select_pages(rows,config['allowed_hosts'],initial_limit)
     if not selected:
-        selected = [normalize_url(source.request_metadata.get('url') or target.url, config['allowed_hosts'])]
+        selected=select_urls(eligible.iterator(chunk_size=500),config['allowed_hosts'],initial_limit)
+        if not selected:selected=[normalize_url(source.request_metadata.get('url') or target.url,config['allowed_hosts'])]
+        selection=[{'url':url,'reasons':['fallbackselectie; aanvullende paginakenmerken onbekend']} for url in selected]
     # Discover only exact subdomains from the sampled server HTML. Every request
     # still goes through public DNS pinning; navigation remains unchanged.
     discovered = set()
@@ -87,7 +95,7 @@ def create_run(source_batch, actor, values):
     batch.save(update_fields=['request_metadata'])
     BrowserVisit.objects.bulk_create([BrowserVisit(run=run, url=url, url_hash=identity(url)[2], scenario=scenario) for url in selected for scenario in config['scenarios']])
     run.coverage = {'eligible_source_pages': eligible.count(), 'initial_sample_pages': len(selected),
-        'sample_limit': config['max_pages'], 'sampling': config['sampling'], 'artifact_bytes': 0}
+        'sample_limit':config['max_pages'],'initial_sample_limit':initial_limit,'dynamic_reserved':config['dynamic_pages'],'selection':selection,'sampling':config['sampling'],'artifact_bytes':0}
     run.save(update_fields=['coverage'])
     return run
 
@@ -188,16 +196,20 @@ def store_visit(visit_id, response):
     visit.rendered_facts = {key: value for key, value in rendered_fields.items() if key != 'text'}
     visit.differences = differences
     visit.metrics = response.get('metrics', {})
+    visit.metrics['title_width']=response.get('title_width',{'status':'unknown','width_px':None})
     visit.metrics['measurement_kind'] = 'Chromium diagnostic lab timings through validated transport; no Lighthouse score or field CWV'
     visit.errors = errors
     visit.duration_ms = response.get('duration_ms')
-    visit.coverage = {'timed_out': bool(response.get('timed_out')), 'blocked': blocked,
+    visit.coverage = {'timed_out': bool(response.get('timed_out')), 'blocked': blocked,'resource_access_unknown':any(row.get('status') in (401,403,408,425,429,451) for row in rows),
         'resource_count': len(rows), 'scenario': run.config['scenario'], 'profile': run.config['profile'],
         'technology_globals': response.get('technology_globals', {}), 'policy_links': response.get('policy_links', []),
         'privacy_scenario': visit.scenario, 'privacy_action_complete': privacy.get('complete') if run.config.get('privacy_enabled') else None,
         'viewport': response.get('viewport'), 'transport': response.get('transport'), 'response_headers': main['headers'],
         'a11y_incomplete': a11y.get('incomplete', []), 'a11y_automatic_only': True,
-        'images': response.get('images', [])[:500], 'links_truncated': rendered_fields.get('links_truncated', True),
+        'exploration':response.get('exploration',{}),'images': response.get('images', [])[:500], 'links_truncated': rendered_fields.get('links_truncated', True),
+        'lazy_load':{'before_loaded':sum(bool(i.get('loaded')) for i in response.get('exploration',{}).get('before_images',[])),
+            'after_loaded':sum(bool(i.get('loaded')) for i in response.get('images',[])[:500]),'observed_images':min(response.get('image_count',0),500),
+            'scroll_complete':response.get('exploration',{}).get('scroll_complete'),'geometry_basis':'CSS pixels at final scroll position; unloaded natural sizes unknown'},
         'image_inventory_limit': 500, 'image_count': response.get('image_count'), 'images_truncated': response.get('image_count', 0) > 500}
     visit.save()
     run.coverage = {**run.coverage, 'artifact_bytes': run.coverage.get('artifact_bytes', 0)+artifact_size}
@@ -207,26 +219,8 @@ def store_visit(visit_id, response):
         'cpu_profile': 'one container CPU; no mobile CPU emulation',
         'network_isolation': 'network_mode=none; Unix-socket broker only'}
     run.save(update_fields=['coverage', 'engine'])
-    if visit.depth < run.config['max_depth']:
-        available = run.config['max_pages'] - run.visits.values('url_hash').distinct().count()
-        for link in rendered_fields.get('outlinks', []):
-            if available <= 0:
-                break
-            try:
-                url = normalize_url(link, run.config['allowed_hosts'])
-            except ScanError:
-                continue
-            parts = urlsplit(url)
-            if parts.path.startswith('/cdn-cgi/'):
-                continue
-            if any((urlsplit(existing).netloc, urlsplit(existing).path) == (parts.netloc, parts.path)
-                   for existing in run.visits.values_list('url', flat=True).distinct()):
-                continue
-            created_url = False
-            for scenario in run.config.get('scenarios', ['baseline']):
-                _, created = BrowserVisit.objects.get_or_create(run=run, url_hash=identity(url)[2], scenario=scenario, defaults={'url': url, 'depth': visit.depth+1, 'discovery': 'rendered_link'})
-                created_url = created_url or created
-            available -= int(created_url)
+    from .discovery import retain_links
+    retain_links(visit,run,response,server_fields,rendered_fields)
     return visit
 
 
@@ -262,20 +256,28 @@ def finalize(run_id):
         'sample_limit_reached': len({v.url_hash for v in visits}) >= run.config['max_pages']}
     run.completed_at = timezone.now()
     run.save(update_fields=['coverage', 'completed_at'])
+    if run.source_batch_id and run.config.get('automatic_from_crawl'):
+        source=ImportBatch.objects.filter(pk=run.source_batch_id).first()
+        if source and source.request_metadata.get('browser_followup_id')==str(run.pk):
+            source.request_metadata={**source.request_metadata,'browser_phase_status':batch.status}
+            source.save(update_fields=['request_metadata'])
     from assessments.services import rebuild_batch
     basic_analysis = rebuild_batch(batch.pk)
     for visit in visits:
         screenshot = visit.artifacts.filter(kind='screenshot').defer('body').first()
         if screenshot:
             FindingEvidence.objects.filter(finding__result__run=basic_analysis, source_record_id=visit.source_record_id).update(browser_artifact=screenshot)
-    definition, _ = AnalysisDefinition.objects.get_or_create(key='browser-basics', version='1', defaults={'method': 'rules', 'question': 'Welke toegankelijkheidsproblemen en kapotte browserresources zijn aangetroffen?'})
+    definition, _ = AnalysisDefinition.objects.get_or_create(key='browser-basics', version='2', defaults={'method': 'rules', 'question': 'Welke toegankelijkheidsproblemen en kapotte browserresources zijn aangetroffen?'})
     analysis = AnalysisRun.objects.create(batch=batch, definition=definition, extractor_version='browser-v1', status='complete', completed_at=timezone.now(), coverage=run.coverage)
     counts = {}
     for visit in visits:
         result = AnalysisResult.objects.create(run=analysis, source_record_id=visit.source_record_id, outcome='unknown' if visit.status != 'complete' or visit.coverage.get('a11y_incomplete') else 'pass', answer={'browser_visit_id': visit.pk, 'coverage': visit.coverage, 'metrics': visit.metrics, 'differences': visit.differences, 'engine': run.engine})
         screenshot = visit.artifacts.filter(kind='screenshot').defer('body').first()
         problems = [('accessibility_' + issue.rule, 'high' if issue.impact in ('critical', 'serious') else 'medium', issue.title, issue.details) for issue in visit.accessibility_issues.all()]
-        problems.extend(('broken_resource', 'medium', 'Browserresource geeft een HTTP-fout', {'source_url': visit.final_url or visit.url, 'destination': resource.url, 'status': resource.status, 'resource_type': resource.resource_type}) for resource in visit.resources.filter(status__gte=400))
+        width=visit.metrics.get('title_width',{})
+        if width.get('status')=='measured' and isinstance(width.get('width_px'),(int,float)) and width['width_px']>600:
+            problems.append(('browser_title_width','low','Titel boven de modelmatige breedteadviesgrens',{'title_width':width,'basis':'vaste fontschatting; geen Google-weergavegarantie'}))
+        problems.extend(('broken_resource', 'medium', 'Browserresource geeft een HTTP-fout', {'source_url': visit.final_url or visit.url, 'destination': resource.url, 'status': resource.status, 'resource_type': resource.resource_type}) for resource in visit.resources.filter(status__gte=400).exclude(status__in=(401,403,408,425,429,451)))
         for rule, severity, title, details in problems:
             finding = Finding.objects.create(result=result, rule=rule[:80], severity=severity, title=title[:255], recommendation='Controleer het betrokken element of de resource en verifieer de oplossing.', details={'url': visit.final_url or visit.url, 'browser_visit_id': visit.pk, **details})
             FindingEvidence.objects.create(finding=finding, source_record_id=visit.source_record_id, browser_artifact=screenshot, role='page', snapshot=details)

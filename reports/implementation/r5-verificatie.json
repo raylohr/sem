@@ -1,0 +1,705 @@
+{
+  "release": "R5",
+  "date": "2026-11-05",
+  "scope": "three selected baseline browser pages; separate new measurement; not a full JS crawl or SF Text Only comparison",
+  "selection": [
+    {
+      "url": "https://www.vandersteenhoven.nl/",
+      "reasons": [
+        "spreiding over URL-paden"
+      ],
+      "basis": "heuristische steekproef; geen bewezen paginatemplate"
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/algemene-voorwaarden/",
+      "reasons": [
+        "spreiding over URL-paden"
+      ],
+      "basis": "heuristische steekproef; geen bewezen paginatemplate"
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/contact/",
+      "reasons": [
+        "spreiding over URL-paden",
+        "weinig tekst in server-HTML",
+        "geen H1 in server-HTML",
+        "interactief paginatype op basis van URL-pad"
+      ],
+      "basis": "heuristische steekproef; geen bewezen paginatemplate"
+    }
+  ],
+  "config": {
+    "allowed_hosts": [
+      "vandersteenhoven.nl",
+      "www.vandersteenhoven.nl"
+    ],
+    "resource_hosts": [],
+    "timeout_ms": 45000,
+    "max_bytes": 20971520,
+    "requests_per_second": 5,
+    "respect_robots": false,
+    "settle_ms": 750,
+    "scroll_steps": 6,
+    "profile": "desktop",
+    "max_requests": 100,
+    "expand_details": true,
+    "exploration_ms": 4000
+  },
+  "pages": [
+    {
+      "url": "https://www.vandersteenhoven.nl/",
+      "final_url": "https://www.vandersteenhoven.nl/",
+      "http_status": 200,
+      "chromium": "156.0.8078.4",
+      "title_width": {
+        "model": "sem-title-width-v1",
+        "font_sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "font": "DejaVu Sans (vendored)",
+        "font_size_px": 20,
+        "reference_width_px": 600,
+        "text": "Van der Steenhoven Advocaten – VDS",
+        "basis": "fixed-font canvas estimate; no Google display guarantee",
+        "status": "measured",
+        "width_px": 379
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "image_count": 15,
+      "loaded_images": 15,
+      "image_examples": [
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": 384,
+          "rendered_height": 62.5625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 810,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": 384,
+          "rendered_height": 112.15625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 810,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 810,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 810,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 810,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        }
+      ],
+      "timed_out": false,
+      "blocked_count": 2,
+      "blocked_reasons": {
+        "Host staat niet op de toegestane lijst.": 2
+      },
+      "error_count": 2,
+      "exploration": {
+        "details_opened": 0,
+        "scroll_steps_executed": 1,
+        "scroll_complete": false,
+        "phases": [
+          "before_scroll",
+          "after_scroll"
+        ],
+        "links_truncated": false,
+        "scroll_positions": [
+          {
+            "before": 0,
+            "after": 0,
+            "height": 4540
+          }
+        ],
+        "duration_ms": 4105,
+        "scope": "bounded scrolling and native details only; no arbitrary buttons, form submission or navigation clicks"
+      },
+      "discovered_links_observed": 28,
+      "dom_sha256": "767f56014690204bf83117692ddb714bc1ff3dc0ce76de8628f486f3488213b1",
+      "screenshot_sha256": "68ff8d1819e4c2ea44adce88b90586e9b9d85ed6e315298b04c1fb3babb25d5f",
+      "transport": {
+        "bytes": 6766535,
+        "decoded_bytes": 6766535,
+        "policy": "public DNS-pinned GET; authorization never forwarded; browser network=none",
+        "ephemeral_cookies_forwarded": false
+      },
+      "duration_ms": 26041
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/algemene-voorwaarden/",
+      "final_url": "https://www.vandersteenhoven.nl/algemene-voorwaarden/",
+      "http_status": 200,
+      "chromium": "156.0.8078.4",
+      "title_width": {
+        "model": "sem-title-width-v1",
+        "font_sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "font": "DejaVu Sans (vendored)",
+        "font_size_px": 20,
+        "reference_width_px": 600,
+        "text": "Algemene Voorwaarden – Van der Steenhoven Advocaten",
+        "basis": "fixed-font canvas estimate; no Google display guarantee",
+        "status": "measured",
+        "width_px": 574
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "image_count": 11,
+      "loaded_images": 11,
+      "image_examples": [
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": 384,
+          "rendered_height": 62.5625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 770,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": 384,
+          "rendered_height": 112.15625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 770,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 770,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 770,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 770,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        }
+      ],
+      "timed_out": false,
+      "blocked_count": 2,
+      "blocked_reasons": {
+        "Host staat niet op de toegestane lijst.": 2
+      },
+      "error_count": 2,
+      "exploration": {
+        "details_opened": 0,
+        "scroll_steps_executed": 1,
+        "scroll_complete": false,
+        "phases": [
+          "before_scroll",
+          "after_scroll"
+        ],
+        "links_truncated": false,
+        "scroll_positions": [
+          {
+            "before": 0,
+            "after": 0,
+            "height": 2410
+          }
+        ],
+        "duration_ms": 297,
+        "scope": "bounded scrolling and native details only; no arbitrary buttons, form submission or navigation clicks"
+      },
+      "discovered_links_observed": 12,
+      "dom_sha256": "00dca7ed1487df3d21f753dc9cea846471db2b5d3301a5eb8607d1dc21057819",
+      "screenshot_sha256": "8ef52b8364248a93573be694471f2501da9cd4a6980efe505118d2bd3b95dfc9",
+      "transport": {
+        "bytes": 1413061,
+        "decoded_bytes": 1413061,
+        "policy": "public DNS-pinned GET; authorization never forwarded; browser network=none",
+        "ephemeral_cookies_forwarded": false
+      },
+      "duration_ms": 16141
+    },
+    {
+      "url": "https://www.vandersteenhoven.nl/contact/",
+      "final_url": "https://www.vandersteenhoven.nl/contact/",
+      "http_status": 200,
+      "chromium": "156.0.8078.4",
+      "title_width": {
+        "model": "sem-title-width-v1",
+        "font_sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+        "font": "DejaVu Sans (vendored)",
+        "font_size_px": 20,
+        "reference_width_px": 600,
+        "text": "Contact – Van der Steenhoven Advocaten",
+        "basis": "fixed-font canvas estimate; no Google display guarantee",
+        "status": "measured",
+        "width_px": 415
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "image_count": 11,
+      "loaded_images": 11,
+      "image_examples": [
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": 384,
+          "rendered_height": 62.5625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 56,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": 384,
+          "rendered_height": 112.15625,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 56,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 56,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2023/09/logo-white.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/a[1]/span[2]/img[1]",
+          "alt": "",
+          "width": "671",
+          "height": "196",
+          "natural_width": 671,
+          "natural_height": 196,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 56,
+          "css": {
+            "display": "block",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 671 / 196"
+          }
+        },
+        {
+          "url": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "current_src": "https://www.vandersteenhoven.nl/wp-content/uploads/2025/04/Van-der-steenhoven-Logo.svg",
+          "element_path": "/html[1]/body[1]/div[1]/header[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/a[1]/span[1]/img[1]",
+          "alt": "",
+          "width": "1024",
+          "height": "1024",
+          "natural_width": 300,
+          "natural_height": 49,
+          "rendered_width": null,
+          "rendered_height": null,
+          "complete": true,
+          "loaded": true,
+          "loading": "auto",
+          "srcset": null,
+          "sizes": null,
+          "device_pixel_ratio": 1,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "scroll_y": 56,
+          "css": {
+            "display": "inline",
+            "visibility": "visible",
+            "object_fit": "fill",
+            "object_position": "50% 50%",
+            "aspect_ratio": "auto 1024 / 1024"
+          }
+        }
+      ],
+      "timed_out": false,
+      "blocked_count": 2,
+      "blocked_reasons": {
+        "Host staat niet op de toegestane lijst.": 2
+      },
+      "error_count": 2,
+      "exploration": {
+        "details_opened": 0,
+        "scroll_steps_executed": 1,
+        "scroll_complete": true,
+        "phases": [
+          "before_scroll",
+          "after_scroll"
+        ],
+        "links_truncated": false,
+        "scroll_positions": [
+          {
+            "before": 0,
+            "after": 0,
+            "height": 956
+          }
+        ],
+        "duration_ms": 307,
+        "scope": "bounded scrolling and native details only; no arbitrary buttons, form submission or navigation clicks"
+      },
+      "discovered_links_observed": 19,
+      "dom_sha256": "c0c5bea6b3375be1aa9cf0602465853ee10fa836705014385bcd9920d9878d95",
+      "screenshot_sha256": "b4abb981966ebcd2888908c7be18bb9410c273ef00d8a543af1dea8ea1561723",
+      "transport": {
+        "bytes": 1617605,
+        "decoded_bytes": 1617605,
+        "policy": "public DNS-pinned GET; authorization never forwarded; browser network=none",
+        "ephemeral_cookies_forwarded": false
+      },
+      "duration_ms": 16802
+    }
+  ],
+  "synthetic_engine_probe": "passed; scroll/details discovery, lazy geometry, title reproducibility, POST/private blocking",
+  "runtime_workflow": "passed; actual page and browser queues, artifacts, source preservation, private UI, integrated report/export, temporary fixtures removed",
+  "tests": {
+    "full_suite": 497,
+    "result": "passed",
+    "runtime_workflow": "passed on actual page/browser workers, including private browser export and integrated report export",
+    "temporary_fixtures_removed": true
+  },
+  "activated_on": "test",
+  "production_changed": false
+}

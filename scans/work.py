@@ -14,7 +14,9 @@ from django.utils.dateparse import parse_datetime
 
 
 class ScanPause(Exception):
-    pass
+    def __init__(self,delay_seconds=1):
+        self.delay_seconds=max(1,int(delay_seconds))
+        super().__init__('Scan wordt hervat na de wachttijd.')
 
 
 class ScanBusy(Exception):
@@ -99,6 +101,14 @@ class ScanWork:
                 CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY, metadata TEXT NOT NULL, body BLOB NOT NULL);
             ''')
+            if 'retry_after' not in {row[1] for row in self.connection.execute('PRAGMA table_info(frontier)')}:
+                self.connection.execute('ALTER TABLE frontier ADD COLUMN retry_after REAL NOT NULL DEFAULT 0')
+            self.connection.executescript('''
+                CREATE INDEX IF NOT EXISTS due_frontier ON frontier(kind,done,retry_after,id);
+                CREATE TABLE IF NOT EXISTS attempts(id TEXT PRIMARY KEY,url TEXT NOT NULL,ordinal INTEGER NOT NULL,state TEXT NOT NULL,payload TEXT NOT NULL,published INTEGER NOT NULL DEFAULT 0,UNIQUE(url,ordinal));
+                CREATE TABLE IF NOT EXISTS retained_downloads(url TEXT PRIMARY KEY,attempt_id TEXT NOT NULL,payload TEXT NOT NULL,body BLOB);
+                CREATE TABLE IF NOT EXISTS retry_origins(url TEXT PRIMARY KEY,payload TEXT NOT NULL);
+            ''')
             self.records, self.documents = DiskRows(self, 'records'), DiskRows(self, 'documents')
             self.started = self.get('started', time.time())
             self.set('started', self.started)
@@ -136,6 +146,13 @@ class ScanWork:
 
     def next(self, kind):
         return self.connection.execute('SELECT id,url,depth FROM frontier WHERE kind=? AND done=0 ORDER BY id LIMIT 1', (kind,)).fetchone()
+
+    def next_due(self,kind):
+        return self.connection.execute('SELECT id,url,depth FROM frontier WHERE kind=? AND done=0 AND retry_after<=? ORDER BY id LIMIT 1',(kind,time.time())).fetchone()
+
+    def retry_delay(self,kind):
+        row=self.connection.execute('SELECT min(retry_after) FROM frontier WHERE kind=? AND done=0',(kind,)).fetchone()
+        return max(1,int((row[0] or 0)-time.time())+1)
 
     def finish(self, item_id, record=None):
         # Record and frontier advancement are one checkpoint: retries cannot duplicate pages.

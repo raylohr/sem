@@ -2,6 +2,10 @@ from django.urls import path
 from . import views
 app_name='reports'
 urlpatterns=[
+    path('proposals/<int:proposal_id>/',views.proposal_detail,name='proposal'),
+    path('proposals/<int:proposal_id>/approve/',views.proposal_approve,name='proposal-approve'),
+    path('proposals/<int:proposal_id>/supplement/',views.proposal_supplement,name='proposal-supplement'),
+    path('proposals/<int:proposal_id>/dismiss/',views.proposal_dismiss,name='proposal-dismiss'),
     path('',views.overview,name='overview'),path('start/',views.start,name='start'),
     path('dossiers/<uuid:dossier_id>/',views.detail,name='dossier'),
     path('dossiers/<uuid:dossier_id>/categories/<str:category_key>/',views.category_detail,name='category'),

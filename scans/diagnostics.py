@@ -9,6 +9,9 @@ import urllib3
 
 logger = logging.getLogger('scans.network')
 MESSAGES = {
+    'interrupted':'Poging onderbroken; geen bewezen eindantwoord.',
+    'retry_exhausted':'Maximaal aantal pogingen bereikt na een onderbreking.',
+    'budget_exhausted':'Netwerkbudget verlopen.',
     'dns_error': 'DNS-opzoeking mislukt.',
     'unsafe_dns': 'DNS verwijst naar een niet-toegestaan netwerkadres.',
     'connect_timeout': 'Verbindingstime-out bij ophalen van de pagina.',

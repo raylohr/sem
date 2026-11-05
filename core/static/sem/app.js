@@ -25,11 +25,11 @@ document.querySelectorAll('form[data-scan-config]').forEach(editor => {
   const scanForm = document.getElementById(editor.dataset.scanConfig);
   const modal = editor.closest('.modal');
   const card = scanForm.closest('[data-scan-card]');
-  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second'];
+  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second', 'connect_timeout', 'read_timeout', 'max_attempts', 'title_min_chars', 'title_max_chars', 'description_min_chars', 'description_max_chars', 'heading_max_chars', 'check_resources', 'check_external_links', 'resource_max_targets', 'external_max_targets', 'resource_max_bytes', 'external_max_bytes', 'resource_file_bytes', 'resource_max_depth', 'image_advice_bytes', 'browser_phase','browser_max_pages','browser_timeout_seconds','browser_requests_per_second','schema_profiles'];
   const restore = () => {
     names.forEach(name => {
       const input = editor.elements.namedItem(name);
-      input.value = scanForm.elements.namedItem(name).value;
+      if(input.multiple){const selected=scanForm.elements.namedItem(name).value.split(',');Array.from(input.options).forEach(option=>option.selected=selected.includes(option.value));}else input.value = scanForm.elements.namedItem(name).value;
       if (input.dataset.valueType === 'integer') validateInteger(input, true);
     });
   };
@@ -42,7 +42,7 @@ document.querySelectorAll('form[data-scan-config]').forEach(editor => {
     if (!editor.reportValidity()) return;
     names.forEach(name => {
       const input = editor.elements.namedItem(name);
-      const value = input.dataset.valueType === 'integer' ? parseInteger(input.value) : input.value.trim();
+      const value = input.multiple ? Array.from(input.selectedOptions).map(option=>option.value).join(',') : input.dataset.valueType === 'integer' ? parseInteger(input.value) : input.value.trim();
       scanForm.elements.namedItem(name).value = String(value);
       const summary = card.querySelector(`[data-scan-summary="${name}"]`);
       if (summary) summary.textContent = name === 'url' ? (value || card.dataset.defaultUrl) : integerFormatter.format(value);

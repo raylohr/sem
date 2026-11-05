@@ -1,0 +1,10 @@
+{% extends 'ui/base.html' %}{% load assessment_tags %}
+{% block title %}Bestandsmeting · {{ project.name }}{% endblock %}
+{% block content %}<a href="{% url 'projects:scans:resources' project.id batch.id %}">← Bestanden en externe links</a><h2 class="h5 text-break mt-3">{{ resource.url }}</h2>
+<p>{{ resource.purpose|assessment_label }} · {{ resource.outcome|assessment_label }} · HTTP {{ resource.http_status|default_if_none:'onbekend' }} · {{ resource.measured_at|default:'Niet gemeten' }}</p>
+<p class="text-break">Eindadres: {{ resource.final_url|default:'Onbekend' }}</p>
+<p>Gelezen HTTP-bodybytes zijn gescheiden van de opgegeven Content-Length en uitgepakte bytes. Bij een afgekapt antwoord is geen volledige bestandsgrootte vastgesteld. Een statische som is geen browserverkeer.</p>
+{% for data in resource.measurements.items %}<div><strong>{{ data.0|assessment_label }}:</strong> {{ data.1|assessment_value }}</div>{% endfor %}
+<details class="my-3"><summary>Responseheaders en meetbewijs</summary><h3 class="h6 mt-3">Veilige responseheaders</h3><pre class="text-break">{{ resource.headers|pprint }}</pre><h3 class="h6">Meetbewijs</h3><pre class="text-break">{{ resource.evidence|pprint }}</pre></details>
+<h3 class="h5">Alle opgeslagen verwijzingen ({{ page.paginator.count }})</h3><div class="table-responsive"><table class="table"><thead><tr><th>Verwijzende pagina</th><th>Soort</th><th>Element</th><th>Via stylesheet</th></tr></thead><tbody>{% for reference in page %}<tr><td class="text-break">{{ reference.source_url }}</td><td>{{ reference.kind }}</td><td class="text-break">{{ reference.element_path }}<br>{{ reference.locator }}</td><td class="text-break">{{ reference.parent_url|default:'Directe verwijzing' }}</td></tr>{% endfor %}</tbody></table></div>
+{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Vorige</a>{% endif %} {{ page.number }} / {{ page.paginator.num_pages }} {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Volgende</a>{% endif %}{% endblock %}

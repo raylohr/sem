@@ -112,7 +112,7 @@ class AssessmentTests(TestCase):
         another = self.batch()
         self.publish(another, [self.page(link_details=[{'url': 'https://example.com/missing'}])])
         self.assertFalse(Finding.objects.filter(result__run__batch=another, rule='link_to_404').exists())
-        self.assertEqual(another.analysis_runs.get().results.get().outcome, 'unknown')
+        self.assertGreater(another.analysis_runs.get().results.get().answer['links']['unmeasured_targets'], 0)
 
     def test_reextract_keeps_raw_records_dates_and_original_noindex(self):
         batch = self.batch()
@@ -248,7 +248,7 @@ class AssessmentTests(TestCase):
         data.pop('links_truncated')
         data.pop('link_details')
         run = self.publish(self.batch(), [data])
-        self.assertEqual(run.results.get().outcome, 'unknown')
+        self.assertIn('unknown', run.results.get().answer['checks'].values())
 
     def test_malicious_content_is_escaped_in_evidence(self):
         data = self.page(titles=[], link_details=[{'url': 'https://example.com/missing', 'anchor_text': '<script>alert(1)</script>'}])

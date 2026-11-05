@@ -1,0 +1,68 @@
+{
+  "archive_sha256": "492783c8d2913a1f9ee318c6f2e58d6e8995de8e3c767f60f944655963058017",
+  "date": "2026-11-04",
+  "scope": "vandersteenhoven.nl",
+  "sf_version": "25.0 Unlicensed, Text Only",
+  "sf_csv_files": 141,
+  "sf_nonempty_csv_files": 34,
+  "screenshots_supplied": 34,
+  "our_batch": "94885360-cccb-4b96-9461-3b84c0f03875",
+  "retry_batch": "60a7e737-a420-4ad1-a8c5-fe48d7e91fdc",
+  "our_original_url_attempts": 368,
+  "our_initial_download_errors": 5,
+  "retry_successes": 5,
+  "sf_known_addresses": 252,
+  "sf_internal_addresses": 179,
+  "sf_external_addresses": 73,
+  "sf_successful_html_pages": 59,
+  "common_html_pages_after_retry": 59,
+  "common_checks": {
+    "missing_meta_descriptions": {
+      "sf": 59,
+      "ours": 59
+    },
+    "missing_h1": {
+      "sf": 22,
+      "ours": 22
+    },
+    "multiple_titles": {
+      "sf": 1,
+      "ours": 1
+    },
+    "titles_over_60_characters": {
+      "sf": 32,
+      "ours_derived_not_reported": 32
+    },
+    "image_references": {
+      "sf": 965,
+      "ours": 965
+    },
+    "unique_source_image_pairs": {
+      "sf": 456,
+      "ours": 456
+    },
+    "unique_image_urls": {
+      "sf": 34,
+      "ours": 34
+    },
+    "missing_alt_attribute": {
+      "sf": 0,
+      "ours": 0
+    },
+    "empty_alt_references": {
+      "sf": 965,
+      "ours": 965
+    },
+    "self_referencing_canonicals": {
+      "sf": 59,
+      "ours": 59
+    }
+  },
+  "limitations": [
+    "Different time windows and user agents",
+    "No Internal All or machine-readable all-issues summary",
+    "Empty premium reports do not establish passing checks",
+    "Retry is a separate measurement, not an overwritten crawl",
+    "DOM position, full metadata precision and paid/browser capabilities not fully validated"
+  ]
+}

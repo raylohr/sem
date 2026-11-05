@@ -1,6 +1,12 @@
 from django import template
 register = template.Library()
 LABELS = {
+    'main_content':'Hoofdinhoud en taalprofiel','structured_data':'Gestructureerde gegevens en validatielagen',
+    'browser_title_width':'Titel boven modelmatige breedteadviesgrens','queued_browser':'Ingepland voor browser','budget':'Buiten browserbudget','already_selected':'Al geselecteerd','outside_scope':'Buiten hosttoestemming','privacy_only':'Alleen waargenomen in toestemmingsscenario','file':'Bestandslink','before_scroll':'Na laden, vóór scrollen','after_scroll':'Na scrollen','after_details':'Na openen uitklapdetail','title_width':'Modelmatige titelbreedte','exploration':'Begrensde browserverkenning',
+    'resource_only':'Afzonderlijke bestandsmeting (geen inhoudspagina)', 'representation_complete':'Volledige representatie (geen gedeeltelijk antwoord)',
+    'resource':'Bestand','external':'Externe link','success':'Succesvol gemeten','http_error':'HTTP-fout','download_error':'Download mislukt','not_measured_budget':'Niet gemeten: budget bereikt','not_measured_time':'Niet gemeten: tijd bereikt','interrupted_unknown':'Onderbroken: eindantwoord onbekend','redirect_blocked':'Redirect niet gevolgd','declared_bytes':'Opgegeven Content-Length (bytes)','wire_bytes':'Gelezen HTTP-bodybytes vóór decompressie','decoded_bytes':'Gelezen uitgepakte bytes','wire_complete':'Volledige HTTP-body gelezen','body_complete':'Volledige uitgepakte body beschikbaar','body_truncated':'Body afgekapt','body_error':'Fout bij uitpakken','resource_scan':'Bestands- en externe meetdekking','resource_checks':'Controles per uniek meetdoel',
+    'content_audit':'Dekking inhoudsanalyse','heading_evidence':'Koppen met context','link_name_evidence':'Linknamen uit statische HTML','social_metadata':'Open Graph en X Cards','static_name':'Naam uit HTML','name_basis':'Herkomst naam','name_status':'Zekerheid naamafleiding','visible_text':'Tekstinhoud','known':'Afgeleid uit HTML','contents':'Tekst en afbeeldings-alt','aria-label':'ARIA-label','aria-labelledby':'Verwezen ARIA-labels','title':'Title-attribuut','count':'Aantal','basis':'Basis','reason':'Reden','interpretation':'Interpretatie','image_counts':'Afbeeldingen per beoordeling',
+    'low':'Laag / advies','element_path':'Elementpad in bron-HTML','region':'Paginagebied','raw_url':'Oorspronkelijk adres','minimum':'Minimum tekens','maximum':'Maximum tekens','in_head':'In head van hoofddocument','observations':'Waarnemingen',
     'protected_email_links': 'Cloudflare-e-maillinks: browsercontrole nodig',
     'cloudflare_email_review_required': 'Cloudflare-e-mailbescherming: browsercontrole nodig',
     'privacy-signals':'Privacywaarnemingen', 'baseline':'Zonder interactie', 'no_choice':'Geen keuze', 'reject':'Weigeren', 'accept':'Accepteren', 'withdraw':'Intrekken',
@@ -54,7 +60,8 @@ LABELS = {
 
 
 from assessments.advanced import RULES
-LABELS.update({key: value[2] for key,value in RULES.items()})
+from assessments.r4 import RULES as RESOURCE_RULES
+LABELS.update({key: value[2] for key,value in {**RULES,**RESOURCE_RULES}.items()})
 LABELS.update({'observed_inlinks':'Unieke interne verwijzende URL’s','unique_internal_outlinks':'Unieke interne doel-URL’s','graph_depth':'Linkafstand vanaf de start-URL','root':'Start-URL','scope':'Meetbereik','graph':'Interne linkstructuur','advanced_checks':'Dekking per controle','analysis_module':'Analysemodule'})
 
 @register.filter

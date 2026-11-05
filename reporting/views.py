@@ -21,7 +21,7 @@ def context(request,project_id):return project_context(request,project_id,'repor
 
 
 def ordered_groups(query):
-    return query.annotate(severity_rank=Case(When(severity='high',then=0),default=1,output_field=IntegerField())).order_by('severity_rank','-affected_urls','rule','id')
+    return query.annotate(severity_rank=Case(When(severity='high',then=0),When(severity='medium',then=1),default=2,output_field=IntegerField())).order_by('severity_rank','-affected_urls','rule','id')
 
 
 def dossier_context(request,project_id,dossier_id):
@@ -65,10 +65,10 @@ def detail(request,project_id,dossier_id):
     ctx=dossier_context(request,project_id,dossier_id);groups=ctx['dossier'].groups.all()
     category=request.GET.get('category','');severity=request.GET.get('severity','');query=request.GET.get('q','').strip()[:200]
     if category in CATEGORIES:groups=groups.filter(category=category)
-    if severity in ('high','medium'):groups=groups.filter(severity=severity)
+    if severity in ('high','medium','low'):groups=groups.filter(severity=severity)
     if query:groups=groups.filter(title__icontains=query)
     filters=request.GET.copy();filters.pop('page',None)
-    ctx.update(page=Paginator(ordered_groups(groups),25).get_page(request.GET.get('page')),category=category,severity=severity,query=query,
+    ctx.update(proposal_page=Paginator(ctx['dossier'].proposals.order_by('id'),25).get_page(request.GET.get('proposal_page')),page=Paginator(ordered_groups(groups),25).get_page(request.GET.get('page')),category=category,severity=severity,query=query,
         category_choices=CATEGORIES.items(),filter_query=filters.urlencode())
     return render(request,'reporting/dossier.html',ctx)
 
@@ -127,7 +127,9 @@ def prospect(request,project_id,dossier_id):
     if ctx['dossier'].status!='complete':return redirect('ui:reports:dossier',project_id=project_id,dossier_id=dossier_id)
     groups=list(ordered_groups(ctx['dossier'].groups.all())[:5])
     for group in groups:group.example=group.evidence.order_by('id').values('url','snapshot').first()
-    ctx.update(origin=request.build_absolute_uri('/').rstrip('/'),top_groups=groups)
+    from django.db.models import Min,Case,When,IntegerField
+    proposals=ctx['dossier'].proposals.exclude(status='dismissed').annotate(technical_rank=Min(Case(When(groups__severity='high',then=0),When(groups__severity='medium',then=1),default=2,output_field=IntegerField()))).order_by('technical_rank','id')[:5]
+    ctx.update(top_proposals=proposals,origin=request.build_absolute_uri('/').rstrip('/'),top_groups=groups)
     if request.GET.get('download')=='1':
         response=HttpResponse(render_to_string('reporting/prospect_document.html',ctx,request=request),content_type='text/html; charset=utf-8')
         response['Content-Disposition']='attachment; filename="websiteonderzoek-'+str(dossier_id)+'.html"'
@@ -145,10 +147,17 @@ def export(request,project_id,dossier_id):
         yield json.dumps({'type':'dossier','id':str(dossier.pk),'version':dossier.version,'status':dossier.status,'coverage':dossier.coverage,'actions_exported_at':timezone.now().isoformat()},ensure_ascii=False)+'\n'
         for item in dossier.inputs.all():yield json.dumps({'type':'input','snapshot':item.snapshot})+'\n'
         for item in dossier.categories.all():yield json.dumps({'type':'category','key':item.key,'state':item.state,'score':item.score,'coverage':item.coverage,'calculation':item.calculation},ensure_ascii=False)+'\n'
+        for resource in dossier.resources.iterator(chunk_size=200):yield json.dumps({'type':'resource','url':resource.url,'purpose':resource.purpose,'measured_at':resource.measured_at.isoformat() if resource.measured_at else None,'checks':resource.checks,'snapshot':resource.snapshot},ensure_ascii=False)+'\n'
         for page in dossier.pages.iterator(chunk_size=200):yield json.dumps({'type':'page','url':page.url,'scope':page.scope,'measured_at':page.measured_at.isoformat() if page.measured_at else None,'checks':page.checks,'snapshot':page.snapshot},ensure_ascii=False)+'\n'
         for group in dossier.groups.prefetch_related('actions').iterator(chunk_size=100):
             yield json.dumps({'type':'group','id':group.pk,'fingerprint':group.fingerprint,'rule':group.rule,'category':group.category,'title':group.title,'severity':group.severity,
                 'occurrences':group.occurrences,'affected_urls':group.affected_urls,'basis':group.basis,'actions':[str(a.pk) for a in group.actions.all() if a.project_id==dossier.project_id]},ensure_ascii=False)+'\n'
+        for proposal in dossier.proposals.prefetch_related('groups').iterator(chunk_size=100):
+            yield json.dumps({'type':'action_proposal','id':proposal.pk,'title':proposal.title,'discipline':proposal.discipline,'problem':proposal.problem,'hypothesis':proposal.hypothesis,'direction':proposal.direction,'acceptance':proposal.acceptance,'status':proposal.status,'action_id':str(proposal.action_id) if proposal.action_id else None,'groups':[g.pk for g in proposal.groups.all()],'evidence':proposal.evidence,'provenance':proposal.provenance,'review':proposal.review},ensure_ascii=False)+'\n'
+            for supplement in proposal.supplements.all().order_by('id'):
+                yield json.dumps({'type':'unverified_ai_supplement','proposal_id':proposal.pk,'model':supplement.model,'prompt_reference':supplement.prompt_reference,'text':supplement.text,'provenance':supplement.provenance},ensure_ascii=False)+'\n'
+            for review in proposal.reviews.all().order_by('id'):
+                yield json.dumps({'type':'proposal_review','proposal_id':proposal.pk,'actor_id':review.actor_id,'created_at':review.created_at.isoformat(),'decision':review.decision,'reason':review.reason},ensure_ascii=False)+'\n'
         from .models import IssueOccurrence
         for item in IssueOccurrence.objects.filter(group__dossier=dossier).iterator(chunk_size=200):yield json.dumps({'type':'evidence','group':item.group_id,'finding':item.finding_id,'url':item.url,'scope':item.scope,'measured_at':item.measured_at.isoformat() if item.measured_at else None,'snapshot':item.snapshot},ensure_ascii=False)+'\n'
         actions=ActionItem.objects.filter(project=ctx['project'],groups__dossier=dossier).distinct()
@@ -236,3 +245,90 @@ def verify(request,project_id,action_id):
         except ValidationError as exc:form.add_error(None,exc)
     ctx.update(form=form,title='Oplossing controleren')
     return render(request,'reporting/form.html',ctx,status=400)
+
+
+@never_cache
+@login_required
+@require_GET
+def proposal_detail(request,project_id,proposal_id):
+    from .models import ActionProposal
+    from .forms import SupplementForm
+    ctx=context(request,project_id)
+    proposal=get_object_or_404(ActionProposal.objects.select_related('dossier','action'),pk=proposal_id,dossier__project=ctx['project'],dossier__status='complete')
+    ctx.update(reviews=proposal.reviews.select_related('actor').order_by('-created_at')[:50],proposal=proposal,groups=proposal.groups.order_by('id'),supplements=proposal.supplements.select_related('actor').order_by('-created_at')[:20],supplement_form=SupplementForm())
+    return render(request,'reporting/proposal.html',ctx)
+
+
+@never_cache
+@login_required
+@require_http_methods(['GET','POST'])
+def proposal_approve(request,project_id,proposal_id):
+    from .models import ActionProposal
+    from .proposals import approve
+    ctx=context(request,project_id)
+    if not ctx['can_edit']:raise PermissionDenied
+    proposal=get_object_or_404(ActionProposal,pk=proposal_id,dossier__project=ctx['project'],dossier__status='complete')
+    initial={'groups':list(proposal.groups.values_list('id',flat=True)),'title':proposal.title,'description':proposal.problem+'\n\n'+proposal.direction+'\n\nVermoedelijke oorzaak: '+proposal.hypothesis+'\nDiscipline: '+proposal.discipline,
+             'acceptance':proposal.acceptance,'priority':'medium','effort':'unknown'}
+    form=ActionForm(request.POST if request.method=='POST' else None,project=ctx['project'],initial=initial)
+    if request.method=='POST' and form.is_valid():
+        if set(form.cleaned_data['groups'].values_list('pk',flat=True))!=set(initial['groups']):form.add_error('groups','Bevestig de volledige, getoonde bewijsbundel; losse groepen kunnen via Actie maken.')
+        else:
+            try:action=approve(proposal,request.user,form.cleaned_data)
+            except ValidationError as exc:form.add_error(None,exc)
+            else:return redirect('ui:reports:action',project_id=project_id,action_id=action.pk)
+    ctx.update(form=form,title='Herstelvoorstel beoordelen en actie maken')
+    return render(request,'reporting/form.html',ctx,status=400 if request.method=='POST' else 200)
+
+
+@never_cache
+@login_required
+@require_POST
+def proposal_supplement(request,project_id,proposal_id):
+    from .models import ActionProposal
+    from .proposals import supplement
+    from .forms import SupplementForm
+    from django.http import JsonResponse
+    ctx=context(request,project_id)
+    if not ctx['can_edit']:raise PermissionDenied
+    proposal=get_object_or_404(ActionProposal,pk=proposal_id,dossier__project=ctx['project'],dossier__status='complete')
+    if request.content_type=='application/json':
+        try:
+            if len(request.body)>20000:raise ValueError
+            data=json.loads(request.body)
+            if not isinstance(data,dict) or set(data)-{'model','prompt_reference','text'}:raise ValueError
+        except (ValueError,TypeError):return JsonResponse({'error':'Alleen model, prompt_reference en text toegestaan; geen meetuitkomsten of statussen.'},status=400)
+    else:data=request.POST
+    form=SupplementForm(data)
+    if form.is_valid():
+        try:item=supplement(proposal,request.user,form.cleaned_data)
+        except ValidationError as exc:form.add_error(None,exc)
+        else:
+            if request.content_type=='application/json':return JsonResponse({'supplement_id':item.pk,'status':'unverified','proposal_id':proposal.pk},status=201)
+            return redirect('ui:reports:proposal',project_id=project_id,proposal_id=proposal.pk)
+    ctx.update(form=form,title='AI-aanvulling vastleggen; geen meting')
+    return render(request,'reporting/form.html',ctx,status=400)
+
+
+@never_cache
+@login_required
+@require_POST
+def proposal_dismiss(request,project_id,proposal_id):
+    from .models import ActionProposal
+    from projects.models import Project
+    from .services import allowed
+    from django.db import transaction
+    ctx=context(request,project_id)
+    if not ctx['can_edit']:raise PermissionDenied
+    reason=request.POST.get('reason','').strip()[:2000]
+    if len(reason)<10:
+        from django.http import HttpResponseBadRequest
+        return HttpResponseBadRequest('Onderbouw de beslissing met minimaal tien tekens.')
+    with transaction.atomic():
+        Project.objects.select_for_update().get(pk=project_id);allowed(request.user,ctx['project'])
+        proposal=get_object_or_404(ActionProposal.objects.select_for_update(),pk=proposal_id,dossier__project=ctx['project'],dossier__status='complete')
+        from .models import ProposalReviewEvent
+        ProposalReviewEvent.objects.create(proposal=proposal,actor=request.user,decision='dismissed',reason=reason)
+        proposal.status='dismissed';proposal.review={'actor_id':request.user.pk,'at':timezone.now().isoformat(),'reason':reason,'decision':'dismissed'}
+        proposal.save(update_fields=['status','review'])
+    return redirect('ui:reports:proposal',project_id=project_id,proposal_id=proposal.pk)

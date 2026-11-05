@@ -121,11 +121,17 @@ class FetchResult:
     googlebot_allowed: bool | None = None
     robots_checked: bool = False
     set_cookies: list = field(default_factory=list)
+    header_values: dict = field(default_factory=dict)
+    header_values_observed: bool = False
+    measurements: dict = field(default_factory=dict)
 
 
 class SafeClient:
-    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None):
+    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None,connect_timeout=5,read_timeout=5):
         self.batch_id = str(batch_id) if batch_id else None
+        if not 1<=connect_timeout<=60 or not 1<=read_timeout<=120:
+            raise ScanError('Ongeldige netwerk-time-out.')
+        self.connect_timeout,self.read_timeout=connect_timeout,read_timeout
         self.allowed_hosts = set(allowed_hosts)
         self.check_access = check_access
         self.deadline = time.monotonic() + duration
@@ -208,7 +214,7 @@ class SafeClient:
             log_failure(url, self.batch_id, code, details, 0)
             raise NetworkRequestError(code, details) from exc
         # The TCP peer is the validated IP. DNS cannot be resolved again to a private peer.
-        options = {"timeout": urllib3.Timeout(connect=5, read=5), "retries": False}
+        options = {"timeout": urllib3.Timeout(connect=self.connect_timeout, read=self.read_timeout), "retries": False}
         pools = getattr(self.local, 'pools', None)
         if pools is None:
             self.local.pools = pools = {}
@@ -236,43 +242,58 @@ class SafeClient:
                 headers=request_headers,
                 redirect=False, retries=False, preload_content=False, assert_same_host=False)
             stage = "read_body"
-            raw = bytearray()
-            while True:
-                self.guard()
-                chunk = response.read(65536, decode_content=False)
-                if not chunk:
-                    break
-                raw.extend(chunk)
-                with self.lock:
-                    self.transferred += len(chunk)
-                if len(raw) > MAX_BODY:
-                    raise ScanError("Document overschrijdt 5 MiB.")
-                if self.transferred > self.max_transfer:
-                    raise ScanBudgetExceeded("Downloadlimiet bereikt; scanresultaat is onvolledig.")
             headers = {str(k).lower(): str(v) for k, v in response.headers.items()}
-            body = bytes(raw)
-            stage = "decode_body"
-            encoding = headers.get("content-encoding", "identity").lower()
-            if encoding not in ("identity", "", "gzip"):
-                raise ScanError("Niet-ondersteunde HTTP-compressie.")
-            if encoding == "gzip" or body.startswith(b"\x1f\x8b"):
-                with gzip.GzipFile(fileobj=io.BytesIO(body)) as stream:
-                    body = stream.read(MAX_BODY + 1)
-                if len(body) > MAX_BODY:
-                    raise ScanError("Uitgepakt document overschrijdt 5 MiB.")
-            with self.lock:
-                self.decoded_bytes += len(body)
-            if self.decoded_bytes > self.max_transfer:
-                raise ScanBudgetExceeded("Totale documentomvang bereikt; scanresultaat is onvolledig.")
+            measurements={}
+            if getattr(self,'resource_body_limit',None):
+                from .resource_transfer import read_body
+                body,measurements=read_body(self,response,headers)
+            else:
+                raw = bytearray()
+                while True:
+                    self.guard()
+                    chunk = response.read(65536, decode_content=False)
+                    if not chunk:
+                        break
+                    raw.extend(chunk)
+                    with self.lock:
+                        self.transferred += len(chunk)
+                    if len(raw) > MAX_BODY:
+                        raise ScanError("Document overschrijdt 5 MiB.")
+                    if self.transferred > self.max_transfer:
+                        raise ScanBudgetExceeded("Downloadlimiet bereikt; scanresultaat is onvolledig.")
+                headers = {str(k).lower(): str(v) for k, v in response.headers.items()}
+                body = bytes(raw)
+                stage = "decode_body"
+                encoding = headers.get("content-encoding", "identity").lower()
+                if encoding not in ("identity", "", "gzip"):
+                    raise ScanError("Niet-ondersteunde HTTP-compressie.")
+                if encoding == "gzip" or body.startswith(b"\x1f\x8b"):
+                    with gzip.GzipFile(fileobj=io.BytesIO(body)) as stream:
+                        body = stream.read(MAX_BODY + 1)
+                    if len(body) > MAX_BODY:
+                        raise ScanError("Uitgepakt document overschrijdt 5 MiB.")
+                with self.lock:
+                    self.decoded_bytes += len(body)
+                if self.decoded_bytes > self.max_transfer:
+                    raise ScanBudgetExceeded("Totale documentomvang bereikt; scanresultaat is onvolledig.")
+                declared=headers.get('content-length','')
+                measurements={'declared_bytes':int(declared) if declared.isascii() and declared.isdigit() and len(declared)<20 else None,
+                    'wire_bytes':len(raw),'decoded_bytes':len(body),'wire_complete':True,'body_complete':True,'body_truncated':False}
             result = FetchResult(url=url, status=response.status, headers=headers, body=body,
-                                 elapsed=round(time.monotonic() - started, 3))
+                                 elapsed=round(time.monotonic() - started, 3),measurements=measurements)
             getlist = getattr(response.headers, 'getlist', None)
+            from .header_evidence import SAFE_HEADERS
+            if callable(getlist):
+                result.header_values={key:list(getlist(key)) for key in SAFE_HEADERS}
+                result.header_values_observed=True
             result.set_cookies = list(getlist('set-cookie')) if callable(getlist) else ([headers['set-cookie']] if headers.get('set-cookie') else [])
             stage = "record_document"
             sink = self.documents if threading.get_ident() == self.owner else self.pending_documents
             document = {"url": url, "status": result.status, "body": body,
                 "content_type": headers.get("content-type", "")[:255], "fetched_at": timezone.now()}
-            if sink is self.documents:
+            if getattr(self,'capture_documents',True) is False:
+                pass
+            elif sink is self.documents:
                 sink.append(document)
             else:
                 while True:
@@ -282,7 +303,7 @@ class SafeClient:
                         break
                     except queue.Full:
                         continue
-            if result.status in (429, 503):
+            if result.status in (429, 503) and getattr(self,'defer_http_retries',False) is not True:
                 try:
                     backoff = min(120, max(2, int(headers.get('retry-after', '2'))))
                 except ValueError:

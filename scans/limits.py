@@ -1,6 +1,7 @@
 # Broad crawl coverage with the conservative request pace from the earlier GMW crawl.
 DEFAULT_SCAN_SETTINGS = {'max_urls':100000, 'max_depth':99, 'robots_mode':'ignore',
-                         'concurrency':1, 'requests_per_second':1}
+                         'concurrency':1, 'requests_per_second':1,
+                         'connect_timeout':10,'read_timeout':30,'max_attempts':3}
 
 MAX_URLS = 100_000
 MAX_DEPTH = 100

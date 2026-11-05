@@ -14,11 +14,12 @@ from projects.models import Project
 from sources.models import ImportBatch
 from scans.extraction import extract_page
 from scans.models import ScanDocument
+from .r2 import settings_for
 from .models import (PageMeasurement, LinkObservation, AnalysisDefinition, AnalysisRun,
                      AnalysisResult, Finding, FindingEvidence)
 
-EXTRACTOR_VERSION = 'assessment-v3'
-RULE_VERSION = '3'
+EXTRACTOR_VERSION = 'assessment-v7'
+RULE_VERSION = '7'
 
 
 def chunks(iterator, size=100):
@@ -37,7 +38,8 @@ def reextract(data, document=None):
     recovered = False
     if document and ('html' in document.content_type.lower()):
         recovered_fields, _ = extract_page(SimpleNamespace(url=document.url, status=document.status,
-            headers={**data.get('response_headers',{}),'content-type': document.content_type}, body=bytes(document.body)))
+            headers={**data.get('response_headers',{}),'content-type': document.content_type}, body=bytes(document.body),
+            measurements=data.get('transfer_measurements',{}),header_values=data.get('response_header_values',{}),header_values_observed=data.get('header_values_observed',False)))
         # The original robots/indexability facts include non-retained HTTP headers.
         for key in ('robots', 'robot_directives', 'is_indexable', 'indexability_reasons', 'indexability_basis'):
             recovered_fields.pop(key, None)
@@ -118,7 +120,8 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                      'images', 'images_truncated', 'image_count', 'resource_urls', 'jsonld', 'jsonld_count', 'jsonld_truncated',
                      'headers_observed', 'response_headers', 'robots_allowed', 'googlebot_allowed', 'error', 'error_code',
                      'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count',
-                     'discovery_sources','sitemap_url','link_depth_basis','exploration_depth')
+                     'discovery_sources','sitemap_url','link_depth_basis','exploration_depth','html_audit','document_structure',
+                     'main_content','structured_data','transfer_measurements','resource_discovery','content_audit','heading_evidence','link_name_evidence','social_metadata','metadata_evidence','aria_references','resource_details','headers_truncated','response_header_values','header_values_observed')
             facts = {key: data[key] for key in names if key in data}
             for field in ('titles', 'meta_descriptions'):
                 values = facts.get(field)
@@ -151,7 +154,9 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                     continue
                 links_to_create.append(LinkObservation(source=page, position=position, destination=identity[0],
                     destination_hash=identity[2], anchor_text=link.get('anchor_text'), rel=link.get('rel'),
-                    locator=str(link.get('locator', ''))[:100], discovery_mode='rendered' if batch.scan_kind == 'browser' else 'server'))
+                    locator=str(link.get('locator', ''))[:100], discovery_mode='rendered' if batch.scan_kind == 'browser' else 'server',
+                    element_path=str(link.get('element_path',''))[:1024],region=str(link.get('region',''))[:24],target=str(link.get('target',''))[:80],
+                    details={key:link[key] for key in ('raw_url','element_type','reference_type','aria_label','aria_labelledby','title_attribute','static_name','name_basis','name_status','visible_text','images','hidden') if key in link} or None))
                 if len(links_to_create) >= 1000:
                     LinkObservation.objects.bulk_create(links_to_create, batch_size=1000)
                     links_to_create = []
@@ -165,7 +170,8 @@ def analyze(batch, coverage):
                   'output_schema': {'outcome': ['issue', 'pass', 'unknown', 'not_applicable']}})
     run = AnalysisRun.objects.create(batch=batch, definition=definition, extractor_version=EXTRACTOR_VERSION,
         coverage={**coverage, 'batch_status_at_analysis': batch.status, 'batch_warnings': batch.warnings,
-                  'input_kind': 'published source records and optional stored HTML',
+                  'input_kind': 'published source records and optional stored HTML','schema_profiles':batch.request_metadata.get('schema_profiles',['google-breadcrumb-v1','google-product-snippet-v1']),'structured_validator':'structured-profile-v1/schema.org-30.1',
+                  'analysis_settings':settings_for(batch.request_metadata.get('analysis_settings')),
                   'scope': 'same batch only; external and unvisited destinations are not assumed reachable'})
     pages = PageMeasurement.objects.filter(batch=batch)
     from .advanced import load_target_index, broken_links
@@ -254,6 +260,8 @@ def analyze(batch, coverage):
     update_link_coverage(run,batch,target_index)
     from .advanced import extend_analysis
     extend_analysis(run, batch, summary,target_index)
+    from .r4 import attach as attach_resources
+    attach_resources(run,batch,summary)
     run.summary = dict(summary)
     run.status = 'complete'
     run.completed_at = timezone.now()

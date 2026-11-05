@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 from core.ui import project_context
 from sources.models import ImportBatch
 from .forms import BrowserForm
-from .models import BrowserRun, BrowserVisit, BrowserArtifact
+from .models import BrowserRun, BrowserVisit, BrowserArtifact,DiscoveredLink
 from .services import create_run, check_run
 from .tasks import process_browser
 
@@ -57,7 +57,7 @@ def run_detail(request, project_id, run_id):
     context = project_context(request, project_id, 'assessments')
     run = get_object_or_404(BrowserRun.objects.select_related('batch', 'source_batch'), pk=run_id, batch__project=context['project'])
     context.update(run=run, batch=run.batch, page=Paginator(run.visits.order_by('id'), 25).get_page(request.GET.get('page')),
-        analyses=run.batch.analysis_runs.filter(status='complete').select_related('definition'))
+        discovered=Paginator(DiscoveredLink.objects.filter(visit__run=run).select_related('visit','followup').order_by('id'),50).get_page(request.GET.get('link_page')),analyses=run.batch.analysis_runs.filter(status='complete').select_related('definition'))
     return render(request, 'browser_scans/run.html', context)
 
 
@@ -67,8 +67,10 @@ def run_detail(request, project_id, run_id):
 def visit_detail(request, project_id, visit_id):
     context = project_context(request, project_id, 'assessments')
     visit = get_object_or_404(BrowserVisit.objects.select_related('run__batch'), pk=visit_id, run__batch__project=context['project'], run__batch__status__in=('complete', 'incomplete'))
-    context.update(visit=visit, page=Paginator(visit.resources.order_by('position'), 50).get_page(request.GET.get('page')),
-        storage=Paginator(visit.storage_observations.order_by('phase','kind','name','id'),100).get_page(request.GET.get('storage_page')),
+    from assessments.models import PageMeasurement
+    original=PageMeasurement.objects.filter(batch_id=visit.run.source_batch_id,batch__project=context['project'],final_url__in=[visit.url,visit.final_url]).order_by('-measured_at','-id').first()
+    context.update(original=original,visit=visit, page=Paginator(visit.resources.order_by('position'), 50).get_page(request.GET.get('page')),
+        links=Paginator(visit.discovered_links.order_by('id'),50).get_page(request.GET.get('link_page')),storage=Paginator(visit.storage_observations.order_by('phase','kind','name','id'),100).get_page(request.GET.get('storage_page')),
         issues=visit.accessibility_issues.all(), artifacts=visit.artifacts.defer('body'), screenshot=visit.artifacts.filter(kind='screenshot').defer('body').first())
     return render(request, 'browser_scans/visit.html', context)
 
@@ -104,3 +106,26 @@ def retry(request, project_id, run_id):
         batch.save(update_fields=['status', 'error'])
     enqueue(run)
     return redirect('ui:browser:run', project_id=project_id, run_id=run.pk)
+
+
+@never_cache
+@login_required
+@require_GET
+def export(request,project_id,run_id):
+    import json
+    from django.http import StreamingHttpResponse
+    context=project_context(request,project_id,'assessments')
+    run=get_object_or_404(BrowserRun,pk=run_id,batch__project=context['project'],batch__status__in=('complete','incomplete'))
+    def rows():
+        yield json.dumps({'type':'browser_run','id':str(run.pk),'source_batch_id':str(run.source_batch_id) if run.source_batch_id else None,'config':run.config,'coverage':run.coverage,'engine':run.engine},ensure_ascii=False)+'\n'
+        for visit in run.visits.order_by('id').iterator(chunk_size=10):
+            yield json.dumps({'type':'browser_visit','id':visit.pk,'url':visit.url,'final_url':visit.final_url,'scenario':visit.scenario,'status':visit.status,
+                'measured_at':visit.measured_at.isoformat() if visit.measured_at else None,'server_facts':visit.server_facts,'rendered_facts':visit.rendered_facts,
+                'differences':visit.differences,'coverage':visit.coverage,'metrics':visit.metrics},ensure_ascii=False)+'\n'
+            for artifact in visit.artifacts.defer('body').order_by('id'):
+                yield json.dumps({'type':'artifact','visit_id':visit.pk,'id':artifact.pk,'kind':artifact.kind,'bytes':artifact.size,'sha256':artifact.checksum})+'\n'
+        for link in DiscoveredLink.objects.filter(visit__run=run).order_by('id').iterator(chunk_size=200):
+            yield json.dumps({'type':'discovered_link','visit_id':link.visit_id,'url':link.url,'phase':link.phase,'state':link.state,'details':link.details,'followup_batch_id':str(link.followup_id) if link.followup_id else None},ensure_ascii=False)+'\n'
+    response=StreamingHttpResponse(rows(),content_type='application/x-ndjson')
+    response['Content-Disposition']='attachment; filename="browser-evidence.jsonl"'
+    return response

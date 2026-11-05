@@ -13,7 +13,7 @@ from assessments.models import AnalysisRun, Finding
 from browser_scans.models import BrowserRun
 from site_intelligence.models import EnrichmentRun, CustomerDeclaration
 from catalog.adapters import normalize_url
-from .models import Dossier,DossierInput,DossierPage,IssueGroup,IssueOccurrence,CategoryScore
+from .models import Dossier,DossierInput,DossierPage,IssueGroup,IssueOccurrence,CategoryScore,DossierResource
 from .catalog import VERSION,CATEGORIES,EXPECTED,STATES,normalized_checks,category,score
 
 
@@ -56,6 +56,8 @@ def declaration_snapshot(project):
 def create_dossier(project,actor,crawl_id,browser_id=None,title=''):
     allowed(actor,project)
     crawl=ImportBatch.objects.get(pk=crawl_id,project=project,status__in=('complete','incomplete'),request_metadata__scan='crawl')
+    if crawl.request_metadata.get('retry_only'):
+        raise ValidationError('Een gerichte herdownload is aanvullend bewijs, geen volledige primaire webcrawl.')
     browser=None
     if browser_id:
         browser=ImportBatch.objects.get(pk=browser_id,project=project,status__in=('complete','incomplete'),request_metadata__scan='browser')
@@ -75,7 +77,7 @@ def create_dossier(project,actor,crawl_id,browser_id=None,title=''):
     for batch,kind,run in selections:
         DossierInput.objects.create(dossier=dossier,run=run,batch=batch,kind=kind,snapshot={'run_id':str(run.pk),'batch_id':str(batch.pk),
             'batch_label':batch.label,'batch_status':batch.status,'definition':run.definition.key,'rule_version':run.definition.version,
-            'extractor_version':run.extractor_version,'analysis_at':run.started_at.isoformat(),'privacy_enabled':batch.request_metadata.get('privacy_enabled',False)})
+            'extractor_version':run.extractor_version,'analysis_at':run.started_at.isoformat(),'privacy_enabled':batch.request_metadata.get('privacy_enabled',False),'resource_scan':run.coverage.get('resource_scan',{})})
     transaction.on_commit(lambda:enqueue(dossier.pk))
     return dossier
 
@@ -90,12 +92,13 @@ def browser_checks(answer,violations):
     coverage=answer.get('coverage',{})
     complete=answer.get('_complete',False) and coverage.get('privacy_action_complete') is not False and not coverage.get('timed_out') and not coverage.get('blocked') and not coverage.get('a11y_incomplete')
     # Browser diagnostics are not field CWV; that control deliberately stays unknown.
-    checks={'performance_field':'unknown'}
+    width=answer.get('metrics',{}).get('title_width',{})
+    checks={'performance_field':'unknown','browser_title_width':'issue' if width.get('status')=='measured' and isinstance(width.get('width_px'),(int,float)) and width['width_px']>600 else 'pass' if width.get('status')=='measured' else 'unknown'}
     for key,rules in {'a11y_contrast':{'accessibility_color-contrast','accessibility_link-in-text-block'},
         'a11y_alt':{'accessibility_image-alt'},'a11y_structure':{'accessibility_region','accessibility_landmark-one-main'}}.items():
         checks[key]='issue' if rules & violations else 'pass' if complete else 'unknown'
     if any(rule.startswith('accessibility_') and rule not in {'accessibility_color-contrast','accessibility_link-in-text-block','accessibility_image-alt'} for rule in violations):checks['a11y_structure']='issue'
-    checks['broken_resource']='issue' if 'broken_resource' in violations else 'pass' if complete and coverage.get('resource_count',100)>=0 and coverage.get('resource_count',100)<100 else 'unknown'
+    checks['broken_resource']='issue' if 'broken_resource' in violations else 'pass' if complete and not coverage.get('resource_access_unknown') and coverage.get('resource_count',100)>=0 and coverage.get('resource_count',100)<100 else 'unknown'
     return checks
 
 
@@ -149,7 +152,7 @@ def collect_pages(dossier,inputs,limits):
 
 
 def signature(rule,details):
-    if rule in ('link_to_404','link_to_5xx','broken_resource'):
+    if rule in ('link_to_404','link_to_5xx','broken_resource','resource_http_error','resource_mime_mismatch','resource_image_large','external_http_error'):
         candidates=[details.get('destination')]
         if rule=='broken_resource' and not candidates[0]:candidates=[details.get('url')]
         candidates += [item.get('destination') for item in details.get('observations',[])]
@@ -169,7 +172,8 @@ def signature(rule,details):
 def evidence_summary(details):
     """Small public observations, without cookie values or raw headers."""
     labels={'destination':'Bestemming','target_final_status':'HTTP-eindstatus','final_status':'HTTP-eindstatus','http_status':'HTTP-status','status':'HTTP-status',
-        'value':'Waarde','next':'Vervolgcanonical','noindex':'Noindex','technology':'Dienst','phase':'Meetfase','name':'Cookienaam','missing':'Ontbrekend'}
+        'content_type':'Bestandstype','threshold_bytes':'Grootteadvies (bytes)','count':'Aantal','basis':'Onderzoeksbasis','interpretation':'Interpretatie','value':'Waarde','values':'Waarden','header':'Header','maximum':'Adviesmaximum','minimum':'Adviesminimum','normalized_destinations':'Canonicalbestemmingen',
+        'next':'Vervolgcanonical','noindex':'Noindex','technology':'Dienst','phase':'Meetfase','name':'Cookienaam','missing':'Ontbrekend'}
     sources=[details]+[row for row in details.get('observations',[])[:3] if isinstance(row,dict)]
     summaries=[]
     for row in sources:
@@ -189,6 +193,48 @@ def evidence_summary(details):
     return summaries[:5]
 
 
+def collect_resources(dossier,inputs,limits):
+    from assessments.r4 import checks,CONTROL_VERSION
+    from scans.models import ResourceMeasurement,ResourceReference
+    count=0;buffer=[]
+    for item in inputs:
+        if item.kind!='crawl' or item.snapshot['definition']!='crawl-basics':continue
+        kinds=defaultdict(set)
+        for target_id,kind in ResourceReference.objects.filter(target__batch_id=item.batch_id).values_list('target_id','kind').iterator(chunk_size=1000):kinds[target_id].add(kind)
+        threshold=item.run.coverage.get('resource_scan',{}).get('limits',{}).get('image_advice_bytes',item.batch.request_metadata.get('image_advice_bytes',102400))
+        for target in ResourceMeasurement.objects.filter(batch_id=item.batch_id).iterator(chunk_size=100):
+            count+=1
+            if count>50000:limits.add('resource_limit');break
+            buffer.append(DossierResource(dossier=dossier,measurement=target,url=target.url,url_hash=url_identity(target.url)[1],purpose=target.purpose,
+                measured_at=target.measured_at,checks=checks(target,threshold,kinds[target.pk]),snapshot={
+                    'definitions':{item.snapshot['definition']:item.snapshot['rule_version']},'control_versions':{key:CONTROL_VERSION for key in checks(target,threshold,kinds[target.pk])},'threshold_bytes':threshold,
+                    'http_status':target.http_status,'outcome':target.outcome,'final_url':target.final_url,'headers':target.headers,
+                    'measurements':target.measurements,'evidence':target.evidence,'expected_types':sorted(kinds[target.pk])}))
+            if len(buffer)>=500:DossierResource.objects.bulk_create(buffer,batch_size=500);buffer=[]
+    if buffer:DossierResource.objects.bulk_create(buffer,batch_size=500)
+
+
+def occurrence_sources(dossier,item,details,row):
+    """Expand shared-target evidence while retaining the actual source record, in bounded chunks."""
+    if details.get('resource_id'):
+        import uuid
+        from itertools import islice
+        from scans.models import ResourceReference
+        try:resource_id=uuid.UUID(str(details['resource_id']))
+        except (ValueError,TypeError,AttributeError):resource_id=None
+        if resource_id:
+            query=ResourceReference.objects.filter(target_id=resource_id,target__batch_id=item.batch_id).order_by('source_url').values_list('source_url',flat=True).distinct()
+            iterator=query.iterator(chunk_size=500);found=False
+            while chunk:=list(islice(iterator,500)):
+                identities=[url_identity(url) for url in chunk]
+                sources=dict(DossierPage.objects.filter(dossier=dossier,url_hash__in=[value[1] for value in identities]).values_list('url_hash','source_record_id'))
+                direct={url_identity(url)[1] for url in ResourceReference.objects.filter(target_id=resource_id,source_url__in=chunk,kind='script',parent_url='').values_list('source_url',flat=True)}
+                for url,url_hash in identities:
+                    found=True;yield url,sources.get(url_hash),url_hash in direct
+            if found:return
+    yield details.get('source_url') or details.get('url') or row['raw_url'],row['result__source_record_id'],False
+
+
 def collect_groups(dossier,inputs,limits):
     groups={};buffer=[];count=0
     for item in inputs:
@@ -196,8 +242,7 @@ def collect_groups(dossier,inputs,limits):
             raw_date=F('result__source_record__data__measured_at'),analysis_date=F('result__answer__measured_at'),scenario=F('result__source_record__data__privacy_scenario')).values(
                 'id','rule','severity','title','recommendation','details','result__source_record_id','raw_url','raw_date','analysis_date','scenario').order_by('id')
         for row in rows.iterator(chunk_size=100):
-            count+=1
-            if count>MAX_OCCURRENCES:limits.add('occurrence_limit');break
+            if count>=MAX_OCCURRENCES:limits.add('occurrence_limit');break
             rule=row['rule'];details=row['details'];basis,signal=signature(rule,details)
             fingerprint=digest(json.dumps(['group-v1',rule,signal],ensure_ascii=False))
             group=groups.get(fingerprint)
@@ -207,12 +252,22 @@ def collect_groups(dossier,inputs,limits):
                     recommendation=row['recommendation'],severity=row['severity'],basis=basis)
                 groups[fingerprint]=group
             if row['severity']=='high':group.severity='high'
-            url,url_hash=url_identity(details.get('source_url') or details.get('url') or row['raw_url'])
             scope='privacy:'+(row['scenario'] or 'baseline') if item.kind=='privacy' else item.kind
-            buffer.append(IssueOccurrence(group=group,finding_id=row['id'],source_record_id=row['result__source_record_id'],
-                url=url,url_hash=url_hash,scope=scope,measured_at=date(row['analysis_date'] or details.get('measured_at') or row['raw_date']),snapshot={'rule':rule,'definition':item.snapshot['definition'],
-                    'rule_version':item.snapshot['rule_version'],'run_id':item.snapshot['run_id'],'summary':evidence_summary(details),'certainty':details.get('certainty','technical signal; review required')}))
-            if len(buffer)==500:IssueOccurrence.objects.bulk_create(buffer,batch_size=500);buffer=[]
+            for source_url,source_record_id,direct_script in occurrence_sources(dossier,item,details,row):
+                count+=1
+                if count>MAX_OCCURRENCES:limits.add('occurrence_limit');break
+                url,url_hash=url_identity(source_url)
+                snapshot={'rule':rule,'definition':item.snapshot['definition'],
+                    'rule_version':item.snapshot['rule_version'],'run_id':item.snapshot['run_id'],'summary':evidence_summary(details),
+                    'certainty':details.get('certainty','technical signal; review required')}
+                if details.get('resource_id'):
+                    from assessments.r4 import CONTROL_VERSION
+                    snapshot['control_version']=CONTROL_VERSION
+                    snapshot['resource']={key:details[key] for key in ('resource_id','purpose','destination','final_url','http_status','content_type','measurements','threshold_bytes','measured_at','resource_headers','resource_evidence') if key in details}
+                    snapshot['resource']['direct_script_reference']=direct_script
+                buffer.append(IssueOccurrence(group=group,finding_id=row['id'],source_record_id=source_record_id,
+                    url=url,url_hash=url_hash,scope=scope,measured_at=date(details.get('measured_at') or row['analysis_date'] or row['raw_date']),snapshot=snapshot))
+                if len(buffer)==500:IssueOccurrence.objects.bulk_create(buffer,batch_size=500);buffer=[]
     IssueOccurrence.objects.bulk_create(buffer,batch_size=500)
     totals={row['group_id']:row for row in IssueOccurrence.objects.filter(group__dossier=dossier).values('group_id').annotate(n=Count('id'),urls=Count('url_hash',distinct=True))}
     for group in groups.values():
@@ -252,14 +307,18 @@ def assemble(dossier_id):
     if not inputs or any(not item.run_id or not item.batch_id or item.batch.project_id!=dossier.project_id or item.run.status!='complete' for item in inputs):
         raise ValidationError('Een bevroren analysebron is niet meer beschikbaar.')
     dossier.status='processing';dossier.save(update_fields=['status'])
-    dossier.pages.all().delete();dossier.groups.all().delete();dossier.categories.all().delete()
-    limits=set();collect_pages(dossier,inputs,limits);collect_groups(dossier,inputs,limits);calculate_categories(dossier,limits)
+    dossier.proposals.all().delete();dossier.pages.all().delete();dossier.resources.all().delete();dossier.groups.all().delete();dossier.categories.all().delete()
+    limits=set();collect_pages(dossier,inputs,limits);collect_resources(dossier,inputs,limits);collect_groups(dossier,inputs,limits);calculate_categories(dossier,limits)
+    from .proposals import build as build_proposals
+    build_proposals(dossier)
     dates=dossier.pages.exclude(measured_at=None).order_by('measured_at')
     oldest=dates.values_list('measured_at',flat=True).first();newest=dates.values_list('measured_at',flat=True).last()
     dossier.coverage={**dossier.coverage,'version':VERSION,'limits':sorted(limits),'crawl_urls':dossier.pages.filter(scope='crawl').count(),
+        'resource_targets':dossier.resources.filter(purpose='resource').count(),'external_targets':dossier.resources.filter(purpose='external').count(),
         'browser_urls':dossier.pages.filter(scope='browser').count(),'undated_measurements':dossier.pages.filter(measured_at=None).count(),'groups':dossier.groups.count(),
         'occurrences':IssueOccurrence.objects.filter(group__dossier=dossier).count(),
         'measured_from':oldest.isoformat() if oldest else None,'measured_until':newest.isoformat() if newest else None,
+        'action_proposals':dossier.proposals.count(),'proposal_engine':'action-templates-v1',
         'grouping':'Observed common signatures; shared cause is a hypothesis, not automatically proven.',
         'customer_declarations':dossier.coverage.get('customer_declarations',[])}
     allowed(dossier.actor,dossier.project)

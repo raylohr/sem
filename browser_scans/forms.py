@@ -3,6 +3,9 @@ from scans.network import normalize_host, ScanError
 
 
 class BrowserForm(forms.Form):
+    dynamic_pages=forms.IntegerField(min_value=0,max_value=30,required=False,label='Ruimte voor nieuw gevonden browserpagina’s',help_text='Onderdeel van het totale paginabudget, geen extra pagina’s. Leeg: maximaal vijf gereserveerd.')
+    scroll_steps=forms.IntegerField(min_value=0,max_value=10,initial=6,required=False,label='Maximaal aantal scrollstappen')
+    expand_details=forms.BooleanField(initial=True,required=False,label='Gewone uitklapdetails openen (geen formulieren of knoppen)')
     max_pages = forms.IntegerField(min_value=1, max_value=100, initial=20, required=False, label='Maximaal aantal browserpagina’s')
     profile = forms.ChoiceField(choices=[('desktop', 'Desktop (1440 × 900)'), ('mobile', 'Mobiele viewport (390 × 844)')], initial='desktop', required=False, label='Schermprofiel')
     timeout_seconds = forms.IntegerField(min_value=5, max_value=60, initial=30, required=False, label='Maximale rendertijd per pagina (seconden)')
@@ -23,6 +26,7 @@ class BrowserForm(forms.Form):
             selector = values.get('consent_' + key, '')
             if any(value in selector.lower() for value in ('javascript:', 'xpath=', '\n', '\r')):
                 self.add_error('consent_' + key, 'Gebruik een CSS-selector voor een toestemmingsknop.')
+        if values.get('dynamic_pages') is not None and values['dynamic_pages']>=(values.get('max_pages') or 20):self.add_error('dynamic_pages','Reserveer minder pagina’s dan het totale budget.')
         return values
 
     def clean_resource_hosts(self):

@@ -89,14 +89,16 @@ def run_detail(request, project_id, run_id):
         findings = findings.filter(result__source_record__data__url__icontains=query)
     filters = request.GET.copy()
     filters.pop('page', None)
-    from .advanced import RULES
+    from .advanced import RULES as PAGE_RULES
+    from .r4 import RULES as RESOURCE_RULES
+    RULES={**PAGE_RULES,**RESOURCE_RULES}
     result_rows=run.results.all()
     outcome=request.GET.get('outcome','')
     if outcome in ('issue','pass','unknown','not_applicable'):result_rows=result_rows.filter(outcome=outcome)
     if query:result_rows=result_rows.filter(answer__input__url__icontains=query)
     check_coverage=[{'rule':key,'title':RULES[key][2],**counts} for key,counts in run.coverage.get('advanced_checks',{}).items() if key in RULES]
     context.update(result_page=Paginator(result_rows.order_by('id').values('id','outcome','answer__input__url'),25).get_page(request.GET.get('result_page')),
-        selected_outcome=outcome,check_coverage=check_coverage,run=run, page=Paginator(findings.order_by('rule', 'id'), 25).get_page(request.GET.get('page')),
+        resource_coverage=[{'rule':key,'title':RESOURCE_RULES[key][2],**counts} for key,counts in run.coverage.get('resource_checks',{}).items() if key in RESOURCE_RULES],selected_outcome=outcome,check_coverage=check_coverage,run=run, page=Paginator(findings.order_by('rule', 'id'), 25).get_page(request.GET.get('page')),
         filter_query=filters.urlencode(), rule=rule, severity=severity, query=query,
         outcomes=run.results.values('outcome').annotate(total=Count('id')).order_by('outcome'))
     return render(request, 'assessments/run.html', context)
@@ -165,5 +167,7 @@ def page_detail(request, project_id, page_id):
         if page.batch.request_metadata.get('privacy_enabled'):
             targets = targets.filter(facts__privacy_scenario=OuterRef('source__facts__privacy_scenario'))
         links = page.links.annotate(target_status=Subquery(targets.values('final_http_status')[:1]))
-    context.update(measurement=page, incoming=incoming, page=Paginator(links.order_by('id'), 50).get_page(request.GET.get('page')))
+    region=request.GET.get('region','')
+    if region in ('header','footer','main','nav','document'):links=links.filter(region=region)
+    context.update(measurement=page, incoming=incoming,region=region, page=Paginator(links.order_by('id'), 50).get_page(request.GET.get('page')))
     return render(request, 'assessments/page.html', context)

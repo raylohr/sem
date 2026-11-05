@@ -65,14 +65,14 @@ def host_scope(target):
     resources = {p.host for p in policies if p.resources=='allowed'} - resource_blocked
     return {'allowed_hosts': sorted(navigation), 'blocked_hosts': sorted(blocked),
             'resource_hosts': sorted(resources), 'blocked_resource_hosts': sorted(resource_blocked),
-            'domain': root}
+            'blocked_external_hosts':sorted(p.host for p in policies if p.external=='blocked'), 'domain': root}
 
 
 def save_scope(target, values, actor, *, replace=False):
     """Save explicit decisions under the caller's project transaction lock."""
     from .models import HostPolicy
     root = registered_domain(urlsplit(target.url).hostname)
-    for field,allow_key,block_key in [('navigation','allowed_hosts','blocked_hosts'),('resources','resource_hosts','blocked_resource_hosts')]:
+    for field,allow_key,block_key in [('navigation','allowed_hosts','blocked_hosts'),('resources','resource_hosts','blocked_resource_hosts'),('external','external_hosts','blocked_external_hosts')]:
         allows=set(values.get(allow_key) or [])
         blocks=set(values.get(block_key) or [])
         existing={p.host:p for p in HostPolicy.objects.filter(project=target.project)}

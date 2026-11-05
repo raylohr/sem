@@ -38,6 +38,11 @@ RULES = {
     'no_observed_inlinks': ('structure','medium','Geen interne verwijzingen waargenomen','Controleer interne ondersteuning; dit bewijst geen volledige orphanstatus buiten deze crawl.'),
 }
 LANGUAGES = frozenset('aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu'.split())
+CORE_RULES=frozenset(RULES)
+from . import r2, r3, r6
+RULES.update(r2.RULES)
+RULES.update(r3.RULES)
+RULES.update(r6.RULES)
 
 
 def identity(url):
@@ -78,7 +83,7 @@ def graph_metrics(batch):
         source=queue.popleft()
         for target in outgoing[source]:
             if target not in depths: depths[target]=depths[source]+1;queue.append(target)
-    complete = batch.status=='complete' and not PageMeasurement.objects.filter(batch=batch).filter(
+    complete = batch.status=='complete' and not batch.request_metadata.get('retry_only') and not PageMeasurement.objects.filter(batch=batch).filter(
         Q(coverage__links_known=False)|Q(coverage__links_truncated=True)|Q(coverage__analysis_truncated=True)|Q(coverage__legacy_link_limit_unknown=True)).exists()
     metrics={key:{'observed_inlinks':len(incoming[key]),'unique_internal_outlinks':len(outgoing[key]),
         'graph_depth':depths.get(key),'root':key in roots,'scope':'unique URL edges within same batch and scenario; self-links excluded'} for key in nodes}
@@ -258,6 +263,10 @@ def persist_recorders(recorders,run,summary,coverage):
         results.append(result)
         for rule,state in rec.checks.items():coverage[rule][state]+=1
         for rule,observations in rec.issues.items():
+            if rule=='jsonld_invalid' and rec.checks.get('structured_syntax_invalid')=='issue':continue
+            if rule=='heading_jump' and rec.page.facts.get('content_audit',{}).get('complete') and not rec.page.coverage.get('analysis_truncated'):continue
+            if rule=='canonical_multiple' and any(rec.checks.get(key)=='issue' for key in ('canonical_duplicate_identical','canonical_conflicting')):continue
+            if rule=='security_headers_missing' and any(rec.checks.get('header_missing_'+key.replace('-','_'))=='issue' for key in r2.HEADERS):continue
             category,severity,title,action=RULES[rule]
             finding=Finding(result=result,rule=rule,severity=severity,title=title,recommendation=action,details={
                 'url':rec.page.final_url,'category':category,'observations':observations,'certainty':'observed technical signal; review required',
@@ -360,9 +369,20 @@ def extend_analysis(run,batch,summary,target_index):
         targets=target_lookup(batch,chunk,target_index)
         results={result.source_record_id:result for result in AnalysisResult.objects.filter(run=run,source_record_id__in=[page.source_record_id for page in chunk])}
         recorders=[]
+        blank=defaultdict(list);blank_truncated=set()
+        for link in LinkObservation.objects.filter(source_id__in=[page.pk for page in chunk],target__iexact='_blank').values('source_id','destination','locator','element_path','region','target','rel'):
+            if len(blank[link['source_id']])<20:blank[link['source_id']].append(link)
+            else:blank_truncated.add(link['source_id'])
         for page in chunk:
             result=results[page.source_record_id];rec=Recorder(page,result)
             local_checks(rec)
+            if page.final_http_status==200 and page.coverage.get('html_inspected'):
+                rec.settings=run.coverage['analysis_settings'];rec.blank_links=blank[page.pk];rec.blank_links_truncated=page.pk in blank_truncated
+                r2.local(rec)
+                r3.local(rec)
+                from scans.structured_data import PROFILE_IDS
+                rec.schema_profiles=batch.request_metadata.get('schema_profiles',list(PROFILE_IDS))
+                r6.local(rec)
             if page.final_http_status==200 and page.coverage.get('html_inspected'):relationship_checks(rec,targets)
             else:
                 for rule in ('canonical_target','canonical_chain','canonical_loop','hreflang_target','hreflang_return_missing'):
@@ -387,7 +407,7 @@ def extend_analysis(run,batch,summary,target_index):
     for checks in run.results.values_list('answer__checks',flat=True).iterator(chunk_size=1000):
         for rule,state in checks.items():
             if rule in RULES:coverage[rule][state]+=1
-    run.coverage={**run.coverage,'analysis_module':'page-relations-v1','graph':graph,
+    run.coverage={**run.coverage,'analysis_module':'page-relations-v3','graph':graph,
         'advanced_checks':{rule:dict(counts) for rule,counts in coverage.items()},
         'structured_data_validator':'Python stdlib JSON syntax v1; no schema validation or rich-result eligibility',
         'hreflang_scope':'HTML and retained HTTP Link headers only; sitemap annotations not inferred',

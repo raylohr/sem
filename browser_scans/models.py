@@ -82,3 +82,16 @@ class StorageObservation(models.Model):
     metadata = models.JSONField(default=dict)
     class Meta:
         indexes = [models.Index(fields=['visit', 'phase', 'kind'], name='browser_storage_phase')]
+
+
+class DiscoveredLink(models.Model):
+    visit=models.ForeignKey(BrowserVisit,on_delete=models.CASCADE,related_name='discovered_links')
+    url=models.CharField(max_length=4096)
+    url_hash=models.CharField(max_length=64)
+    phase=models.CharField(max_length=32)
+    state=models.CharField(max_length=32)
+    details=models.JSONField(default=dict)
+    followup=models.ForeignKey('sources.ImportBatch',null=True,on_delete=models.SET_NULL,related_name='browser_discovered_links')
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['visit','url_hash'],name='browser_discovered_identity')]
+        indexes=[models.Index(fields=['visit','state'],name='browser_discovered_state')]

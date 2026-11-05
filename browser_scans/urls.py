@@ -1,7 +1,9 @@
 from django.urls import path
-from . import views
+from . import views,followups
 app_name = 'browser'
 urlpatterns = [
+    path('runs/<uuid:run_id>/export/',views.export,name='export'),
+    path('runs/<uuid:run_id>/html-followup/',followups.start,name='html-followup'),
     path('', views.overview, name='overview'),
     path('start/<uuid:batch_id>/', views.start, name='start'),
     path('runs/<uuid:run_id>/', views.run_detail, name='run'),

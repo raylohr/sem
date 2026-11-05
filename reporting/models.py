@@ -117,3 +117,54 @@ class ActionEvent(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     kind=models.CharField(max_length=30)
     snapshot=models.JSONField(default=dict)
+
+
+class DossierResource(models.Model):
+    """Frozen target controls, kept outside content-page score denominators."""
+    dossier=models.ForeignKey(Dossier,on_delete=models.CASCADE,related_name='resources')
+    measurement=models.ForeignKey('scans.ResourceMeasurement',null=True,on_delete=models.SET_NULL)
+    url=models.TextField()
+    url_hash=models.CharField(max_length=64)
+    purpose=models.CharField(max_length=12)
+    measured_at=models.DateTimeField(null=True)
+    checks=models.JSONField(default=dict)
+    snapshot=models.JSONField(default=dict)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['dossier','purpose','url_hash'],name='dossier_resource_identity')]
+
+
+class ActionProposal(models.Model):
+    dossier=models.ForeignKey(Dossier,on_delete=models.CASCADE,related_name='proposals')
+    fingerprint=models.CharField(max_length=64)
+    title=models.CharField(max_length=255)
+    discipline=models.CharField(max_length=80)
+    problem=models.TextField()
+    hypothesis=models.TextField()
+    direction=models.TextField()
+    acceptance=models.TextField()
+    evidence=models.JSONField(default=dict)
+    provenance=models.JSONField(default=dict)
+    status=models.CharField(max_length=16,default='proposed')
+    review=models.JSONField(default=dict)
+    action=models.ForeignKey(ActionItem,null=True,on_delete=models.SET_NULL,related_name='proposals')
+    groups=models.ManyToManyField(IssueGroup,related_name='proposals')
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['dossier','fingerprint'],name='proposal_dossier_identity')]
+
+
+class ProposalSupplement(models.Model):
+    proposal=models.ForeignKey(ActionProposal,on_delete=models.CASCADE,related_name='supplements')
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    created_at=models.DateTimeField(auto_now_add=True)
+    model=models.CharField(max_length=160)
+    prompt_reference=models.CharField(max_length=255)
+    text=models.TextField()
+    provenance=models.JSONField(default=dict)
+
+
+class ProposalReviewEvent(models.Model):
+    proposal=models.ForeignKey(ActionProposal,on_delete=models.CASCADE,related_name='reviews')
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    created_at=models.DateTimeField(auto_now_add=True)
+    decision=models.CharField(max_length=16)
+    reason=models.TextField(blank=True)

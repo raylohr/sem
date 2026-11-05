@@ -115,7 +115,7 @@ class PageRelationTests(TestCase):
     def test_per_page_assets_and_googlebot_conflicts(self):
         run=self.publish([self.page(html='<h3>Jump</h3><img src="/x"><img src="/decor" alt=""><script src="http://example.com/a.js"></script><script type="application/ld+json">{bad}</script>',
             robot_directives=[{'source':'meta','agent':'robots','value':'index, follow'},{'source':'header','agent':'unspecified','value':'googlebot: noindex, nofollow'}],googlebot_allowed=False)])
-        for rule in ('heading_jump','image_alt_missing','mixed_content','jsonld_invalid','robots_conflict','robots_noindex_blocked'):
+        for rule in ('heading_content_jump','image_alt_missing','mixed_content','structured_syntax_invalid','robots_conflict','robots_noindex_blocked'):
             self.assertEqual(self.finding(run,rule).count(),1,rule)
         missing=self.finding(run,'image_alt_missing').get().details['observations'][0]['images']
         self.assertEqual(len(missing),1)
@@ -197,7 +197,10 @@ class PageRelationTests(TestCase):
     def test_complete_healthy_page_can_pass(self):
         headers={'strict-transport-security':'max-age=31536000','content-security-policy':"default-src 'self'",'x-content-type-options':'nosniff'}
         run=self.publish([self.page(html='<link rel="canonical" href="/">',response_headers=headers)])
-        self.assertEqual(run.results.get().outcome,'pass')
+        from .advanced import CORE_RULES
+        checks=run.results.get().answer['checks']
+        self.assertNotIn('issue',[state for rule,state in checks.items() if rule in CORE_RULES])
+        self.assertEqual(checks['title_too_short'],'issue')
 
     def test_hreflang_return_must_use_the_declared_source_language(self):
         links='<link rel="alternate" hreflang="nl" href="/"><link rel="alternate" hreflang="en" href="/en/">'
@@ -205,3 +208,45 @@ class PageRelationTests(TestCase):
             self.page('/en/',html='<link rel="canonical" href="/en/"><link rel="alternate" hreflang="fr" href="/"><link rel="alternate" hreflang="en" href="/en/">')])
         finding=self.finding(run,'hreflang_return_missing').get(result__source_record__data__url='https://example.com/')
         self.assertEqual(finding.details['observations'][0]['expected_codes'],['nl'])
+
+    def test_r2_persists_context_settings_and_readable_evidence(self):
+        from .models import LinkObservation
+        self.batch.request_metadata={**self.batch.request_metadata,'analysis_settings':{'title_max_chars':40}}
+        self.batch.save(update_fields=['request_metadata'])
+        run=self.publish([self.page(html='<footer><a href="https://other.example/" target="_blank" aria-label="External">Link</a></footer><img src="/x" width="12" height="20">')])
+        link=LinkObservation.objects.get(source__batch=self.batch)
+        self.assertEqual(link.region,'footer')
+        self.assertEqual(link.target,'_blank')
+        self.assertEqual(link.details['raw_url'],'https://other.example/')
+        self.assertIn('/footer[1]/a[1]',link.element_path)
+        self.assertEqual(run.coverage['analysis_settings']['title_max_chars'],40)
+        finding=self.finding(run,'external_blank_rel').get()
+        self.client.force_login(self.user)
+        response=self.client.get(reverse('ui:assessments:finding',args=[self.project.id,finding.pk]))
+        self.assertEqual(response.status_code,200)
+        self.assertContains(response,'footer')
+        self.assertContains(response,'/footer[1]/a[1]')
+
+    def test_r3_persists_names_social_evidence_and_keeps_original_measurement(self):
+        from .models import LinkObservation
+        run=self.publish([self.page(html='<main><a href="/named" aria-label="Contact"><img src="/icon" alt=""></a><a href="/unnamed"><img src="/photo" alt=""></a><h3>Detail</h3></main>')])
+        source=self.batch.records.get();original=dict(source.data)
+        page=PageMeasurement.objects.get(batch=self.batch)
+        self.assertEqual(run.definition.version,'7')
+        named=LinkObservation.objects.get(source=page,destination='https://example.com/named')
+        self.assertEqual(named.details['static_name'],'Contact')
+        self.assertEqual(named.details['name_basis'],'aria-label')
+        self.assertEqual(self.finding(run,'image_link_name_missing').count(),1)
+        self.assertEqual(self.finding(run,'image_empty_alt_review').count(),0)
+        self.assertEqual(self.finding(run,'social_og_missing').count(),1)
+        self.client.force_login(self.user)
+        response=self.client.get(reverse('ui:assessments:page',args=[self.project.pk,page.pk]))
+        self.assertContains(response,'Naam uit HTML: Contact')
+        self.assertContains(response,'Open Graph en X Card-velden')
+        from reporting.services import evidence_summary
+        summary=evidence_summary(self.finding(run,'image_link_name_missing').get().details)
+        self.assertTrue(any('Aantal: 1' in line for line in summary))
+        updated=rebuild_batch(self.batch.pk)
+        source.refresh_from_db();self.assertEqual(source.data,original)
+        self.assertTrue(AnalysisRun.objects.filter(pk=run.pk).exists())
+        self.assertEqual(updated.definition.version,'7')

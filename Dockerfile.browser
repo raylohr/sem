@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/playwright/python:v1.64.1-noble
 COPY browser_scans/requirements.txt /tmp/browser-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/browser-requirements.txt
 WORKDIR /sandbox
-COPY --chown=1000:1000 browser_scans/sandbox.py browser_scans/protocol.py browser_scans/privacy.py ./
+COPY --chown=1000:1000 browser_scans/sandbox.py browser_scans/protocol.py browser_scans/privacy.py browser_scans/enhancements.py ./
 COPY --chown=1000:1000 browser_scans/vendor ./vendor
 RUN mkdir -p /run/sem-browser /home/sem && chown 1000:1000 /run/sem-browser /home/sem
 ENV HOME=/home/sem

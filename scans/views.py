@@ -15,6 +15,7 @@ from .forms import TargetForm, ScanForm
 from .network import normalize_url, ScanError
 from .tasks import enqueue_scan
 from .limits import scan_budget, DEFAULT_SCAN_SETTINGS
+from assessments.r2 import DEFAULT_SETTINGS as ANALYSIS_DEFAULTS
 from .scope import host_scope, save_scope
 
 
@@ -84,6 +85,8 @@ def host_decision(request, project_id, policy_id):
         except (ValueError,TypeError):return JsonResponse({'error':'Ongeldige JSON.'},status=400)
         if any(data.get(field) not in ('allowed','blocked','pending') for field in ('navigation','resources')):
             return JsonResponse({'error':'Ongeldige hostkeuze.'},status=400)
+        if 'external' in data and data['external'] not in ('allowed','blocked','pending'):return JsonResponse({'error':'Ongeldige externe hostkeuze.'},status=400)
+        policy.external=data.get('external',policy.external)
         policy.navigation=data['navigation'];policy.resources=data['resources'];policy.decided_by=request.user
         policy.save()
         return JsonResponse({'saved':True})
@@ -125,7 +128,15 @@ def start(request, project_id, target_id):
         max_urls = data.get('max_urls') or DEFAULT_SCAN_SETTINGS['max_urls']
         robots_mode = data.get('robots_mode') or DEFAULT_SCAN_SETTINGS['robots_mode']
         duration, transfer = scan_budget(data['kind'], max_urls)
-        config = {'scan': data['kind'], 'url': url, **scope, 'discover_sitemaps':data['kind']=='crawl',
+        from .resources import DEFAULTS as RESOURCE_DEFAULTS
+        config = {'schema_profiles':data['schema_profiles'] if 'schema_profiles' in form.data else ['google-breadcrumb-v1','google-product-snippet-v1'],'browser_requests_per_second':data.get('browser_requests_per_second') or 5,'browser_phase':data['kind']=='crawl' and data['browser_phase'],'browser_max_pages':data.get('browser_max_pages') or 20,'browser_timeout_seconds':data.get('browser_timeout_seconds') or 30,'resource_version':'resources-v1' if data['kind']=='crawl' else '',
+            'check_resources':data['kind']=='crawl' and data['check_resources'],
+            'check_external_links':data['kind']=='crawl' and data['check_external_links'],
+            **{key:data.get(key) if data.get(key) is not None else default for key,default in RESOURCE_DEFAULTS.items()},
+            'scan': data['kind'], 'url': url, **scope, 'discover_sitemaps':data['kind']=='crawl',
+            'analysis_settings':{key:data.get(key) if data.get(key) is not None else default for key,default in ANALYSIS_DEFAULTS.items()},
+            'reliability_version':'page-retry-v1' if data['kind']=='crawl' else '',
+            **{key:data.get(key) or DEFAULT_SCAN_SETTINGS[key] for key in ('connect_timeout','read_timeout','max_attempts')},
             'max_urls': max_urls,
             'max_depth': data['max_depth'] if data.get('max_depth') is not None else DEFAULT_SCAN_SETTINGS['max_depth'],
             'duration': data.get('duration') or duration, 'max_transfer': transfer, 'respect_robots': robots_mode == 'respect',

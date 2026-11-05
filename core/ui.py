@@ -98,7 +98,7 @@ def scans(request, project_id):
          'url_help':'Leeg laten gebruikt /sitemap.xml op deze website. Een andere locatie kun je hier invullen.'},
     ]
     context.update(targets=targets,scan_modes=modes,host_policies=context['project'].host_policies.order_by('navigation','host'),
-        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth','robots_mode','concurrency','requests_per_second')},
+        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth','robots_mode','concurrency','requests_per_second','connect_timeout','read_timeout','max_attempts','title_min_chars','title_max_chars','description_min_chars','description_max_chars','heading_max_chars','check_resources','check_external_links','resource_max_targets','external_max_targets','resource_max_bytes','external_max_bytes','resource_file_bytes','resource_max_depth','image_advice_bytes','browser_phase','browser_max_pages','browser_timeout_seconds','browser_requests_per_second')},
         recent=context['project'].import_batches.filter(method='scan')[:10])
     return render(request,'ui/scans.html',context)
 

@@ -35,7 +35,7 @@ class PageParser(HTMLParser):
         self.jsonld_count = 0
 
     def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+        attrs = {key:value or '' for key,value in attrs}
         if tag in ('svg', 'math'):
             self.foreign_depth += 1
         if tag == 'script' and attrs.get('type', '').lower().split(';')[0].strip() == 'application/ld+json':
@@ -92,7 +92,8 @@ class PageParser(HTMLParser):
             item = {'status':'unknown' if len(raw)>65536 else 'valid', 'types':[]}
             if len(raw)<=65536:
                 try:
-                    value = json.loads(raw)
+                    from .structured_data import strict_json
+                    value = strict_json(raw)
                     if not isinstance(value,(dict,list)):
                         raise ValueError('Expected object or array')
                     nodes = value if isinstance(value,list) else [value]
@@ -100,7 +101,9 @@ class PageParser(HTMLParser):
                         if isinstance(node,dict):
                             types=node.get('@type',[])
                             item['types'].extend([str(t)[:100] for t in (types if isinstance(types,list) else [types])][:20])
-                except (ValueError,RecursionError) as exc:
+                except RecursionError:
+                    item={'status':'unknown','reason':'decoder_recursion_limit'}
+                except ValueError as exc:
                     item={'status':'invalid','error':type(exc).__name__,'line':getattr(exc,'lineno',None),'column':getattr(exc,'colno',None)}
             self.jsonld.append(item)
             self.jsonld_current = None
@@ -176,7 +179,7 @@ def extract_page(result):
         reasons.append('noindex')
     if canonical_elsewhere:
         reasons.append('canonical_elsewhere')
-    fields = {'extractor_version': 'html-v4', 'headers_observed':True,'response_headers':retained_headers,
+    fields = {'extractor_version': 'html-v8', 'transfer_measurements':getattr(result,'measurements',{}),'headers_observed':True,'response_headers':retained_headers,
         'canonical_sources':canonical_sources, 'hreflang':[dict(item,url=urljoin(base,item['url']) if item['url'] else '') for item in parser.hreflang[:100]], 'hreflang_truncated':len(parser.hreflang)>=100,
         'heading_sequence':parser.headings, 'headings_truncated':len(parser.headings)>=200,
         'images':[dict(item,src=urljoin(base,item['src']) if item['src'] else '') for item in parser.images], 'image_count':parser.image_count, 'images_truncated':parser.image_count>len(parser.images),
@@ -193,4 +196,8 @@ def extract_page(result):
         'is_indexable': result.status == 200 and not noindex and not canonical_elsewhere,
         'indexability_basis': 'HTTP, robots-instructies en canonical; geen Google-indexeringsmeting',
         'outlinks': [urljoin(base, value) for value in parser.links]}
+    from .html_evidence import enrich
+    enrich(html,fields,base)
+    from .header_evidence import extract as header_evidence
+    fields.update(header_evidence(result))
     return fields, fields['outlinks']

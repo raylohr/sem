@@ -57,3 +57,43 @@ def select_urls(urls, allowed_hosts, limit):
                 if len(selected) == limit:
                     return selected
     return selected
+
+
+def select_pages(rows,allowed_hosts,limit):
+    """Path diversity plus a bounded quota for uncertain/dynamic page candidates."""
+    risk={};reasons={}
+    def urls():
+        for row in rows:
+            url=row['final_url'];facts=row.get('facts',{})
+            hints=[]
+            if facts.get('word_count') is not None and facts['word_count']<100:hints.append('weinig tekst in server-HTML')
+            if facts.get('h1')==[]:hints.append('geen H1 in server-HTML')
+            path=urlsplit(url).path.lower()
+            if any(part in path for part in ('contact','bereken','calculator','zoeken','search')):hints.append('interactief paginatype op basis van URL-pad')
+            if any(any(token in source.lower() for token in ('_next/','react','vue','nuxt')) for source in (facts.get('resource_urls') or [])):hints.append('aanwijzing voor client-rendering')
+            if hints:
+                risk[url]=hints
+                if len(risk)>limit*2:
+                    remove=min(risk,key=lambda key:(len(risk[key]),key));del risk[remove]
+            yield url
+    selected=select_urls(urls(),allowed_hosts,limit)
+    if not selected:return [],[]
+    quota=min(max(1,limit//3),len(risk))
+    chosen=[];chosen_paths=set()
+    existing_paths={(urlsplit(url).scheme,urlsplit(url).netloc,urlsplit(url).path):url for url in selected}
+    for url in sorted(risk,key=lambda key:(-len(risk[key]),key)):
+        try:normalize_url(url,allowed_hosts)
+        except ScanError:continue
+        parts=urlsplit(url);path=(parts.scheme,parts.netloc,parts.path)
+        if path in chosen_paths:continue
+        chosen_paths.add(path);chosen.append(existing_paths.get(path,url))
+        if len(chosen)>=quota:break
+    protected=set(chosen)
+    for url in chosen:
+        if url in selected:continue
+        if len(selected)>=limit:
+            removable=next((index for index in range(len(selected)-1,0,-1) if selected[index] not in protected),None)
+            if removable is None:continue
+            selected.pop(removable)
+        selected.append(url)
+    return selected,[{'url':url,'reasons':['spreiding over URL-paden']+risk.get(url,[]),'basis':'heuristische steekproef; geen bewezen paginatemplate'} for url in selected]

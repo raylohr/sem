@@ -8,9 +8,11 @@ import socket
 import signal
 import time
 try:
+    from .enhancements import explore, IMAGE_SNAPSHOT, title_width
     from .protocol import send, receive
     from .privacy import snapshot, click_control, technology_globals, redacted_url
 except ImportError:
+    from enhancements import explore, IMAGE_SNAPSHOT, title_width
     from protocol import send, receive
     from privacy import snapshot, click_control, technology_globals, redacted_url
 
@@ -87,12 +89,11 @@ def render(connection):
                 entry['end_ms'] = round((time.monotonic()-started)*1000, 2)
             context.route('**/*', route)
             timed_out = False
+            exploration={'links':[],'phases':[],'links_truncated':True}
             try:
                 page.goto(config['url'], wait_until='domcontentloaded', timeout=timeout)
                 page.wait_for_timeout(min(1500, max(100, config.get('settle_ms', 750))))
-                for _ in range(min(3, max(0, config.get('scroll_steps', 2)))):
-                    page.evaluate('window.scrollBy(0, window.innerHeight)')
-                    page.wait_for_timeout(200)
+                exploration=explore(page,config) if not privacy_enabled else {'links':[],'phases':[],'scope':'consent scenarios: no baseline exploration'}
             except PlaywrightTimeout:
                 timed_out = True
             except Exception:
@@ -128,9 +129,9 @@ def render(connection):
                     cls:window.__semPerf?.cls ?? null, document_height:document.documentElement.scrollHeight};
             }''')
             image_count = page.locator('img').count()
-            images = page.locator('img').evaluate_all('''nodes => nodes.slice(0,500).map(n => ({url:(n.currentSrc || n.src).slice(0,4096), alt:n.getAttribute('alt')?.slice(0,4096) ?? null,
-                width:n.getAttribute('width'), height:n.getAttribute('height'), natural_width:n.naturalWidth,
-                natural_height:n.naturalHeight, loading:n.loading, srcset:n.getAttribute('srcset')?.slice(0,4096) ?? null}))''')
+            images=page.evaluate(IMAGE_SNAPSHOT)
+            try:width_estimate=title_width(browser,page.title())
+            except Exception:width_estimate={'status':'unknown','model':'sem-title-width-v1','width_px':None}
             axe_source = Path('vendor/axe.min.js').read_text()
             page.evaluate(axe_source)
             a11y = page.evaluate('''async () => {
@@ -149,7 +150,7 @@ def render(connection):
             if len(screenshot) > MAX_ARTIFACT:
                 raise ValueError('Screenshot overschrijdt 5 MiB.')
             send(stream, {'type': 'result', 'final_url': page.url, 'dom': base64.b64encode(html).decode(),
-                'screenshot': base64.b64encode(screenshot).decode(), 'metrics': metrics, 'images': images, 'image_count': image_count,
+                'exploration':exploration,'title_width':width_estimate,'screenshot': base64.b64encode(screenshot).decode(), 'metrics': metrics, 'images': images, 'image_count': image_count,
                 'accessibility': a11y, 'resources': resources, 'errors': errors, 'blocked': blocked,
                 'privacy': privacy, 'technology_globals': globals_found, 'policy_links': policies,
                 'timed_out': timed_out, 'browser_version': browser.version, 'viewport': viewport,

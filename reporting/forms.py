@@ -20,7 +20,8 @@ class DossierForm(Styled,forms.Form):
     def __init__(self,*args,project,**kwargs):
         super().__init__(*args,**kwargs)
         base=ImportBatch.objects.filter(project=project,status__in=('complete','incomplete')).order_by('-imported_at')
-        self.fields['crawl'].queryset=base.filter(request_metadata__scan='crawl')
+        self.fields['crawl'].queryset=base.filter(request_metadata__scan='crawl').filter(
+            Q(request_metadata__retry_only=False)|Q(request_metadata__retry_only__isnull=True))
         self.fields['browser'].queryset=base.filter(request_metadata__scan='browser')
         for name in ('crawl','browser'):
             self.fields[name].label_from_instance=lambda batch: batch.label+' · '+batch.imported_at.strftime('%d-%m-%Y %H:%M')
@@ -74,3 +75,11 @@ class LinkActionForm(Styled,forms.Form):
         super().__init__(*args,**kwargs)
         self.fields['action'].queryset=ActionItem.objects.filter(project=project).order_by('-updated_at')
         self.style()
+
+
+class SupplementForm(Styled,forms.Form):
+    model=forms.CharField(max_length=160,label='Model / versie volgens uitvoerder')
+    prompt_reference=forms.CharField(max_length=255,label='Promptreferentie / versie')
+    text=forms.CharField(max_length=4000,widget=forms.Textarea(attrs={'rows':5}),label='Ongeverifieerde AI-aanvulling')
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs);self.style()

@@ -37,6 +37,10 @@ class LinkObservation(models.Model):
     rel = models.JSONField(null=True)
     locator = models.CharField(max_length=100, blank=True)
     discovery_mode = models.CharField(max_length=24, default='server')
+    element_path=models.CharField(max_length=1024,blank=True)
+    region=models.CharField(max_length=24,blank=True)
+    target=models.CharField(max_length=80,blank=True)
+    details=models.JSONField(null=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['source', 'position'], name='assessment_link_position')]

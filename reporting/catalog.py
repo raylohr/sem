@@ -1,5 +1,5 @@
 """Immutable report-v1 scoring definitions. Unknown controls never earn points."""
-from assessments.advanced import RULES
+from assessments.advanced import RULES,CORE_RULES
 
 VERSION='report-v1'
 CATEGORIES={'technical':'Techniek & indexeerbaarheid','content':'Content & structuur',
@@ -8,15 +8,19 @@ BASE={'links_to_404':'link_to_404','titles':'missing_titles','meta_descriptions'
 CONTENT={'missing_titles','missing_meta_descriptions','missing_h1','multiple_titles','multiple_meta_descriptions','multiple_h1',
     'duplicate_titles','duplicate_meta_descriptions','duplicate_text','language_missing','heading_jump','no_observed_inlinks'}
 EXPERIENCE={'image_alt_missing','mixed_content','broken_resource','a11y_contrast','a11y_alt','a11y_structure','performance_field'}
-TECHNICAL=set(RULES)-CONTENT-EXPERIENCE|{'link_to_404'}
+TECHNICAL=set(CORE_RULES)-CONTENT-EXPERIENCE|{'link_to_404'}
 EXPECTED={'technical':sorted(TECHNICAL),'content':sorted(CONTENT),'experience':sorted(EXPERIENCE)}
 STATES={'issue':3,'unknown':2,'pass':1,'not_applicable':0}
 
 
 def category(rule):
+    if rule=='browser_title_width':return 'content'
+    if rule in ('resource_http_error','resource_mime_mismatch','resource_image_large'):return 'experience'
     if rule.startswith(('tracking_','policy_')):return 'privacy'
     if rule.startswith('accessibility_') or rule in EXPERIENCE:return 'experience'
     if rule in CONTENT:return 'content'
+    if rule in RULES and RULES[rule][0]=='content':return 'content'
+    if rule in RULES and RULES[rule][0]=='assets':return 'experience'
     return 'technical'
 
 

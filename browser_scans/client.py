@@ -20,6 +20,7 @@ def render(url, config, *, check_access, batch_id, transport_factory=SafeClient)
     resource_hosts -= set(config.get('blocked_resource_hosts', []))
     normalize_url(url, hosts)
     client = transport_factory(resource_hosts | hosts, check_access=check_access,
+        concurrency=2 if config['requests_per_second']>2 else 1,
         duration=config['timeout_ms']/1000+5, delay=1/config['requests_per_second'],
         max_transfer=config['max_bytes'], document_sink=[], respect_robots=config['respect_robots'],
         shared_rate=True, batch_id=batch_id)
@@ -28,7 +29,7 @@ def render(url, config, *, check_access, batch_id, transport_factory=SafeClient)
     try:
         connection.connect(settings.BROWSER_SOCKET)
         with connection.makefile('rwb', buffering=0) as stream:
-            send(stream, {**{key: config[key] for key in ('timeout_ms', 'settle_ms', 'scroll_steps', 'profile', 'max_requests')}, 'url': url, 'user_agent': USER_AGENT, 'privacy_enabled': bool(config.get('privacy_enabled')), 'scenario': config.get('scenario', 'baseline'), 'consent_selectors': config.get('consent_selectors', {})})
+            send(stream, {**{key: config[key] for key in ('timeout_ms', 'settle_ms', 'scroll_steps', 'profile', 'max_requests')}, 'url': url, 'user_agent': USER_AGENT, 'privacy_enabled': bool(config.get('privacy_enabled')), 'scenario': config.get('scenario', 'baseline'), 'consent_selectors': config.get('consent_selectors', {}),'expand_details':config.get('expand_details',True),'exploration_ms':config.get('exploration_ms',4000)})
             count = 0
             main_result = None
             main_chain = []
