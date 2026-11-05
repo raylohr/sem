@@ -228,6 +228,6 @@ def progress(request, project_id, batch_id):
         now=now,active=active and batch.scan_kind=='crawl',max_urls=batch.request_metadata.get('max_urls'))
     response=JsonResponse({**live,**timing,'status':batch.status,'status_label':batch.get_status_display(),
         'active':active,'max_urls':batch.request_metadata.get('max_urls'),'available':bool(live.get('updated_at')),
-        'poll_seconds':3,'scan_kind':batch.scan_kind})
+        'poll_seconds':1,'scan_kind':batch.scan_kind})
     add_never_cache_headers(response)
     return response

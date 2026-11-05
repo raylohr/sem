@@ -75,7 +75,7 @@ class ProgressAccessTests(TestCase):
                 response=self.client.get(url)
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.json()['totals'],{'201':1})
-                self.assertEqual(response.json()['poll_seconds'],3)
+                self.assertEqual(response.json()['poll_seconds'],1)
                 self.assertIsNotNone(response.json()['elapsed_seconds'])
                 self.assertIsNone(response.json()['eta_seconds'])
                 self.assertIn('no-store',response.headers['Cache-Control'])

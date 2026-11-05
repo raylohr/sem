@@ -84,7 +84,7 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
       item.append(swatch,document.createTextNode(`${label(key)} · ${nf.format(data.totals[key]||0)}`));
       item.title='Totaal tijdens de hele scan';legend.append(item);
     });
-    state.textContent=data.active?(data.available?'Live · iedere 3 seconden':'Wachten op de scan-worker…'):data.status_label;
+    state.textContent=data.active?(data.available?'Live · iedere seconde':'Wachten op de scan-worker…'):data.status_label;
     state.classList.remove('text-danger');
     const last=data.updated_at?tf.format(new Date(data.updated_at*1000)):null;
     card.querySelector('[data-live-footnote]').textContent=`${last?`Laatste activiteit ${last}. `:''}${data.active?'Resultaten worden na afronding gepubliceerd.':'Legenda toont de totalen van de hele scan.'}`;
@@ -112,7 +112,7 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
   chart.addEventListener('pointerleave',()=>tooltip.classList.add('d-none'));
   const poll=async()=> {
     if(busy) return;
-    if(document.hidden) {timer=setTimeout(poll,3000);return;}
+    if(document.hidden) {timer=setTimeout(poll,1000);return;}
     busy=true;
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),5000);
     try {
@@ -126,7 +126,7 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
       state.classList.add('text-danger');
     } finally {
       clearTimeout(timeout);busy=false;
-      if(active) timer=setTimeout(poll,3000);
+      if(active) timer=setTimeout(poll,1000);
     }
   };
   document.addEventListener('visibilitychange',()=>{if(!document.hidden && active){clearTimeout(timer);poll();}});
