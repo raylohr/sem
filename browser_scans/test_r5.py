@@ -53,7 +53,7 @@ class R5WorkflowTests(TestCase):
         Membership.objects.create(project=self.project,user=self.owner,role='admin')
         self.target=ScanTarget.objects.create(project=self.project,created_by=self.owner,name='R5',url='https://example.com/',allowed_hosts=['example.com'])
         self.source=ImportBatch.objects.create(project=self.project,created_by=self.owner,scan_target=self.target,source='semscan',method='scan',
-            request_metadata={'scan':'crawl','url':self.target.url,'allowed_hosts':['example.com'],'respect_robots':False,'browser_phase':True,'browser_max_pages':3})
+            request_metadata={'scan':'crawl','url':self.target.url,'allowed_hosts':['example.com'],'respect_robots':False,'browser_phase':True,'browser_max_pages':3,'requests_per_second':7,'concurrency':3,'browser_requests_per_second':5})
         publish_records(batch_id=self.source.pk,records=[{'locator':str(i),'data':{'url':'https://example.com/'+path,'status':200,'final_status':200,'content_type':'text/html'}} for i,path in enumerate(('','news/a','contact'))])
 
     def make_run(self,**kw):return create_run(self.source,self.owner,{'max_pages':3,'dynamic_pages':1,**kw})
@@ -63,7 +63,9 @@ class R5WorkflowTests(TestCase):
             schedule_after_crawl(self.source.pk);schedule_after_crawl(self.source.pk)
         self.assertEqual(enqueue.call_count,1)
         run=BrowserRun.objects.get(source_batch=self.source)
-        self.assertTrue(run.config['automatic_from_crawl']);self.assertEqual(run.config['requests_per_second'],5)
+        self.assertTrue(run.config['automatic_from_crawl']);self.assertEqual(run.config['requests_per_second'],7)
+        self.assertEqual(run.config['concurrency'],3)
+        self.assertEqual(run.config['network_scope'],str(self.source.pk))
         self.assertFalse(run.config['privacy_enabled']);self.assertEqual(run.config['scenarios'],['baseline'])
         self.assertEqual(run.visits.count(),2)
         self.assertTrue(run.coverage['selection'])

@@ -41,7 +41,7 @@ def start(request, project_id, batch_id):
     if not context['can_edit']:
         raise PermissionDenied
     source = get_object_or_404(ImportBatch, pk=batch_id, project=context['project'], status__in=('complete', 'incomplete'), request_metadata__scan='crawl', scan_target__active=True)
-    form = BrowserForm(request.POST if request.method == 'POST' else None)
+    form = BrowserForm(request.POST if request.method == 'POST' else None, initial={key:source.request_metadata.get(key,1) for key in ('requests_per_second','concurrency')})
     if request.method == 'POST' and form.is_valid():
         run = create_run(source, request.user, form.cleaned_data)
         enqueue(run)

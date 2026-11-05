@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from urllib.parse import urljoin,urlsplit
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -36,6 +37,9 @@ class ResourceClient(SafeClient):
         self.check_access=check
         self.resource_body_limit=config.get('resource_file_bytes',DEFAULTS['resource_file_bytes']) if purpose=='resource' else 16384
         self.defer_http_retries=True
+        # Each hop is checked by permitted(); avoid mutating host scope in workers.
+        from .host_rules import HostRules
+        self.allowed_hosts=HostRules(all_public=True)
 
     def permitted(self,url):
         host=urlsplit(normalize_url(url)).hostname
@@ -46,9 +50,7 @@ class ResourceClient(SafeClient):
         self.guard()
         url=normalize_url(url)
         if not self.permitted(url):raise PolicyDenied('Hostbeleid blokkeert dit meetdoel.')
-        previous=self.allowed_hosts;self.allowed_hosts={urlsplit(url).hostname}
-        try:return super().fetch_once(url,enforce_robots=enforce_robots)
-        finally:self.allowed_hosts=previous
+        return super().fetch_once(url,enforce_robots=enforce_robots)
 
     def fetch(self,url,enforce_robots=True):
         redirects=[];seen=set()
@@ -203,6 +205,7 @@ def run(batch,work,config,check_access):
         phase(getattr(batch,'pk',work.batch_id),phase_name,done=done,total=total)
         limit=config.get(purpose+'_max_targets',DEFAULTS[purpose+'_max_targets'])
         client=ResourceClient(config,purpose,check_access=check_access,batch_id=batch.pk,
+            concurrency=config.get('concurrency',1),network_scope=config.get('network_scope',batch.pk),
             duration=max(0,config['duration']-(time.time()-work.started)),slice_seconds=90,
             max_transfer=config.get(purpose+'_max_bytes',DEFAULTS[purpose+'_max_bytes']),
             connect_timeout=config.get('connect_timeout',10),read_timeout=config.get('read_timeout',30),
@@ -210,23 +213,48 @@ def run(batch,work,config,check_access):
             robot_cache=work.get('resource_robots_'+purpose,{}))
         client.transferred=work.get(purpose+'_transferred',0);client.decoded_bytes=work.get(purpose+'_decoded',0)
         try:
-            while row:=work.connection.execute("SELECT key,url,depth FROM resource_targets WHERE purpose=? AND state='queued' ORDER BY depth,rowid LIMIT 1",(purpose,)).fetchone():
-                key,url,depth=row
-                count=work.connection.execute("SELECT count(*) FROM resource_targets WHERE purpose=? AND state='done' AND result IS NOT NULL",(purpose,)).fetchone()[0]
-                if count>=limit or (client.transferred>=client.max_transfer or client.decoded_bytes>=client.max_transfer):
-                    with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE purpose=? AND state='queued'",(json.dumps({'outcome':'not_measured_budget'}),purpose))
-                    break
-                client.guard();work.check_disk()
-                with work.connection:work.connection.execute("UPDATE resource_targets SET state='fetching' WHERE key=?",(key,))
-                try:measurement,response=result_for(client,url)
-                except (ScanPause,ScanBudgetExceeded):
-                    with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps({'outcome':'interrupted_unknown'}),key))
-                    raise
-                with work.connection:
-                    expand_css(work,key,url,depth,response,config) if purpose=='resource' else None
-                    work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps(measurement),key))
-                phase(getattr(batch,'pk',work.batch_id),phase_name,done=count+1,total=work.resource_purpose_counts.get(purpose,0))
-                work.set('resource_progress',summary(work,config))
+            pending={}
+            count=done
+            executor=ThreadPoolExecutor(max_workers=max(1,config.get('concurrency',1)))
+            try:
+                while True:
+                    client.guard();work.check_disk()
+                    budget=client.transferred>=client.max_transfer or client.decoded_bytes>=client.max_transfer
+                    capacity=max(0,min(client.concurrency-len(pending),limit-count-len(pending)))
+                    if budget or count>=limit:
+                        with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE purpose=? AND state='queued'",(json.dumps({'outcome':'not_measured_budget'}),purpose))
+                        capacity=0
+                    rows=work.connection.execute("SELECT key,url,depth FROM resource_targets WHERE purpose=? AND state='queued' ORDER BY depth,rowid LIMIT ?",(purpose,capacity)).fetchall()
+                    for key,url,depth in rows:
+                        with work.connection:work.connection.execute("UPDATE resource_targets SET state='fetching' WHERE key=?",(key,))
+                        pending[executor.submit(result_for,client,url)]=(key,url,depth)
+                    if not pending:break
+                    completed,_=wait(pending,timeout=.1,return_when=FIRST_COMPLETED)
+                    for future in completed:
+                        key,url,depth=pending.pop(future)
+                        try:measurement,response=future.result()
+                        except (ScanPause,ScanBudgetExceeded):
+                            with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps({'outcome':'interrupted_unknown'}),key))
+                            raise
+                        with work.connection:
+                            if purpose=='resource':expand_css(work,key,url,depth,response,config)
+                            work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps(measurement),key))
+                        count+=1
+                        phase(getattr(batch,'pk',work.batch_id),phase_name,done=count,total=work.resource_purpose_counts.get(purpose,0))
+                        work.set('resource_progress',summary(work,config))
+            finally:
+                # Only the owner writes SQLite. Drain actual completed responses even
+                # on cancellation; interrupted in-flight requests stay explicitly unknown.
+                client.stopped.set()
+                executor.shutdown(wait=True,cancel_futures=True)
+                for future,(key,url,depth) in pending.items():
+                    try:
+                        measurement,response=future.result()
+                    except BaseException:
+                        measurement={'outcome':'interrupted_unknown'};response=None
+                    with work.connection:
+                        if purpose=='resource' and response:expand_css(work,key,url,depth,response,config)
+                        work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps(measurement),key))
         except ScanBudgetExceeded:
             with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE purpose=? AND state='queued'",(json.dumps({'outcome':'not_measured_time'}),purpose))
         finally:

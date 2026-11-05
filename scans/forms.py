@@ -43,7 +43,6 @@ class TargetForm(forms.ModelForm):
 
 class ScanForm(forms.Form):
     schema_profiles=forms.MultipleChoiceField(choices=[('google-breadcrumb-v1','Breadcrumbs: verplichte velden'),('google-product-snippet-v1','Productsnippets: beperkt profiel')],required=False,initial=['google-breadcrumb-v1','google-product-snippet-v1'])
-    browser_requests_per_second=forms.IntegerField(min_value=1,max_value=15,required=False,initial=5)
     browser_phase=forms.BooleanField(required=False,initial=True)
     browser_max_pages=forms.IntegerField(min_value=1,max_value=100,required=False,initial=20)
     browser_timeout_seconds=forms.IntegerField(min_value=5,max_value=60,required=False,initial=30)

@@ -127,7 +127,7 @@ class FetchResult:
 
 
 class SafeClient:
-    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None,connect_timeout=5,read_timeout=5,progress_phase="pages"):
+    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None,connect_timeout=5,read_timeout=5,progress_phase="pages", network_scope=None):
         self.batch_id = str(batch_id) if batch_id else None
         self.progress_phase=progress_phase
         if not 1<=connect_timeout<=60 or not 1<=read_timeout<=120:
@@ -146,10 +146,16 @@ class SafeClient:
         self.stopped = threading.Event()
         self.lock = threading.RLock()
         self.robot_lock = threading.RLock()
+        self.robot_locks = {}
         self.local = threading.local()
         self.pending_documents = queue.Queue(maxsize=8)
         self.pools = []
-        self.delay = max(0.05 if concurrency > 1 else 0.5, delay)
+        self.delay = max(1 / 15, delay)
+        self.request_slots = threading.BoundedSemaphore(max(1, int(concurrency)))
+        self.shared_slots = None
+        if shared_rate and batch_id:
+            from .throttle import RequestSlots
+            self.shared_slots = RequestSlots(network_scope or batch_id, max(1, int(concurrency)), self.stopped)
         self.cooldown = {}
         if shared_rate:
             from .throttle import HostThrottle
@@ -163,6 +169,8 @@ class SafeClient:
         self.documents = document_sink if document_sink is not None else []
 
     def guard(self):
+        if self.shared_slots and self.shared_slots.failed:
+            raise ScanError('Gedeelde verzoekbegrenzing niet bereikbaar.')
         if threading.get_ident() == self.owner:
             self.drain_documents()
             self.check_access()
@@ -183,6 +191,8 @@ class SafeClient:
 
     def close(self):
         self.stopped.set()
+        if self.shared_slots:
+            self.shared_slots.close()
         self.drain_documents()
         for pool in self.pools:
             pool.close()
@@ -205,12 +215,23 @@ class SafeClient:
     def _request(self, url, delay, cookie_header=""):
         from . import activity
         self.guard()
-        identifier=activity.start(self.batch_id,self.progress_phase,url)
+        while not self.request_slots.acquire(timeout=.05):
+            self.guard()
+        token = None
+        identifier = None
         try:
+            if self.shared_slots:
+                token = self.shared_slots.acquire(self.guard)
+            identifier=activity.start(self.batch_id,self.progress_phase,url)
             result=self._request_impl(url,delay,cookie_header)
         except BaseException as error:
-            activity.finish(self.batch_id,self.progress_phase,identifier,error=type(error).__name__)
+            if identifier:
+                activity.finish(self.batch_id,self.progress_phase,identifier,error=type(error).__name__)
             raise
+        finally:
+            if token:
+                self.shared_slots.release(token)
+            self.request_slots.release()
         activity.finish(self.batch_id,self.progress_phase,identifier,status=result.status)
         return result
 
@@ -316,13 +337,14 @@ class SafeClient:
                         break
                     except queue.Full:
                         continue
-            if result.status in (429, 503) and getattr(self,'defer_http_retries',False) is not True:
+            if result.status in (429, 503):
                 try:
                     backoff = min(120, max(2, int(headers.get('retry-after', '2'))))
                 except ValueError:
                     backoff = 5
                 with self.lock:
-                    self.delay = min(5, max(self.delay * 2, 0.5))
+                    if getattr(self,'defer_http_retries',False) is not True or getattr(self,'resource_body_limit',None):
+                        self.delay = min(5, max(self.delay * 2, 0.5))
                     self.cooldown[host] = time.monotonic() + backoff
                 if self.throttle:
                     self.throttle.cooldown(host, backoff)
@@ -346,7 +368,11 @@ class SafeClient:
                 response.release_conn()
 
     def _robot_policy(self, url):
+        parts = urlsplit(url)
+        origin = (parts.scheme, parts.netloc)
         with self.robot_lock:
+            lock = self.robot_locks.setdefault(origin, threading.RLock())
+        with lock:
             return self._load_robot_policy(url)
 
     def _load_robot_policy(self, url):

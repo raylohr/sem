@@ -25,7 +25,7 @@ document.querySelectorAll('form[data-scan-config]').forEach(editor => {
   const scanForm = document.getElementById(editor.dataset.scanConfig);
   const modal = editor.closest('.modal');
   const card = scanForm.closest('[data-scan-card]');
-  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second', 'connect_timeout', 'read_timeout', 'max_attempts', 'title_min_chars', 'title_max_chars', 'description_min_chars', 'description_max_chars', 'heading_max_chars', 'check_resources', 'check_external_links', 'resource_max_targets', 'external_max_targets', 'resource_max_bytes', 'external_max_bytes', 'resource_file_bytes', 'resource_max_depth', 'image_advice_bytes', 'browser_phase','browser_max_pages','browser_timeout_seconds','browser_requests_per_second','schema_profiles'].filter(name => editor.elements.namedItem(name) && scanForm.elements.namedItem(name));
+  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second', 'connect_timeout', 'read_timeout', 'max_attempts', 'title_min_chars', 'title_max_chars', 'description_min_chars', 'description_max_chars', 'heading_max_chars', 'check_resources', 'check_external_links', 'resource_max_targets', 'external_max_targets', 'resource_max_bytes', 'external_max_bytes', 'resource_file_bytes', 'resource_max_depth', 'image_advice_bytes', 'browser_phase','browser_max_pages','browser_timeout_seconds','schema_profiles'].filter(name => editor.elements.namedItem(name) && scanForm.elements.namedItem(name));
   const restore = () => {
     names.forEach(name => {
       const input = editor.elements.namedItem(name);

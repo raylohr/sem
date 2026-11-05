@@ -19,7 +19,7 @@ def schedule_after_crawl(batch_id):
             if not PageMeasurement.objects.filter(batch=source,final_http_status=200,coverage__html_inspected=True).exists():
                 source.request_metadata={**config,'browser_phase_status':'skipped_no_html'};source.save(update_fields=['request_metadata']);return
             run=create_run(source,source.created_by,{'max_pages':config.get('browser_max_pages',20),'timeout_seconds':config.get('browser_timeout_seconds',30),
-                'profile':'desktop','scroll_steps':6,'expand_details':True,'requests_per_second':config.get('browser_requests_per_second',5)})
+                'profile':'desktop','scroll_steps':6,'expand_details':True,'requests_per_second':config.get('requests_per_second',1)})
             run.config['automatic_from_crawl']=True;run.save(update_fields=['config'])
             source.request_metadata={**config,'browser_followup_id':str(run.pk),'browser_phase_status':'scheduled'}
             source.save(update_fields=['request_metadata'])

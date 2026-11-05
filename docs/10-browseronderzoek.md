@@ -12,7 +12,7 @@ Bewerkers en beheerders kunnen starten; lezers kunnen gepubliceerde resultaten b
 
 Instellingen: maximaal 1–100 pagina's (standaard 20), desktop 1440×900 of mobiele
 viewport 390×844, navigatie-/resourcewachttijd 5–60 seconden (standaard 30), maximaal
-1–15 verzoeken/s per host (standaard 1) en maximaal twintig exacte extra resourcehosts.
+1–15 verzoeken/s per host en 1–16 gelijktijdige netwerkverzoeken, beide overgenomen uit de broncrawl. De browserinstellingen tonen deze waarden zonder afzonderlijke overschrijving. Gebruikte externe bestanden zijn toegestaan behalve bij expliciete uitsluiting.
 Het verzoektempo is een bovengrens. De mobiele viewport gebruikt geen CPU-/netwerksimulatie
 van een fysieke telefoon; user-agent blijft de SEM-crawler voor de netwerkrequests.
 

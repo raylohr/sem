@@ -50,7 +50,8 @@ def retry_downloads(request,project_id,batch_id):
                     label='Herdownload: '+parent.label[:170],measured_at=timezone.now(),parser_version='scan-v3',request_metadata={
                     **scope,'scan':'crawl','url':url,'retry_of_batch':str(parent.pk),'reliability_version':'page-retry-v1','retry_only':True,
                     'discover_sitemaps':False,'max_urls':100000,'max_depth':0,'duration':604800,'max_transfer':25*1024*1024,
-                    'concurrency':1,'requests_per_second':1,'respect_robots':parent.request_metadata.get('respect_robots',True),
+                    'network_scope':parent.request_metadata.get('network_scope') or str(parent.pk),
+                    'concurrency':parent.request_metadata.get('concurrency',1),'requests_per_second':parent.request_metadata.get('requests_per_second',1),'respect_robots':parent.request_metadata.get('respect_robots',True),
                     **{key:settings.get(key) or default for key,default in [('connect_timeout',10),('read_timeout',30),('max_attempts',3)]}})
             buffer.append(ScanRetryTarget(batch=batch,source_record=source,url=url,url_hash=hashlib.sha256(url.encode()).hexdigest(),
                 snapshot={'depth':source.data.get('depth'),'measured_at':source.data.get('measured_at'),'original_error':source.data.get('error_code')}))

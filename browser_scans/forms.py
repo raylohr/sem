@@ -9,7 +9,8 @@ class BrowserForm(forms.Form):
     max_pages = forms.IntegerField(min_value=1, max_value=100, initial=20, required=False, label='Maximaal aantal browserpagina’s')
     profile = forms.ChoiceField(choices=[('desktop', 'Desktop (1440 × 900)'), ('mobile', 'Mobiele viewport (390 × 844)')], initial='desktop', required=False, label='Schermprofiel')
     timeout_seconds = forms.IntegerField(min_value=5, max_value=60, initial=30, required=False, label='Maximale rendertijd per pagina (seconden)')
-    requests_per_second = forms.IntegerField(min_value=1, max_value=15, initial=1, required=False, label='Maximaal aantal verzoeken per seconde per host')
+    requests_per_second = forms.IntegerField(min_value=1, max_value=15, initial=1, required=False, disabled=True, label='Verzoeken per seconde per host (overgenomen uit crawl)')
+    concurrency = forms.IntegerField(min_value=1,max_value=16,initial=1,required=False,disabled=True,label='Gelijktijdige netwerkverzoeken (overgenomen uit crawl)')
     resource_hosts = forms.CharField(widget=forms.HiddenInput,max_length=4096, required=False, label='Aanvullende bestandshosts (optioneel)', help_text='Gebruikte externe bestanden zijn standaard toegestaan; invullen is niet nodig. Expliciet uitgesloten hosts blijven geblokkeerd. Deze instelling geeft geen paginacrawlrecht.')
 
     privacy_enabled = forms.BooleanField(required=False, label='Privacy- en toestemmingsscenario’s onderzoeken', help_text='Vier schone browsercontexten per URL. Maximaal 25 URL’s bij privacyonderzoek.')

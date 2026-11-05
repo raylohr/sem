@@ -46,11 +46,11 @@ def start(request,project_id,run_id):
             if len(selected)>=1000:break
         if not selected:return redirect('ui:browser:run',project_id=project_id,run_id=run.pk)
         urls=list(selected)
-        config={**scope,'scan':'crawl','url':urls[0],'retry_only':True,'browser_followup_run':str(run.pk),
+        config={**scope,'network_scope':run.config.get('network_scope') or str(run.source_batch_id or run.batch_id),'scan':'crawl','url':urls[0],'retry_only':True,'browser_followup_run':str(run.pk),
             'discover_sitemaps':False,'reliability_version':'page-retry-v1','max_urls':len(urls),'max_depth':0,
             'duration':min(604800,max(120,len(urls)*180)),'max_transfer':max(25*1024**2,len(urls)*15*1024**2),
             'max_attempts':3,'connect_timeout':10,'read_timeout':30,'respect_robots':run.config.get('respect_robots',True),
-            'requests_per_second':run.config.get('requests_per_second',1),'concurrency':1,'browser_phase':False}
+            'requests_per_second':run.config.get('requests_per_second',1),'concurrency':run.config.get('concurrency',1),'browser_phase':False}
         batch=ImportBatch.objects.create(project=context['project'],created_by=request.user,scan_target=target,source='semscan',method='scan',
             label='HTML-vervolgmeting van browserlinks',parser_version='scan-v3',request_metadata=config)
         ScanRetryTarget.objects.bulk_create([ScanRetryTarget(batch=batch,source_record_id=selected[url][0],url=url,url_hash=hashlib.sha256(url.encode()).hexdigest(),

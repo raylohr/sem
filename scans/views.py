@@ -161,7 +161,7 @@ def start(request, project_id, target_id):
         robots_mode = data.get('robots_mode') or DEFAULT_SCAN_SETTINGS['robots_mode']
         duration, transfer = scan_budget(data['kind'], max_urls)
         from .resources import DEFAULTS as RESOURCE_DEFAULTS
-        config = {'schema_profiles':data['schema_profiles'] if 'schema_profiles' in form.data else ['google-breadcrumb-v1','google-product-snippet-v1'],'browser_requests_per_second':data.get('browser_requests_per_second') or 5,'browser_phase':data['kind']=='crawl' and data['browser_phase'],'browser_max_pages':data.get('browser_max_pages') or 20,'browser_timeout_seconds':data.get('browser_timeout_seconds') or 30,'resource_version':'resources-v1' if data['kind']=='crawl' else '',
+        config = {'schema_profiles':data['schema_profiles'] if 'schema_profiles' in form.data else ['google-breadcrumb-v1','google-product-snippet-v1'],'browser_phase':data['kind']=='crawl' and data['browser_phase'],'browser_max_pages':data.get('browser_max_pages') or 20,'browser_timeout_seconds':data.get('browser_timeout_seconds') or 30,'resource_version':'resources-v1' if data['kind']=='crawl' else '',
             'check_resources':data['kind']=='crawl' and (data['check_resources'] if 'check_resources' in form.data else True),
             'check_external_links':data['kind']=='crawl',
             **{key:data.get(key) if data.get(key) is not None else default for key,default in RESOURCE_DEFAULTS.items()},

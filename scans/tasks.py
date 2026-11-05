@@ -78,7 +78,7 @@ def process_scan(batch_id):
             remaining = max(0,config['duration']-(time.time()-work.started))
             from .host_rules import navigation_hosts
             client = SafeClient(navigation_hosts(config),check_access=lambda:check_scan(batch_id),
-                batch_id=batch_id,duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
+                batch_id=batch_id,network_scope=config.get('network_scope',batch_id),duration=remaining,slice_seconds=SLICE_SECONDS,max_transfer=config.get('max_transfer',transfer),
                 document_sink=work.documents,robot_cache=work.get('robots',{}),
                 respect_robots=config.get('respect_robots',True),
                 connect_timeout=config.get('connect_timeout',5),read_timeout=config.get('read_timeout',5),

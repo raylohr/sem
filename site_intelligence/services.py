@@ -67,7 +67,7 @@ def fetch_policies(run, browser):
             except (ScanError,TypeError):continue
             if url not in candidates:candidates.append(url)
     client=SafeClient(navigation_hosts(browser.config),check_access=lambda:check_run(run.pk),duration=20,batch_id=browser.batch_id,progress_phase='enrichment',
-        delay=1/browser.config['requests_per_second'],max_transfer=10*1024*1024,respect_robots=browser.config['respect_robots'])
+        delay=1/browser.config['requests_per_second'],concurrency=browser.config.get('concurrency',1),shared_rate=True,network_scope=browser.config.get('network_scope',browser.batch_id),max_transfer=10*1024*1024,respect_robots=browser.config['respect_robots'])
     errors=[]
     try:
         for url in candidates[:2]:

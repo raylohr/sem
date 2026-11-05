@@ -18,7 +18,7 @@ Aparte instellingen:
 | CSS-verwijzingsdiepte | 3 |
 | Afbeeldingsgrootteadvies | 102.400 bytes |
 
-Voor externe statuscontroles wordt per antwoord hoogstens 16 KiB gelezen. De oorspronkelijke totale scantijd begrenst ook de bestandsfase. Het globale inventarisplafond is 50.000 targets en 100.000 verwijzingen. Meer ontdekkingen leveren expliciete onvolledigheid op. De bestandsfase is sequentieel en deelt de bestaande hostbegrenzing; de concurrency-instelling betreft de paginacrawl.
+Voor externe statuscontroles wordt per antwoord hoogstens 16 KiB gelezen. De oorspronkelijke totale scantijd begrenst ook de bestandsfase. Het globale inventarisplafond is 50.000 targets en 100.000 verwijzingen. Meer ontdekkingen leveren expliciete onvolledigheid op. Bestanden en externe bestemmingen worden parallel gecontroleerd met de `concurrency` en `requests_per_second` van de crawl. Iedere HTTP-hop deelt de onderzoeksbrede verzoeklimiet en de bestaande hostbegrenzing. Alleen de eigenaar schrijft naar SQLite; afgeronde antwoorden worden ook bij onderbreking bewaard. Parallelle lezers reserveren bodybytes atomair zodat het fasebudget niet wordt overschreden.
 
 Pagina-, bestands- en externe aantallen en bytebudgetten blijven gescheiden. Een bestands- of extern target wordt niet als extra inhoudspagina of als extra pagina in de scoreformule toegevoegd. Herkenbare downloadlinks gaan naar de bestandsfase. Herkenbare bestanden uit sitemaps krijgen in URL-dekking de status ‘afzonderlijke bestandsmeting’. Extensies zijn een aanwijzing: een bestand achter een URL zonder herkenbare extensie kan aanvankelijk nog als pagina worden opgehaald; niet-HTML-inhoud krijgt geen geslaagde HTML-controles.
 

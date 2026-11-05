@@ -1,5 +1,6 @@
 """Bounded response-body measurements, distinct encoded/decoded byte semantics."""
 import zlib
+from contextlib import nullcontext
 
 SAFE_HEADERS=('content-type','content-range','content-length','content-encoding','transfer-encoding','cache-control','expires','etag','last-modified','vary','content-disposition','location','x-content-type-options')
 
@@ -9,11 +10,22 @@ def read_body(client,response,headers):
     declared=headers.get('content-length','')
     declared=int(declared) if declared.isascii() and declared.isdigit() and len(declared)<20 else None
     raw=bytearray();complete=False
-    while len(raw)<limit and client.transferred<client.max_transfer:
+    lock=getattr(client,'lock',None) or nullcontext()
+    while len(raw)<limit:
         client.guard()
-        chunk=response.read(min(65536,limit-len(raw),client.max_transfer-client.transferred),decode_content=False)
+        # Reserve before releasing the lock; parallel readers cannot spend the
+        # same remaining bytes. Refund unused bytes, including failed reads.
+        with lock:
+            reserved=min(65536,limit-len(raw),max(0,client.max_transfer-client.transferred))
+            client.transferred+=reserved
+        if not reserved:break
+        chunk=b''
+        try:
+            chunk=response.read(reserved,decode_content=False)
+        finally:
+            with lock:client.transferred-=reserved-len(chunk)
         if not chunk:complete=True;break
-        raw.extend(chunk);client.transferred+=len(chunk)
+        raw.extend(chunk)
     if declared is not None and declared==len(raw):complete=True
     encoding=headers.get('content-encoding','identity').strip().lower()
     body=bytes(raw);decoded_complete=complete;error=''
@@ -27,8 +39,11 @@ def read_body(client,response,headers):
             body=b'';decoded_complete=False;error='invalid_gzip'
     elif encoding not in ('','identity'):
         body=b'';decoded_complete=False;error='unsupported_encoding'
-    decoded=len(body);body=body[:limit]
-    client.decoded_bytes+=len(body)
+    decoded=len(body)
+    with lock:
+        limit=min(limit,max(0,client.max_transfer-client.decoded_bytes))
+        body=body[:limit]
+        client.decoded_bytes+=len(body)
     return body,{'declared_bytes':declared,'wire_bytes':len(raw),'decoded_bytes':len(body),
         'wire_complete':complete,'representation_complete':complete and getattr(response,'status',200)==200,'body_complete':decoded_complete and decoded<=limit,
         'body_truncated':not complete or decoded>limit,'body_error':error}

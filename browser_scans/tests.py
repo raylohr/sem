@@ -56,8 +56,12 @@ class ProtocolTests(SimpleTestCase):
                 receive(io.BytesIO(value))
 
     def test_forms_reject_private_hosts_and_unbounded_profiles(self):
-        for values in ({'resource_hosts': '127.0.0.1'}, {'resource_hosts': '*.example.com'}, {'max_pages': 101}, {'timeout_seconds': 61}, {'profile': 'unbounded'}, {'requests_per_second': 16}):
+        for values in ({'resource_hosts': '127.0.0.1'}, {'resource_hosts': '*.example.com'}, {'max_pages': 101}, {'timeout_seconds': 61}, {'profile': 'unbounded'}):
             self.assertFalse(BrowserForm(values).is_valid(), values)
+        inherited = BrowserForm({'requests_per_second':999,'concurrency':999},initial={'requests_per_second':7,'concurrency':3})
+        self.assertTrue(inherited.is_valid())
+        self.assertEqual(inherited.cleaned_data['requests_per_second'],7)
+        self.assertEqual(inherited.cleaned_data['concurrency'],3)
         form = BrowserForm({'resource_hosts': 'cdn.example.com,cdn.example.com'})
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['resource_hosts'], ['cdn.example.com'])
