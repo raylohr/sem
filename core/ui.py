@@ -89,6 +89,9 @@ def scans(request, project_id):
         target.default_sitemap_url = urljoin(target.url, '/sitemap.xml')
         from scans.scope import host_scope
         target.scope = host_scope(target)
+        from scans.settings import defaults_for
+        target.crawl_defaults=defaults_for(target,'crawl')
+        target.sitemap_defaults=defaults_for(target,'sitemap')
     modes = [
         {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s uit gevonden sitemaps en interne links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
          'url_label':'Start-URL','depth_label':'Maximale linkdiepte','depth_help':'Aantal linkstappen vanaf de startpagina; maximaal 100.',

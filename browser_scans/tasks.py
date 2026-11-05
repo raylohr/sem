@@ -1,4 +1,5 @@
 import hashlib
+import time
 from celery import shared_task
 from django.core.exceptions import PermissionDenied
 from django.db import connection
@@ -32,8 +33,11 @@ def process_browser(run_id):
             return
         visit = run.visits.filter(status__in=('pending', 'processing')).order_by('id').first()
         if visit:
+            from scans.activity import phase
+            phase(run.batch_id,'browser',done=run.visits.exclude(status__in=('pending','processing')).count(),total=run.visits.count())
             visit.status = 'processing'
-            visit.save(update_fields=['status'])
+            visit.coverage={**visit.coverage,'progress_started_at':time.time()}
+            visit.save(update_fields=['status','coverage'])
             try:
                 response = render(visit.url, {**run.config, 'scenario': visit.scenario}, check_access=lambda: check_run(run_id), batch_id=run.batch_id)
                 store_visit(visit.pk, response)
@@ -41,6 +45,8 @@ def process_browser(run_id):
                 raise
             except Exception as exc:
                 BrowserVisit.objects.filter(pk=visit.pk).update(status='failed', measured_at=timezone.now(), errors=[{'code': type(exc).__name__, 'message': str(exc)[:255] if isinstance(exc, ScanError) else 'Browsermeting kon niet worden afgerond.'}])
+        from scans.activity import phase
+        phase(run.batch_id,'browser',done=run.visits.exclude(status__in=('pending','processing')).count(),total=run.visits.count())
         check_run(run_id)
         if run.visits.filter(status__in=('pending', 'processing')).exists():
             process_browser.apply_async(args=[str(run_id)], countdown=1)

@@ -15,6 +15,7 @@ class ScanTarget(models.Model):
     url = models.URLField(max_length=2048)
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.OWN)
     allowed_hosts = models.JSONField(default=list, blank=True)
+    scan_settings = models.JSONField(default=dict, blank=True)
     active = models.BooleanField(default=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)

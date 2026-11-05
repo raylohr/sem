@@ -23,7 +23,7 @@ class PolicyDenied(ScanError):pass
 
 class ResourceClient(SafeClient):
     def __init__(self,config,purpose,**kwargs):
-        super().__init__([],**kwargs)
+        super().__init__([],progress_phase='files' if purpose=='resource' else 'external',**kwargs)
         self.config=dict(config);self.purpose=purpose;self.capture_documents=False
         original_check=self.check_access
         def check():
@@ -80,6 +80,7 @@ def initialize(work):
         CREATE TABLE IF NOT EXISTS resource_css_edges (parent_key TEXT NOT NULL,payload TEXT NOT NULL,UNIQUE(parent_key,payload));
     ''')
     work.resource_target_count=work.connection.execute('SELECT count(*) FROM resource_targets').fetchone()[0]
+    work.resource_purpose_counts=dict(work.connection.execute('SELECT purpose,count(*) FROM resource_targets GROUP BY purpose'))
     work.resource_ref_count=work.connection.execute('SELECT count(*) FROM resource_refs').fetchone()[0]
 
 
@@ -95,6 +96,7 @@ def add(work,url,purpose,reference,depth=0):
             work.set('resource_inventory_truncated',True);return
         connection.execute('INSERT OR IGNORE INTO resource_targets(key,purpose,url,depth) VALUES (?,?,?,?)',(key,purpose,url,depth))
         work.resource_target_count+=1
+        work.resource_purpose_counts[purpose]=work.resource_purpose_counts.get(purpose,0)+1
     else:connection.execute('UPDATE resource_targets SET depth=min(depth,?) WHERE key=?',(depth,key))
     reference={k:v for k,v in reference.items() if k in ('source_url','locator','element_path','kind','parent_url','raw_url','reference_type')}
     identity=hashlib.sha256(json.dumps(reference,sort_keys=True).encode()).hexdigest()
@@ -147,6 +149,10 @@ def result_for(client,url):
                 'headers':headers,'measurements':measurements,'evidence':evidence},result
     except (ScanPause,ScanBudgetExceeded):raise
     except (ScanError,ValueError) as exc:
+        if isinstance(exc,(PolicyDenied,RobotsDenied)):
+            from . import activity
+            identifier=activity.start(client.batch_id,client.progress_phase,url)
+            activity.finish(client.batch_id,client.progress_phase,identifier,outcome_override='blocked')
         code=exc.code if isinstance(exc,NetworkRequestError) else 'robots_denied' if isinstance(exc,RobotsDenied) else 'policy_denied' if isinstance(exc,PolicyDenied) else 'request_error'
         return {'outcome':'blocked' if isinstance(exc,(PolicyDenied,RobotsDenied)) else 'download_error','measured_at':timezone.now().isoformat(),
                 'evidence':{'error_code':code,'message':str(exc)[:250]}},None
@@ -190,6 +196,11 @@ def run(batch,work,config,check_access):
         work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE state='fetching'",(json.dumps({'outcome':'interrupted_unknown','evidence':{'message':'Onderbroken verzoek; eindantwoord onbekend, niet automatisch opnieuw opgehaald.'}}),))
     for purpose,enabled in [('resource',config.get('check_resources')),('external',config.get('check_external_links'))]:
         if not enabled:continue
+        from .activity import phase
+        phase_name='files' if purpose=='resource' else 'external'
+        total=work.resource_purpose_counts.get(purpose,0)
+        done=work.connection.execute("SELECT count(*) FROM resource_targets WHERE purpose=? AND state='done'",(purpose,)).fetchone()[0]
+        phase(getattr(batch,'pk',work.batch_id),phase_name,done=done,total=total)
         limit=config.get(purpose+'_max_targets',DEFAULTS[purpose+'_max_targets'])
         client=ResourceClient(config,purpose,check_access=check_access,batch_id=batch.pk,
             duration=max(0,config['duration']-(time.time()-work.started)),slice_seconds=90,
@@ -214,12 +225,16 @@ def run(batch,work,config,check_access):
                 with work.connection:
                     expand_css(work,key,url,depth,response,config) if purpose=='resource' else None
                     work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE key=?",(json.dumps(measurement),key))
+                phase(getattr(batch,'pk',work.batch_id),phase_name,done=count+1,total=work.resource_purpose_counts.get(purpose,0))
                 work.set('resource_progress',summary(work,config))
         except ScanBudgetExceeded:
             with work.connection:work.connection.execute("UPDATE resource_targets SET state='done',result=? WHERE purpose=? AND state='queued'",(json.dumps({'outcome':'not_measured_time'}),purpose))
         finally:
             work.set(purpose+'_transferred',client.transferred);work.set(purpose+'_decoded',client.decoded_bytes)
             work.set('resource_robots_'+purpose,client.robot_cache);client.close()
+        finished=work.connection.execute("SELECT count(*) FROM resource_targets WHERE purpose=? AND state='done'",(purpose,)).fetchone()[0]
+        total=work.resource_purpose_counts.get(purpose,0)
+        phase(getattr(batch,'pk',work.batch_id),phase_name,status='complete',done=finished,total=total)
     propagate_css_refs(work,config)
     work.set('resource_progress',summary(work,config));work.set('resources_done',True)
 

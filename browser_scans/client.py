@@ -23,7 +23,7 @@ def render(url, config, *, check_access, batch_id, transport_factory=SafeClient)
         concurrency=2 if config['requests_per_second']>2 else 1,
         duration=config['timeout_ms']/1000+5, delay=1/config['requests_per_second'],
         max_transfer=config['max_bytes'], document_sink=[], respect_robots=config['respect_robots'],
-        shared_rate=True, batch_id=batch_id)
+        shared_rate=True, batch_id=batch_id,progress_phase='browser')
     connection = socket.socket(socket.AF_UNIX)
     connection.settimeout(95)
     try:
@@ -81,9 +81,19 @@ def render(url, config, *, check_access, batch_id, transport_factory=SafeClient)
                     # Discard transport's raw-resource sink promptly, retaining only main_result.
                     client.documents.clear()
                 except ScanBudgetExceeded as exc:
+                    from scans import activity
+                    try:
+                        identifier=activity.start(batch_id,'browser',message.get('url',''))
+                        activity.finish(batch_id,'browser',identifier,outcome_override='unknown')
+                    except ValueError:pass
                     exhausted = True
                     response = {'allowed': False, 'reason': str(exc)[:160]}
                 except ScanError as exc:
+                    from scans import activity
+                    try:
+                        identifier=activity.start(batch_id,'browser',message.get('url',''))
+                        activity.finish(batch_id,'browser',identifier,outcome_override='blocked')
+                    except ValueError:pass
                     response = {'allowed': False, 'reason': str(exc)[:160]}
                 send(stream, response)
     finally:

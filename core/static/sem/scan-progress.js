@@ -22,29 +22,73 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
     if (text!==undefined) node.textContent=text;
     return node;
   };
-  const label=key=>key==='download_error'?'Downloadfout':`HTTP ${key}`;
+  const outcomeLabels={success:'Succesvol',http_error:'HTTP-fout',blocked:'Geblokkeerd',retrying:'Opnieuw proberen',unknown:'Onbekend',download_error:'Downloadfout'};
+  const phaseStates={queued:'In wachtrij',running:'Bezig',complete:'Afgerond',partial:'Gedeeltelijk',incomplete:'Gedeeltelijk',failed:'Mislukt',cancelled:'Gestopt',skipped:'Overgeslagen'};
+  const label=key=>outcomeLabels[key] || `HTTP ${key}`;
   const color=key=> {
-    if(key==='download_error') return '#667580';
+    const outcomes={success:'#21966c',http_error:'#e26955',blocked:'#c64e8c',retrying:'#db960c',unknown:'#667580',download_error:'#667580'};
+    if(outcomes[key]) return outcomes[key];
     const fixed={'200':'#21966c','201':'#16b2a3','204':'#59c4b4','301':'#3387d5','302':'#6b75d9','304':'#74a9d8','403':'#c64e8c','404':'#e26955','429':'#db960c','500':'#b23b47','502':'#a35891','503':'#d18332'};
     return fixed[key] || `hsl(${(Number(key)*37)%360} 48% 48%)`;
   };
-  const render=data => {
-    latest=data;
+  const render=original => {
+    latest=original;
+    let data=original;
+    const workflow=data.workflow;
+    let current=null;
+    if(workflow) {
+      data={...data,active:workflow.active};
+      current=workflow.phases.find(p=>p.name===workflow.current_phase);
+      const heading=card.querySelector('[data-live-phase]');
+      heading.textContent=current ? `${current.label}${current.detail ? ' · '+current.detail : ''}${current.status==='queued'?' · in wachtrij':''}` : workflow.status_label || 'Onderzoek afgerond';
+      const container=card.querySelector('[data-live-phases]');container.replaceChildren();
+      workflow.phases.forEach(phase=>{
+        const column=document.createElement('div');column.className='col-6 col-lg-4';
+        const panel=document.createElement('div');panel.className='border rounded p-2 h-100';
+        const title=document.createElement('strong');title.className='d-block small';title.textContent=phase.label;
+        const counts=document.createElement('div');counts.textContent=`${nf.format(phase.done||0)}${phase.total===null || phase.total===undefined?' / ?':' / '+nf.format(phase.total)} · ${phaseStates[phase.status]||phase.status}`;
+        panel.append(title,counts);
+        if(phase.total>0){const meter=document.createElement('progress');meter.className='w-100';meter.max=phase.total;meter.value=phase.done||0;meter.setAttribute('aria-label',phase.label);panel.append(meter);}
+        if(phase.outcomes){const outcomes=document.createElement('div');outcomes.className='small text-muted';outcomes.textContent=Object.entries(phase.outcomes).filter(([,n])=>n).map(([k,n])=>`${label(k)} ${nf.format(n)}`).join(' · ');panel.append(outcomes);}
+        column.append(panel);container.append(column);
+      });
+      const activity=card.querySelector('[data-live-activity]');activity.replaceChildren();
+      workflow.requests.slice(0,5).forEach(request=>{
+        const row=document.createElement('div');row.className='text-break';
+        row.textContent=request.state==='retrying'?`Opnieuw proberen: ${request.host} · over ${duration(request.retry_in_seconds||0)}`:`${request.state==='rendering'?'Pagina renderen':'Controleren'}: ${request.host}${request.waiting_seconds===null?'':' · wachten '+duration(request.waiting_seconds||0)}`;
+        activity.append(row);
+      });
+      if(!workflow.requests.length)activity.textContent=current ? (current.name.includes('analysis')?'Controles en paginarelatieonderzoek worden uitgevoerd.':'Wachten op de volgende werkeenheid…') : 'Alle beschikbare onderzoeksfasen zijn afgerond.';
+      if(workflow.stale_seconds>180){const warning=document.createElement('div');warning.className='text-warning-emphasis';warning.textContent=`Geen nieuwe activiteit gemeld gedurende ${duration(workflow.stale_seconds)}. De worker kan wachten of onderbroken zijn.`;activity.append(warning);}
+      card.querySelectorAll('[data-live-filters] select').forEach(filter=>filter.disabled=!workflow.telemetry_available);
+      if(!workflow.telemetry_available)card.querySelector('[data-live-chart-caption]').textContent='Deze meting heeft nog geen uitgebreide netwerkregistratie. Beschikbare paginagegevens en fasevoortgang blijven zichtbaar.';
+      if(workflow.telemetry_available){
+        const phase=card.querySelector('[data-live-phase-filter]').value,outcome=card.querySelector('[data-live-outcome-filter]').value,grouping=card.querySelector('[data-live-group-filter]').value;
+        const accepts=row=>(phase==='all'||row.phase===phase)&&(outcome==='all'||row.outcome===outcome);
+        const totals={};workflow.totals.filter(accepts).forEach(row=>{const key=grouping==='outcome'?row.outcome:row.status;totals[key]=(totals[key]||0)+row.n;});
+        data={...data,totals,series:workflow.series.filter(accepts).map(row=>({time:row.bucket,status:grouping==='outcome'?row.outcome:row.status,count:row.n})),interval_seconds:1,end:workflow.end,updated_at:workflow.updated_at};
+        card.querySelector('[data-live-chart-caption]').textContent='Activiteit per seconde · laatste 5 minuten · antwoorden, blokkades en herpogingen in de geselecteerde fasen. Legenda: totalen over het hele onderzoek.';
+        svg.querySelector('title').textContent='Onderzoeksactiviteit per seconde';
+      }
+    }
     const mobile=chart.clientWidth<600;
     W=mobile?600:960;H=mobile?300:270;L=mobile?70:55;plotW=W-L-R;plotH=H-T-B;
     svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
     for(const name of ['records','documents','pending','errors']) card.querySelector(`[data-live-${name}]`).textContent=nf.format(data[name] || 0);
     const eta=card.querySelector('[data-live-eta]');
-    if(!data.active) eta.textContent=data.status_label;
+    if(!data.active) eta.textContent=workflow?(workflow.status_label || 'Onderzoek afgerond'):data.status_label;
+    else if(workflow) eta.textContent=current && Number.isFinite(current.eta_seconds) && current.pending>0 ? `≈ ${duration(current.eta_seconds)} voor deze fase` : 'Nog onbekend voor deze fase';
     else if(data.scan_kind==='sitemap') eta.textContent='Niet beschikbaar';
     else if(data.eta_seconds===0) eta.textContent='Wordt afgerond…';
     else if(Number.isFinite(data.eta_seconds)) eta.textContent=`≈ ${duration(data.eta_seconds)}`;
     else eta.textContent='Nog onbekend';
     const timing=[];
+    if(workflow && current && Number.isFinite(current.elapsed_seconds)) timing.push(`Huidige fase ${duration(current.elapsed_seconds)}`);
+    if(workflow && current && Number.isFinite(current.units_per_second)) timing.push(`${rateFormatter.format(current.units_per_second)} verwerkt/s in deze fase`);
     if(Number.isFinite(data.elapsed_seconds)) timing.push(`Verstreken ${duration(data.elapsed_seconds)}`);
-    if(Number.isFinite(data.urls_per_second)) timing.push(`${rateFormatter.format(data.urls_per_second)} URL/s`);
+    if(!workflow && Number.isFinite(data.urls_per_second)) timing.push(`${rateFormatter.format(data.urls_per_second)} URL/s`);
     card.querySelector('[data-live-timing]').textContent=timing.join(' · ');
-    keys=[...new Set([...Object.keys(data.totals || {}),...(data.series || []).map(point=>point.status)])].sort((a,b)=>(a==='download_error'?1000:Number(a))-(b==='download_error'?1000:Number(b)));
+    keys=[...new Set([...Object.keys(data.totals || {}),...(data.series || []).map(point=>point.status)])].sort((a,b)=>{const order=['success','http_error','blocked','retrying','unknown','download_error'];return outcomeLabels[a]&&outcomeLabels[b]?order.indexOf(a)-order.indexOf(b):Number(a)-Number(b);});
     const step=data.interval_seconds || 3,end=data.end,start=end-(data.window_seconds || 300);
     samples=[];
     for(let t=start;t<=end;t+=step) samples.push({time:t,values:{}});
@@ -76,7 +120,8 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
       const index=Math.round(i*(samples.length-1)/ticks);
       group.append(el('text',{x:x(index),y:H-8,'text-anchor':i===0?'start':i===ticks?'end':'middle',class:'scan-ticker-axis'},tf.format(new Date(samples[index].time*1000))));
     }
-    if(!keys.length) group.append(el('text',{x:L+plotW/2,y:T+plotH/2,'text-anchor':'middle',class:'scan-ticker-axis'},data.active?'Wachten op de eerste antwoorden…':'Geen HTTP-antwoorden beschikbaar.'));
+    const hasRecentActivity=samples.some(sample=>Object.values(sample.values).some(value=>value>0));
+    if(!hasRecentActivity) group.append(el('text',{x:L+plotW/2,y:T+plotH/2,'text-anchor':'middle',class:'scan-ticker-axis'},data.active?'Geen afgeronde aanvragen in dit tijdvenster; zie de actieve fase hierboven.':'Geen netwerkactiviteit in dit tijdvenster.'));
     const legend=card.querySelector('[data-live-legend]');legend.replaceChildren();
     keys.forEach(key=> {
       const item=document.createElement('span'),swatch=document.createElement('span');
@@ -84,10 +129,10 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
       item.append(swatch,document.createTextNode(`${label(key)} · ${nf.format(data.totals[key]||0)}`));
       item.title='Totaal tijdens de hele scan';legend.append(item);
     });
-    state.textContent=data.active?(data.available?'Live · iedere seconde':'Wachten op de scan-worker…'):data.status_label;
+    state.textContent=data.active?((data.available || workflow?.telemetry_available)?'Live · iedere seconde':'Wachten op de scan-worker…'):(workflow?.status_label || data.status_label);
     state.classList.remove('text-danger');
     const last=data.updated_at?tf.format(new Date(data.updated_at*1000)):null;
-    card.querySelector('[data-live-footnote]').textContent=`${last?`Laatste activiteit ${last}. `:''}${data.active?'Resultaten worden na afronding gepubliceerd.':'Legenda toont de totalen van de hele scan.'}`;
+    card.querySelector('[data-live-footnote]').textContent=`${last?`Laatste activiteit ${last}. `:''}${workflow ? (data.active?'Elke fase publiceert eigen voortgang; de tijdschatting betreft de huidige bekende wachtrij.':'Onderzoek afgerond. Gedeeltelijke of onbekende metingen blijven afzonderlijk herkenbaar.') : (data.active?'Resultaten worden na afronding gepubliceerd.':'Legenda toont de totalen van de hele scan.')}`;
     const badge=document.querySelector('[data-batch-status]');
     if(badge) {badge.textContent=data.status_label;badge.className=`status-badge status-${data.status}`;}
     card.querySelector('[data-live-finished]').classList.toggle('d-none',data.active);
@@ -98,6 +143,7 @@ document.querySelectorAll('[data-scan-live]').forEach(card => {
     }
     active=data.active;
   };
+  card.querySelectorAll('[data-live-filters] select').forEach(filter=>filter.addEventListener('change',()=>{if(latest)render(latest);}));
   chart.addEventListener('pointermove',event=> {
     if(!latest || !samples.length) return;
     const rect=svg.getBoundingClientRect(),pos=(event.clientX-rect.left)*W/rect.width;

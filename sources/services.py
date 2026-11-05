@@ -20,7 +20,8 @@ def delete_batch(*, batch_id, project, actor):
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     if batch.scan_target_id:
         from scans.work import work_paths
-        for path in work_paths(batch.pk):
+        from scans.activity import paths as activity_paths
+        for path in work_paths(batch.pk)+activity_paths(batch.pk):
             PendingFileDeletion.objects.get_or_create(path=path)
     batch.delete()
     URLLabel.objects.filter(pk__in=affected_assignments, status='source', evidence__isnull=True).delete()

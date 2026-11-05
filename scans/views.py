@@ -111,6 +111,33 @@ def target_deactivate(request, project_id, target_id):
 
 @login_required
 @require_POST
+def save_settings(request,project_id,target_id):
+    with transaction.atomic():
+        project=get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=('self',)),pk=project_id)
+        if not can_edit(request.user,project):return JsonResponse({'error':'Geen bewerkrechten.'},status=403)
+        target=get_object_or_404(ScanTarget.objects.select_for_update(),project=project,pk=target_id,active=True)
+        try:
+            payload=json_body(request)
+            kind=payload.get('kind')
+            if kind not in ('crawl','sitemap') or set(payload)-set(ScanForm.base_fields):raise ValueError
+        except (ValueError,TypeError):return JsonResponse({'error':'Ongeldige scaninstellingen.'},status=400)
+        from .settings import defaults_for
+        form=ScanForm({**defaults_for(target,kind),**payload})
+        if not form.is_valid():return JsonResponse({'errors':form.errors.get_json_data()},status=400)
+        values={key:value for key,value in form.cleaned_data.items() if key!='kind' and value is not None}
+        if values.get('url'):
+            try:values['url']=normalize_url(values['url'],navigation_hosts(host_scope(target)))
+            except ScanError as exc:return JsonResponse({'error':str(exc)},status=400)
+        values['check_external_links']=kind=='crawl'
+        target.scan_settings={**target.scan_settings,kind:values}
+        target.save(update_fields=['scan_settings'])
+    response=JsonResponse({'saved':True,'kind':kind,'settings':values})
+    response['Cache-Control']='private, no-store'
+    return response
+
+
+@login_required
+@require_POST
 def start(request, project_id, target_id):
     with transaction.atomic():
         project = get_object_or_404(Project.objects.visible_to(request.user).select_for_update(of=('self',)), pk=project_id)
@@ -118,7 +145,8 @@ def start(request, project_id, target_id):
             return JsonResponse({'error': 'Geen bewerkrechten.'}, status=403)
         target = get_object_or_404(ScanTarget, pk=target_id, project=project, active=True)
         try:
-            form = ScanForm(json_body(request))
+            payload=json_body(request)
+            form = ScanForm({**target.scan_settings.get(payload.get('kind'),{}),**payload})
         except (ValueError, TypeError):
             return JsonResponse({'error': 'Ongeldige JSON.'}, status=400)
         if not form.is_valid():
@@ -226,7 +254,9 @@ def progress(request, project_id, batch_id):
         now=ended.timestamp() if ended else live.get('updated_at') or now
     timing=estimate_remaining(records=live['records'],pending=live['pending'],started_at=started_at,
         now=now,active=active and batch.scan_kind=='crawl',max_urls=batch.request_metadata.get('max_urls'))
-    response=JsonResponse({**live,**timing,'status':batch.status,'status_label':batch.get_status_display(),
+    from .progress import assemble
+    workflow=assemble(batch,live)
+    response=JsonResponse({'workflow':workflow,**live,**timing,'status':batch.status,'status_label':batch.get_status_display(),
         'active':active,'max_urls':batch.request_metadata.get('max_urls'),'available':bool(live.get('updated_at')),
         'poll_seconds':1,'scan_kind':batch.scan_kind})
     add_never_cache_headers(response)

@@ -107,6 +107,8 @@ class Attempts:
             delay=max(2*2**(data['ordinal']-1),retry_after(result.headers.get('retry-after')) if result else 0)
             if time.monotonic()+delay<self.client.deadline:
                 due=time.time()+delay
+                from .activity import retry
+                retry(self.client.batch_id,'pages',url,due)
                 host=urlsplit(url).hostname
                 with self.work.connection:
                     self.work.connection.execute("UPDATE frontier SET retry_after=max(retry_after,?) WHERE kind='crawl' AND done=0 AND url=?",(due,url))

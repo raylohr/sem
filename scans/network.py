@@ -127,8 +127,9 @@ class FetchResult:
 
 
 class SafeClient:
-    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None,connect_timeout=5,read_timeout=5):
+    def __init__(self, allowed_hosts, *, check_access, duration=180, delay=1.0, document_sink=None, max_transfer=MAX_TRANSFER, slice_seconds=None, robot_cache=None, respect_robots=True, concurrency=1, shared_rate=False, batch_id=None,connect_timeout=5,read_timeout=5,progress_phase="pages"):
         self.batch_id = str(batch_id) if batch_id else None
+        self.progress_phase=progress_phase
         if not 1<=connect_timeout<=60 or not 1<=read_timeout<=120:
             raise ScanError('Ongeldige netwerk-time-out.')
         self.connect_timeout,self.read_timeout=connect_timeout,read_timeout
@@ -202,7 +203,18 @@ class SafeClient:
             time.sleep(min(remaining, 0.1))
 
     def _request(self, url, delay, cookie_header=""):
+        from . import activity
         self.guard()
+        identifier=activity.start(self.batch_id,self.progress_phase,url)
+        try:
+            result=self._request_impl(url,delay,cookie_header)
+        except BaseException as error:
+            activity.finish(self.batch_id,self.progress_phase,identifier,error=type(error).__name__)
+            raise
+        activity.finish(self.batch_id,self.progress_phase,identifier,status=result.status)
+        return result
+
+    def _request_impl(self, url, delay, cookie_header=""):
         parts = urlsplit(url)
         host = parts.hostname
         port = 443 if parts.scheme == "https" else 80

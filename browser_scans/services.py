@@ -34,7 +34,7 @@ def create_run(source_batch, actor, values):
     target = source.scan_target
     if not target or not target.active or target.project_id != project.pk:
         raise PermissionDenied
-    config = {'max_pages': values.get('max_pages') or 20, 'profile': values.get('profile') or 'desktop',
+    config = {'progress_version':'workflow-v1','max_pages': values.get('max_pages') or 20, 'profile': values.get('profile') or 'desktop',
         'privacy_enabled': bool(values.get('privacy_enabled')),
         'scenarios': ['no_choice','reject','accept','withdraw'] if values.get('privacy_enabled') else ['baseline'],
         'consent_selectors': {key: values.get('consent_' + key, '') for key in ('accept','reject','preferences','withdraw')},
@@ -96,6 +96,8 @@ def create_run(source_batch, actor, values):
     batch.request_metadata = {'scan':'browser', **config}
     batch.save(update_fields=['request_metadata'])
     BrowserVisit.objects.bulk_create([BrowserVisit(run=run, url=url, url_hash=identity(url)[2], scenario=scenario) for url in selected for scenario in config['scenarios']])
+    from scans.activity import phase
+    phase(batch.pk,'browser',status='queued',done=0,total=run.visits.count())
     run.coverage = {'eligible_source_pages': eligible.count(), 'initial_sample_pages': len(selected),
         'sample_limit':config['max_pages'],'initial_sample_limit':initial_limit,'dynamic_reserved':config['dynamic_pages'],'selection':selection,'sampling':config['sampling'],'artifact_bytes':0}
     run.save(update_fields=['coverage'])
@@ -266,6 +268,9 @@ def finalize(run_id):
         if source and source.request_metadata.get('browser_followup_id')==str(run.pk):
             source.request_metadata={**source.request_metadata,'browser_phase_status':batch.status}
             source.save(update_fields=['request_metadata'])
+    from scans.activity import phase
+    phase(batch.pk,'browser',status='complete',done=len(visits),total=len(visits))
+    phase(batch.pk,'browser_analysis',done=0,total=len(visits))
     from assessments.services import rebuild_batch
     basic_analysis = rebuild_batch(batch.pk)
     for visit in visits:
@@ -292,5 +297,6 @@ def finalize(run_id):
     analysis.summary = counts
     analysis.save(update_fields=['summary'])
 
+    phase(batch.pk,'browser_analysis',status='complete',done=len(visits),total=len(visits))
     from site_intelligence.services import schedule_enrichment
     transaction.on_commit(lambda: schedule_enrichment(batch.pk, batch.created_by_id))

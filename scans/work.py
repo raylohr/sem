@@ -57,6 +57,9 @@ class DiskRows:
                 from .telemetry import document
                 document(self.work.connection,meta)
         self.count += 1
+        if self.table=='records':
+            from .activity import phase
+            phase(self.work.batch_id,'pages',done=self.count,total=self.count+int((self.work.connection.execute("SELECT value FROM live_counts WHERE key='pending'").fetchone() or [0])[0]))
 
     def __iter__(self):
         if self.table == 'records':
@@ -75,6 +78,7 @@ class ScanWork:
     def __init__(self, batch_id):
         self.paths = [Path(settings.MEDIA_ROOT) / path for path in work_paths(batch_id)]
         self.clean = False
+        self.batch_id=str(batch_id)
 
     def __enter__(self):
         self.paths[0].parent.mkdir(mode=0o700, parents=True, exist_ok=True)

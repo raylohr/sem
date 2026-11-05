@@ -15,6 +15,7 @@ urlpatterns = [
     path('targets/<uuid:target_id>/update/', views.target_update, name='target-update'),
     path('hosts/<int:policy_id>/decision/', views.host_decision, name='host-decision'),
     path('targets/<uuid:target_id>/deactivate/', views.target_deactivate, name='target-deactivate'),
+    path('targets/<uuid:target_id>/settings/',views.save_settings,name='settings'),
     path('targets/<uuid:target_id>/start/', views.start, name='start'),
     path('<uuid:batch_id>/cancel/', views.cancel, name='cancel'),
 ]

@@ -63,6 +63,10 @@ def rebuild_batch(batch_id, *, recover_documents=False):
         raise ValueError('Alleen gepubliceerde batches kunnen worden geanalyseerd.')
     if batch.scan_kind not in ('crawl', 'browser') or batch.source not in ('semscan', 'crawler'):
         return None
+    from scans.activity import phase
+    progress_batch=batch.pk if batch.scan_target_id else None
+    progress_name='browser_analysis' if batch.scan_kind=='browser' else 'analysis'
+    phase(progress_batch,progress_name,done=0,total=batch.record_count)
     # Existing analysis runs retain source-record evidence when measurements rebuild.
     PageMeasurement.objects.filter(batch=batch).delete()
     coverage = Counter()
@@ -143,6 +147,7 @@ def rebuild_batch(batch_id, *, recover_documents=False):
             pages.append(page)
             link_rows.append(links if links_known else [])
         PageMeasurement.objects.bulk_create(pages, batch_size=100)
+        phase(progress_batch,progress_name,done=coverage['pages'],total=batch.record_count)
         links_to_create = []
         for page, links in zip(pages, link_rows):
             for position, link in enumerate(links):
@@ -161,7 +166,9 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                     LinkObservation.objects.bulk_create(links_to_create, batch_size=1000)
                     links_to_create = []
         LinkObservation.objects.bulk_create(links_to_create, batch_size=1000)
-    return analyze(batch, dict(coverage))
+    result=analyze(batch, dict(coverage))
+    phase(progress_batch,progress_name,status='complete',done=coverage['pages'],total=batch.record_count)
+    return result
 
 
 def analyze(batch, coverage):

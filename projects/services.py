@@ -96,7 +96,8 @@ def delete_project(*, actor, project_id, confirmation_name):
             PendingFileDeletion.objects.get_or_create(path=file_path)
         if scan_target_id:
             from scans.work import work_paths
-            for path in work_paths(batch_id):
+            from scans.activity import paths as activity_paths
+            for path in work_paths(batch_id)+activity_paths(batch_id):
                 PendingFileDeletion.objects.get_or_create(path=path)
     # Remove protected children in dependency order; late workers cannot recreate batches.
     ImportBatch.objects.filter(project=project).delete()

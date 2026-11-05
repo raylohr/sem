@@ -1,19 +1,27 @@
 <section class="card card-body mb-4" data-scan-live data-progress-url="{% url 'projects:scans:progress' project.id batch.id %}" aria-labelledby="scan-progress-heading">
   <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><h3 class="h6 mb-0" id="scan-progress-heading">Scanvoortgang</h3><span class="small text-muted" data-live-state role="status">Voortgang ophalen…</span></div>
+  <p class="fw-semibold mb-2" data-live-phase aria-live="polite">Onderzoeksfase ophalen…</p>
+  <div class="row g-2 mb-3" data-live-phases></div>
+  <div class="small mb-3" data-live-activity></div>
   <div class="row row-cols-2 row-cols-lg-5 g-3 mb-3 small">
     <div class="col"><strong class="d-block fs-5" data-live-records>{{ batch.request_metadata.scan_progress.records|default:batch.record_count }}</strong>URL-resultaten verwerkt</div>
-    <div class="col"><strong class="d-block fs-5" data-live-documents>{{ batch.request_metadata.scan_progress.documents|default:0 }}</strong>HTTP-documenten</div>
-    <div class="col"><strong class="d-block fs-5" data-live-pending>—</strong>URL’s in de wachtrij</div>
-    <div class="col"><strong class="d-block fs-5" data-live-errors>—</strong>Downloadfouten</div>
+    <div class="col"><strong class="d-block fs-5" data-live-documents>{{ batch.request_metadata.scan_progress.documents|default:0 }}</strong>HTTP-documenten van de paginacrawl</div>
+    <div class="col"><strong class="d-block fs-5" data-live-pending>—</strong>Pagina-URL’s in de wachtrij</div>
+    <div class="col"><strong class="d-block fs-5" data-live-errors>—</strong>Paginadownloadfouten</div>
     <div class="col"><strong class="d-block fs-5" data-live-eta>—</strong>Geschatte resterende tijd<div class="text-muted small mt-1" data-live-timing></div></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mb-2" data-live-filters>
+    <label class="small">Fase<select class="form-select form-select-sm" data-live-phase-filter><option value="all">Alle netwerkfasen</option><option value="pages">Pagina’s</option><option value="files">Bestanden</option><option value="external">Externe links</option><option value="browser">Browseronderzoek</option><option value="enrichment">Technologie & privacy</option></select></label>
+    <label class="small">Uitkomst<select class="form-select form-select-sm" data-live-outcome-filter><option value="all">Alle uitkomsten</option><option value="success">Succesvol</option><option value="http_error">HTTP-fout</option><option value="blocked">Geblokkeerd</option><option value="retrying">Opnieuw proberen</option><option value="unknown">Onbekend</option></select></label>
+    <label class="small">Grafiek<select class="form-select form-select-sm" data-live-group-filter><option value="outcome">Per uitkomst</option><option value="status">Per HTTP-status</option></select></label>
   </div>
   <div class="scan-ticker" data-live-chart>
     <svg viewBox="0 0 960 270" role="img" aria-labelledby="scan-chart-title scan-chart-description"><title id="scan-chart-title">HTTP-antwoorden per drie seconden</title><desc id="scan-chart-description">Gestapelde oppervlaktegrafiek over de laatste vijf minuten. Elke HTTP-statuscode krijgt een eigen kleur.</desc></svg>
     <div class="scan-ticker-tooltip d-none" data-live-tooltip></div>
   </div>
   <div class="d-flex flex-wrap gap-3 small mt-2" data-live-legend aria-label="Legenda en totalen van de scan"></div>
-  <p class="small text-muted mt-3 mb-1">Aantal ontvangen HTTP-documenten per 3 seconden · laatste 5 minuten · inclusief redirects en robots.txt. Downloadfouten worden apart getoond.</p>
-  <p class="small text-muted mb-1">{% if batch.scan_kind == 'sitemap' %}Een tijdschatting is beschikbaar voor websitecrawls; bij sitemapimport bevat de wachtrij bestanden in plaats van pagina-URL’s.{% else %}Tijdschatting voor de huidige wachtrij op basis van het gemiddelde tempo sinds de start, binnen het URL-maximum. Nieuwe URL’s kunnen de schatting verhogen.{% endif %}</p>
+  <p class="small text-muted mt-3 mb-1" data-live-chart-caption>Aantal ontvangen HTTP-documenten per 3 seconden · laatste 5 minuten · inclusief redirects en robots.txt. Downloadfouten worden apart getoond.</p>
+  <p class="small text-muted mb-1">{% if batch.scan_kind == 'sitemap' %}Een tijdschatting is beschikbaar voor websitecrawls; bij sitemapimport bevat de wachtrij bestanden in plaats van pagina-URL’s.{% else %}Tijdschatting voor de huidige fase op basis van het eigen verwerkingstempo. Nieuwe doelen kunnen de schatting verhogen; dit is geen totaaltijd voor alle volgende fasen.{% endif %}</p>
   <p class="small text-muted mb-0" data-live-footnote>Wordt automatisch iedere seconde ververst. Resultaten worden na afronding gepubliceerd.</p>
   <div class="d-none mt-3" data-live-finished><a class="btn btn-sm btn-outline-primary" href="{% url 'ui:batch' project.id batch.id %}">Resultaten bekijken</a></div>
   <noscript><p class="small text-muted mt-2">Schakel JavaScript in voor de live grafiek, of gebruik Vernieuwen om de status op te halen.</p></noscript>

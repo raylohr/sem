@@ -14,6 +14,12 @@ with sync_playwright() as pw:
         page.route('**/*',lambda route:route.abort())
         page.set_content('<html><head><style>'+payload['css']+'</style></head><body>'+payload['html']+'</body></html>')
         page.add_script_tag(content=payload['bootstrap'])
+        if name=='after':
+            page.evaluate("""()=>{window.saveCalls=[];window.rejectSave=false;window.fetch=async(url,options)=>{
+                const values=JSON.parse(options.body);saveCalls.push({url,values,csrf:options.headers['X-CSRFToken']});
+                if(rejectSave)return {ok:false,headers:new Headers({'content-type':'application/json'}),json:async()=>({error:'Instellingen niet opgeslagen'})};
+                window.saved=values;return {ok:true,headers:new Headers({'content-type':'application/json'}),json:async()=>({settings:{...values,check_external_links:true}})};
+            };}""")
         page.add_script_tag(content=code)
         page.locator('[data-bs-toggle="modal"]').click()
         editor=page.locator('form[data-scan-config]')
@@ -32,6 +38,9 @@ with sync_playwright() as pw:
         editor.locator('button[type="submit"]').click()
         page.locator('.modal.show').wait_for(state='hidden')
         values=page.locator('form[data-api-form]').evaluate('(f)=>Object.fromEntries(new FormData(f).entries())')
+        assert page.evaluate('saved.max_urls')==1234
+        assert page.evaluate('saveCalls[0].csrf')=='probe-token'
+        assert page.evaluate('saved.kind')=='crawl'
         assert values['max_urls']=='1234' and values['read_timeout']=='90' and values['browser_max_pages']=='10',values
         assert values['resource_max_bytes']=='262144000' and values['check_external_links']=='true',values
         assert values['schema_profiles']=='google-product-snippet-v1',values
@@ -43,7 +52,15 @@ with sync_playwright() as pw:
         editor.get_by_role('button',name='Annuleren').click()
         page.locator('.modal.show').wait_for(state='hidden')
         assert page.locator('form[data-api-form] [name="max_urls"]').input_value()=='1234'
+        page.locator('[data-bs-toggle="modal"]').click()
+        page.locator('.modal.show').wait_for()
+        editor.locator('[name="max_urls"]').fill('3333')
+        page.evaluate('rejectSave=true')
+        editor.locator('button[type="submit"]').click()
+        page.wait_for_function("document.querySelector('[data-scan-settings-result]').textContent.includes('niet opgeslagen')")
+        assert page.locator('.modal.show').count()==1
+        assert page.locator('form[data-api-form] [name="max_urls"]').input_value()=='1234'
         assert not errors,errors
         page.close()
     browser.close()
-print('PASS: original missing-field error reproduced; corrected modal opens, saves numeric budgets and multiselect, restores saved settings and cancels edits without starting a scan.')
+print('PASS: original missing-field error reproduced; corrected modal persists settings via CSRF-protected POST, preserves numeric budgets and multiselect, restores and cancels edits, and shows save failures without applying them; no scan started.')

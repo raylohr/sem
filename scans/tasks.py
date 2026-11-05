@@ -120,6 +120,8 @@ def process_scan(batch_id):
                     records,warnings = runner(client,url=config['url'],max_urls=config['max_urls'],max_depth=config['max_depth'],work=work)
                     from browser_scans.followups import annotate
                     annotate(work)
+                    from .activity import phase
+                    phase(batch.pk,'pages',status='partial' if work.get('network_budget_ended') else 'complete',done=len(work.records),total=len(work.records))
                     work.set('page_phase_done',True);work.set('page_phase_warnings',list(warnings))
                 if config.get('resource_version') and (config.get('check_resources') or config.get('check_external_links')) and not work.get('resources_done'):
                     from .resources import run as run_resources
@@ -157,6 +159,8 @@ def process_scan(batch_id):
                 warnings=list(warnings)+['Het toegestane deel is onderzocht. Andere subdomeinen wachten op beoordeling bij Websitescans: '+', '.join(pending)+'. Start na toestemming een nieuwe crawl.']
             if summary and summary['incomplete']:
                 warnings = list(warnings) + [outcome_warning(summary)]
+            from .activity import phase
+            if config['scan']=='crawl':phase(batch.pk,'analysis',done=0,total=len(work.records))
             with transaction.atomic():
                 Project.objects.select_for_update().get(pk=batch.project_id)
                 batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
