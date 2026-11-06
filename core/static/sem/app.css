@@ -31,3 +31,20 @@
 .inventory-column-control{display:block;width:100%;border:0;background:none;padding:0;color:inherit;text-align:left;text-decoration:none;text-transform:none;letter-spacing:normal;font:inherit;cursor:pointer}
 .inventory-column-control:hover{color:#0b2d4d}
 .inventory-column-control:focus-visible{outline:2px solid #0b2d4d;outline-offset:5px;border-radius:2px}
+
+.configurable-inventory{table-layout:fixed}
+.configurable-inventory th,.configurable-inventory td{max-width:220px;overflow-wrap:anywhere}
+.configurable-inventory .inventory-url-column{position:sticky;left:0;z-index:1;background:#fff;max-width:360px;box-shadow:1px 0 0 var(--sem-border)}
+.configurable-inventory thead .inventory-url-column{z-index:3;background:#f8fafb}
+.inventory-heading,.url-title,.inventory-value{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.inventory-heading{max-height:3.1em}
+.url-title{min-width:0;flex:1}
+.inventory-full-url{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inventory-value{max-height:3.2em;white-space:normal}
+.inventory-value.status-badge{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inventory-sort{flex:none;text-decoration:none;font-size:1rem;color:inherit}
+.inventory-choice{min-width:0;overflow-wrap:anywhere}
+@media(max-width:767px){.configurable-inventory .inventory-url-column{position:static;box-shadow:none}}
+.configurable-inventory th,.configurable-inventory td{padding:.85rem .75rem}
+.column-meta{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.column-meta .status-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;font-size:.65rem;padding:.2rem .35rem}

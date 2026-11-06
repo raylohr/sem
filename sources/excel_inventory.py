@@ -121,9 +121,13 @@ def source_signals(source, observation, indexing):
 def build_inventory_workbook(project, user, *, absolute_url, progress=None):
     report = progress or (lambda **kwargs: None)
     report(percent=5, message='URLs verzamelen…')
-    columns, rows = project_inventory(project, include_data=True)
+    columns, rows = project_inventory(project, include_data=True, include_fields=True)
     report(percent=20, message=f'{len(rows)} unieke URLs verzameld.')
     sources = [column['key'] for column in columns]
+    from .column_fields import field_catalog, typed_value
+    from .configurable_inventory import selected_columns
+    from .models import InventoryPreference
+    configured = selected_columns(project, user, field_catalog(rows), rows) if InventoryPreference.objects.filter(project=project, user=user).exists() else []
     book = Workbook(write_only=True)
     overview = Sheet(book, '00 - HOOFDOVERZICHT', ['Onderdeel', 'Waarde'])
     headers = ['URL', 'Host', 'Pad'] + [f"{column['label']} laatste waarneming" for column in columns]
@@ -131,6 +135,7 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None):
     for source, fields in [('gsc', GSC_FIELDS), ('sf', SF_FIELDS), ('ahrefs', AHREFS_FIELDS)]:
         if source in sources:
             headers += fields
+    headers += [f"{column['name']} ({column['source_label']} / {column['report_label']})" for column in configured]
     inventory = Sheet(book, '01 - URL INVENTARIS', headers + WORK_FIELDS)
     actions = Sheet(book, '02 - URL ACTIEPLAN', ['URL', 'Host', 'Pad', 'Bronsignalen', *WORK_FIELDS])
     evidence_sheet = Sheet(book, '03 - BRONWAARNEMINGEN', ['URL', 'Bron', 'Rapporttype', 'Waarnemingsdatum', 'Datumgrondslag', 'Importtijd', 'Toegevoegd door', 'Import-ID', 'Importlabel', 'Record-ID', 'Bronrecord', 'GSC rapportcategorie', 'GSC indexeringsreden', 'GSC laatste crawl', 'HTTP-status', 'Indexeerbaarheid', 'Titel', 'Canonical', 'Redirectdoel', 'Ahrefs PR', 'Ahrefs organisch verkeer (schatting)'])
@@ -172,6 +177,7 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None):
         for source in ('gsc', 'sf', 'ahrefs'):
             if source in sources:
                 values += source_values(source, row['observations'].get(source), latest_indexing.get(row['url']))
+        values += [typed_value(row.get('field_values', {}).get(column['field_id'], {}).get('value'), column['type']) for column in configured]
         inventory.append(values + [''] * len(WORK_FIELDS), links={0: row['url']})
         signals = []
         for source in ('gsc', 'sf', 'ahrefs'):

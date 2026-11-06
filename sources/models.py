@@ -61,3 +61,13 @@ class BatchDeletionEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     deleted_at = models.DateTimeField(auto_now_add=True)
     # Deliberately no filenames, payloads or source content in deletion history.
+
+
+class InventoryPreference(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    columns = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'project'], name='unique_user_project_inventory')]

@@ -59,8 +59,32 @@ velden in twee kolommen en uitklapbare historie en importcontext. Bronnen en
 velden worden direct uit de actuele records opgebouwd; verwijderde imports
 verdwijnen automatisch uit de weergave.
 
-Het URL-overzicht toont o-traffic met een AHREFS-bronbadge en contenttype met
+Standaard toont het URL-overzicht o-traffic met een AHREFS-bronbadge en contenttype met
 een SF-bronbadge. Klikken op o-traffic wisselt tussen oplopend, aflopend en
 URL-padvolgorde; ontbrekend verkeer staat onderaan. De contenttypekop opent
 een modal met meervoudige selectie en aantallen per SF-type/status, inclusief
 URLs zonder SF-meting. Zoekterm, sortering en filters blijven behouden bij pagineren.
+
+Index Status toont gsc_report_status als tekst zonder bronrecordlink, met GSC
+als referentiebadge onder de kolomkop. De laatste beschikbare indexeringsstatus
+blijft zichtbaar naast nieuwere GSC-prestatierecords. Zonder status staat unknown;
+URLs zonder GSC-waarneming hebben een aparte filterkeuze. Klikken op de kop
+opent een statusfilter dat gecombineerd wordt met zoeken, contenttype en sortering.
+
+Via **Kolommen instellen** bewaart iedere gebruiker per project maximaal zeven
+waardekolommen, naast de vaste pagina-/URL-kolom. Bron, detailrapport en veld
+worden uit de aanwezige gepubliceerde records opgebouwd. De nieuwste waarneming
+waarin het gekozen veld voorkomt levert de waarde; rapporttypen blijven gescheiden.
+Kolommen met minder dan tien unieke ingevulde waarden gebruiken een keuzelijst.
+Anders gebruiken getallen inclusieve grenzen en tekst een hoofdletterongevoelig
+trefwoord. Datumvelden hebben van/tot-grenzen. De filtermodus blijft na opslaan
+behouden tot de gebruiker de configuratie opnieuw opslaat. Ontbrekend is apart
+selecteerbaar; nul telt als ingevuld. Filters combineren met EN tussen kolommen
+en OF binnen een keuzelijst. Eén kolomsortering kan actief zijn; onbekend staat
+altijd onderaan. Verwijderen wist de bijbehorende filter-/sorteerstatus.
+Kopteksten tellen ingevulde waarden over alle gefilterde URLs, voor paginering.
+De weergave begrenst titels/kopteksten tot twee regels, tekst tot 40 tekens,
+badges tot 24 en getallen tot 12 met compacte notatie. Tooltips en Excel behouden
+de volledige waarden. De URL-kolom blijft op desktop vaststaan bij horizontaal
+scrollen. Verwijderde bronvelden blijven als niet beschikbaar herkenbaar totdat
+de gebruiker de kolom vervangt of verwijdert.

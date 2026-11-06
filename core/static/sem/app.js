@@ -147,8 +147,53 @@ document.querySelectorAll('[data-content-select]').forEach((button) => {
   button.addEventListener('click', () => {
     const form = button.closest('form');
     if (!form) return;
-    form.querySelectorAll('input[name="content_type"]').forEach((checkbox) => {
+    const field = button.dataset.filterField === 'index_status' ? 'index_status' : 'content_type';
+    form.querySelectorAll(`input[name="${field}"]`).forEach((checkbox) => {
       checkbox.checked = button.dataset.contentSelect === 'all';
     });
   });
+});
+
+// Column configuration is personal to the current project and user.
+const inventoryCatalogNode = document.getElementById('inventory-field-catalog');
+if (inventoryCatalogNode) {
+  const catalog = JSON.parse(inventoryCatalogNode.textContent);
+  const byId = new Map(catalog.map(field => [field.id, field]));
+  const options = (select, entries, selected, placeholder) => {
+    select.replaceChildren(new Option(placeholder, ''));
+    entries.forEach(([value, label]) => select.add(new Option(label, value)));
+    select.value = selected || '';
+  };
+  document.querySelectorAll('[data-column-slot]').forEach(slot => {
+    const source = slot.querySelector('[data-column-source]');
+    const report = slot.querySelector('[data-column-report]');
+    const field = slot.querySelector('[data-column-field]');
+    const name = slot.querySelector('[data-column-name]');
+    const original = byId.get(field.value);
+    options(source, [...new Map(catalog.map(item => [item.source, item.source_label])).entries()], original?.source, 'Kies bron');
+    const reports = (selected = '') => {
+      options(report, [...new Map(catalog.filter(item => item.source === source.value).map(item => [item.report, item.report_label])).entries()], selected, 'Kies detail');
+    };
+    const fields = (selected = '') => {
+      options(field, catalog.filter(item => item.source === source.value && item.report === report.value).map(item => [item.id, item.label]), selected, 'Kies veld / verwijderen');
+    };
+    reports(original?.report);
+    if (original) fields(original.id);
+    source.addEventListener('change', () => { reports(); fields(); name.value = ''; });
+    report.addEventListener('change', () => { fields(); name.value = ''; });
+    field.addEventListener('change', () => { name.value = ''; });
+    slot.querySelector('[data-remove-column]').addEventListener('click', () => {
+      source.value = ''; reports(); fields(); name.value = '';
+    });
+  });
+}
+document.querySelectorAll('[data-select-values]').forEach(button => {
+  button.addEventListener('click', () => {
+    button.closest('form').querySelectorAll('input[type="checkbox"][name^="v_"]').forEach(checkbox => {
+      checkbox.checked = button.dataset.selectValues === 'all';
+    });
+  });
+});
+document.querySelectorAll('[data-open-modal]').forEach(element => {
+  if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(element).show();
 });

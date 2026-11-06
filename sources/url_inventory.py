@@ -39,14 +39,13 @@ def observation_date(data, batch):
     return timezone.localtime(batch.imported_at).date(), True
 
 
-def project_inventory(project, *, include_data=False, target_url=None):
-    fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at']
-    if include_data:
-        fields.append('request_metadata')
+def project_inventory(project, *, include_data=False, target_url=None, include_fields=False):
+    fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at', 'request_metadata']
     batches = {batch.pk: batch for batch in project.import_batches.filter(
         status__in=('complete', 'incomplete')).only(*fields)}
     columns = {}
     rows = {}
+    field_cache = {}
     records = SourceRecord.objects.filter(batch_id__in=batches)
     if target_url is not None:
         match = Q()
@@ -70,12 +69,25 @@ def project_inventory(project, *, include_data=False, target_url=None):
         current = rows[url]['observations'].get(source)
         # Prefer a dated source observation over an import-date fallback on a tie.
         rank = (stamp, not fallback, batch.imported_at, record_id)
+        if include_fields:
+            from .column_fields import record_fields
+            values = rows[url].setdefault('field_values', {})
+            for field, value in record_fields(source, batch.request_metadata, data, field_cache):
+                previous = values.get(field['id'])
+                if previous is None or rank > previous['rank']:
+                    values[field['id']] = {'field': field, 'value': value, 'date': stamp,
+                        'fallback': fallback, 'rank': rank, 'batch_id': batch_id, 'record_id': record_id}
         title = data.get('Title 1') if source == 'sf' else data.get('Title') if source == 'ahrefs' else None
         title_rank = (2 if source == 'sf' else 1, *rank)
         if isinstance(title, str) and title.strip() and (rows[url]['title_rank'] is None or title_rank > rows[url]['title_rank']):
             rows[url].update(title=title.strip(), title_rank=title_rank,
                              title_source=DEFAULT_SOURCES[source], title_date=stamp,
                              title_source_name=batch.get_source_display())
+        if source == 'gsc':
+            status = data.get('gsc_report_status') or batch.request_metadata.get('report_status')
+            if isinstance(status, str) and status.strip() and (rows[url].get('index_rank') is None or rank > rows[url]['index_rank']):
+                rows[url].update(index_status=status.strip(), index_rank=rank, index_date=stamp,
+                                 index_reason=data.get('gsc_indexing_reason') or batch.request_metadata.get('indexing_reason', ''))
         if current is None or rank > current['rank']:
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
@@ -98,5 +110,8 @@ def project_inventory(project, *, include_data=False, target_url=None):
         columns, key=lambda key: (source_order.get(key, len(source_order)), key))]
     ordered_rows = sorted(rows.values(), key=lambda row: (row['path'], row['url']))
     for row in ordered_rows:
+        if 'gsc' in row['observations']:
+            row['observations']['gsc'].update(is_gsc=True, index_status=row.get('index_status', 'unknown'),
+                                              index_date=row.get('index_date'), index_reason=row.get('index_reason', ''))
         row['cells'] = [row['observations'].get(column['key']) for column in ordered_columns]
     return ordered_columns, ordered_rows

@@ -1,8 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q, Sum
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from django.core.paginator import Paginator
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_http_methods
 from django.views.decorators.cache import never_cache
 from projects.models import Project
 from projects.permissions import can_edit, can_manage, role_for
@@ -32,20 +32,41 @@ def dashboard(request):
 
 @never_cache
 @login_required
-@require_GET
+@require_http_methods(["GET", "POST"])
 def project_home(request, project_id):
     context=project_context(request,project_id,'overview')
     project=context['project']
     context.update(stats=project.import_batches.aggregate(records=Sum('record_count')),
         recent=project.import_batches.select_related('created_by')[:8])
+    from django.http import QueryDict
+    from django.urls import reverse
     from sources.url_inventory import project_inventory
-    columns, rows = project_inventory(project)
-    from sources.inventory_controls import inventory_controls
+    from sources.column_fields import field_catalog
+    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params
+    from sources.models import InventoryPreference
+    source_columns, rows = project_inventory(project, include_fields=True)
+    catalog = field_catalog(rows)
+    columns = selected_columns(project, request.user, catalog, rows)
+    form = ColumnConfigurationForm(request.POST if request.method == 'POST' else None, catalog=catalog, columns=columns)
+    if request.method == 'POST':
+        previous = QueryDict(request.POST.get('return_state', '')[:20000])
+        if request.POST.get('columns_action') == 'reset':
+            InventoryPreference.objects.filter(project=project, user=request.user).delete()
+            from urllib.parse import urlencode
+            return redirect(reverse('ui:project', args=[project.pk]) + '?' + urlencode({'url_q':previous.get('url_q','')[:500]}) + '#url-inventory')
+        if request.POST.get('columns_action') == 'save' and form.is_valid():
+            configuration = form.configuration(rows)
+            InventoryPreference.objects.update_or_create(project=project, user=request.user, defaults={'columns':configuration})
+            available = selected_columns(project, request.user, catalog, rows)
+            _, new_state = build_table(rows, available, previous)
+            return redirect(reverse('ui:project', args=[project.pk]) + '?' + new_state['url_state_query'] + '#url-inventory')
     total = len(rows)
-    rows, controls = inventory_controls(rows, columns, request.GET)
+    params = legacy_params(request.GET, columns, rows)
+    rows, controls = build_table(rows, columns, params)
     context.update(controls)
-    context.update(url_columns=columns, url_total=total,
-                   inventory_page=Paginator(rows, 100).get_page(request.GET.get('url_page')))
+    context.update(url_columns=source_columns, url_total=total, column_form=form,
+                   field_catalog_json=list(catalog.values()),
+                   inventory_page=Paginator(rows,100).get_page(request.GET.get('url_page')))
     return render(request,'ui/project.html',context)
 
 

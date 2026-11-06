@@ -67,7 +67,7 @@ class URLInventoryTests(TestCase):
         self.assertTrue(observation['fallback'])
         self.assertEqual(observation['date'].isoformat(), '2026-11-04')
         response = self.client.get(reverse('ui:project', args=[self.project.pk]))
-        self.assertContains(response, '04.11*')
+        self.assertContains(response, '04.11.2026')
         self.assertContains(response, 'Future source')
 
     def test_overview_renders_dates_source_links_search_and_pagination(self):
@@ -80,7 +80,7 @@ class URLInventoryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '102 unieke URLs')
         self.assertContains(response, '03.11')
-        self.assertContains(response, reverse('ui:record', args=[self.project.pk, batch.pk, record.pk]))
+        self.assertNotContains(response, reverse('ui:record', args=[self.project.pk, batch.pk, record.pk]))
         self.assertEqual(len(response.context['inventory_page']), 100)
         self.assertEqual(len(self.client.get(url, {'url_page': 2}).context['inventory_page']), 2)
         filtered = self.client.get(url, {'url_q': 'find-me'})
@@ -101,7 +101,7 @@ class URLInventoryTests(TestCase):
         self.add('ahrefs', {'URL':'https://example.com/1','last_seen':'2026-11-03','Organic traffic':'0'})
         self.add('ahrefs', {'URL':'https://example.com/2','last_seen':'2026-11-03'})
         response=self.client.get(reverse('ui:project',args=[self.project.pk]))
-        for expected in ('content-type-html','content-type-other','content-type-error','HTTP 404','Afbeelding','03.11.2026','02.11.2026','1.152','>0</a>','Onbekend'):
+        for expected in ('content-type-html','content-type-other','content-type-error','HTTP 404','Afbeelding','03.11.2026','02.11.2026','1.152','>0</a>'):
             self.assertContains(response,expected)
         columns,rows=project_inventory(self.project)
         self.assertEqual(rows[0]['observations']['sf']['badge']['label'],'HTML')
@@ -124,10 +124,10 @@ class URLInventoryTests(TestCase):
         self.assertContains(response, 'Ahrefs terugval')
         self.assertContains(response, 'title="Screaming Frog · 14.10.2026"')
         self.assertContains(response, 'title="Ahrefs · 29.10.2026"')
-        self.assertContains(response, '<a class="small text-muted" href="https://example.com/a">https://example.com/a</a>', html=True)
+        self.assertContains(response, 'class="small text-muted inventory-full-url" href="https://example.com/a"')
         self.assertContains(response, 'aria-label="URL-details · geen titel beschikbaar"')
         self.assertNotContains(response, 'Oude SF-titel')
-        self.assertNotContains(response, 'Nieuwe &lt;titel&gt;')
+        self.assertEqual(response.context['inventory_page'][0]['title'], 'SF <titel>')
         _, rows = project_inventory(self.project)
         by_url = {row['url']: row for row in rows}
         self.assertEqual(by_url[url]['title_source'], 'SF')
@@ -145,7 +145,42 @@ class URLInventoryTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.context['inventory_page'].paginator.count,102)
         self.assertEqual(len(response.context['inventory_page']),2)
-        for value in ('o-traffic','AHREFS','contenttype','contentTypeFilterModal','aria-sort="descending"','content_type=html','traffic_sort=desc'):
+        for value in ('o-traffic','AHREFS','contenttype','columnFilter-sf','aria-sort="descending"','a_sf=1','sort=ahrefs%3Adesc'):
             self.assertContains(response,value)
-        self.assertContains(response,'name="content_type" value="html"')
+        self.assertContains(response,'name="v_sf"')
         self.assertContains(self.client.get(url,{'content_filter':'1'}),'Geen URLs gevonden voor deze combinatie van filters.')
+
+    def test_gsc_header_status_filter_and_unlinked_latest_indexing_status(self):
+        _,old=self.add('gsc', {'URL':'https://example.com/a','Last crawled':'2026-10-13',
+                            'gsc_report_status':'not_indexed','gsc_indexing_reason':'Niet gevonden (404)'})
+        _,latest=self.add('gsc', {'url':'https://example.com/a','date':'2026-11-03','raw':{'clicks':1}})
+        self.add('gsc', {'URL':'https://example.com/b','Last crawled':'2026-11-01','gsc_report_status':'indexed'})
+        self.add('gsc', {'url':'https://example.com/c','date':'2026-11-03'})
+        self.add('sf', {'Address':'https://example.com/a','Content Type':'text/html','Status Code':'200'})
+        self.add('ahrefs', {'URL':'https://example.com/a','Organic traffic':'10'})
+        url=reverse('ui:project',args=[self.project.pk])
+        response=self.client.get(url)
+        for value in ('Index Status','columnFilter-gsc','gsc_report_status','not_indexed','indexed'):
+            self.assertContains(response,value)
+        self.assertNotContains(response,reverse('ui:record',args=[self.project.pk,latest.batch_id,latest.pk]))
+        self.assertNotContains(response,reverse('ui:record',args=[self.project.pk,old.batch_id,old.pk]))
+        _,rows=project_inventory(self.project)
+        observation=rows[0]['observations']['gsc']
+        self.assertEqual(observation['index_status'],'not_indexed')
+        self.assertEqual(observation['index_date'].isoformat(),'2026-10-13')
+        filtered=self.client.get(url,{'index_filter':'1','index_status':'not_indexed','content_filter':'1','content_type':'html','traffic_sort':'desc'})
+        self.assertEqual(filtered.context['inventory_page'].paginator.count,1)
+        self.assertEqual(filtered.context['inventory_page'][0]['url'],'https://example.com/a')
+        for value in ('a_gsc=1','a_sf=1','sort=ahrefs%3Adesc'):
+            self.assertIn(value,filtered.context['url_state_query'])
+        self.assertContains(filtered,'name="v_gsc"')
+
+    def test_long_urls_are_abbreviated_with_full_tooltip_and_original_link(self):
+        prefix='https://example.com/'
+        short=prefix+'a'*(47-len(prefix))
+        long=prefix+'b'*(48-len(prefix))
+        self.add('sf',{'Address':short})
+        self.add('sf',{'Address':long})
+        response=self.client.get(reverse('ui:project',args=[self.project.pk]))
+        self.assertContains(response,f'<a class="small text-muted inventory-full-url" href="{short}" title="{short}" aria-label="{short}">{short}</a>',html=True)
+        self.assertContains(response,f'<a class="small text-muted inventory-full-url" href="{long}" title="{long}" aria-label="{long}">{long[:47]}...</a>',html=True)
