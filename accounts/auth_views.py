@@ -82,7 +82,7 @@ class SecuritySetupView(RecentPasswordMixin,StyledWizard,SetupView):
     def get_context_data(self,form,**kwargs):
         context=super().get_context_data(form,**kwargs)
         if context.get('secret_key'):
-            context['otpauth_url']=get_otpauth_url(self.request.user.get_username(),context['secret_key'],issuer='Search Visibility Toolkit')
+            context['otpauth_url']=get_otpauth_url(self.request.user.get_username(),context['secret_key'],issuer='TrafficStack')
         return context
     def post(self,request,*args,**kwargs):
         if 'generator-token' in request.POST:
@@ -106,7 +106,7 @@ class SecuritySetupView(RecentPasswordMixin,StyledWizard,SetupView):
 
 class SecurityQRView(RecentPasswordMixin,QRGeneratorView):
     def get_issuer(self):
-        return 'Search Visibility Toolkit'
+        return 'TrafficStack'
 
 
 class SecuritySetupCompleteView(SetupCompleteView):

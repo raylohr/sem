@@ -1,4 +1,4 @@
-# Search Visibility Toolkit
+# TrafficStack
 
 Django-werkplek voor projecten en Google Search Console.
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.

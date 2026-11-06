@@ -29,7 +29,7 @@ class ErrorPageTests(SimpleTestCase):
         response = self.client.get('/error-check/forbidden/')
         self.assertContains(response, 'Geen toegang', status_code=403)
         self.assertTemplateUsed(response, '403.html')
-        self.assertContains(response, 'Search Visibility Toolkit', status_code=403)
+        self.assertContains(response, 'TrafficStack', status_code=403)
         self.assertNotContains(response, 'PRIVATE_PERMISSION_REASON', status_code=403)
 
     def test_missing_resource_and_unknown_route_use_standard_404(self):
