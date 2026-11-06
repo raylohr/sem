@@ -31,7 +31,7 @@ class WorkspaceTests(TestCase):
                 response=self.client.get(reverse('ui:'+name,args=[self.project.pk]))
                 self.assertEqual(response.status_code,200)
                 self.assertContains(response,'/vendor/bootstrap/5.3.8/bootstrap.min.')
-                self.assertContains(response,'/brand/website_menu.')
+                self.assertContains(response,'/brand/trafficstack_horizontal.')
                 self.assertContains(response,'/vendor/bootstrap/5.3.8/bootstrap.bundle.min.')
                 self.assertNotContains(response,'cdn.jsdelivr.net')
 
@@ -67,7 +67,7 @@ class WorkspaceTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertContains(response,'/static/vendor/bootstrap/5.3.8/')
         self.assertContains(response,'autocomplete="current-password"')
-        self.assertContains(response,'/brand/website_horizontal.')
+        self.assertContains(response,'/brand/trafficstack_horizontal_tagline.')
         self.assertContains(response,'/brand/favicon.')
         self.assertNotContains(response,'https://cdn.')
         response=self.client.get(reverse('admin:login'))
