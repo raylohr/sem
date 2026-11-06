@@ -85,6 +85,33 @@ def category_detail(request,project_id,dossier_id,category_key):
 
 @never_cache
 @login_required
+@require_GET
+def references(request,project_id,dossier_id):
+    ctx=dossier_context(request,project_id,dossier_id)
+    from scans.references import DESTINATIONS,FUNCTIONS
+    from .references import REASONS
+    rows=ctx['dossier'].references.all().order_by('id')
+    filters={key:request.GET.get(key,'') for key in ('destination','function','outcome')}
+    for key,value in filters.items():
+        if value:rows=rows.filter(**{key:value[:24]})
+    counts=list(ctx['dossier'].references.values('destination','function','outcome').annotate(n=Count('id')).order_by('destination','function','outcome'))
+    if request.GET.get('download')=='1':
+        def output():
+            yield json.dumps({'type':'references','version':ctx['dossier'].version,'dossier':str(ctx['dossier'].pk)})+'\n'
+            for ref in rows.iterator(chunk_size=500):
+                yield json.dumps({'source_url':ref.source_url,'url':ref.url,'destination':ref.destination,'function':ref.function,'scope':ref.scope,'outcome':ref.outcome,'reason':ref.reason,'evidence':ref.snapshot},ensure_ascii=False)+'\n'
+        response=StreamingHttpResponse(output(),content_type='application/x-ndjson')
+        response['Content-Disposition']='attachment; filename="references.jsonl"'
+        return response
+    page=Paginator(rows,50).get_page(request.GET.get('page'))
+    for ref in page:ref.reason_label=REASONS.get(ref.reason,ref.reason)
+    query=request.GET.copy();query.pop('page',None)
+    ctx.update(page=page,counts=counts,destinations=DESTINATIONS,functions=FUNCTIONS,filters=filters,filter_query=query.urlencode())
+    return render(request,'reporting/references.html',ctx)
+
+
+@never_cache
+@login_required
 @require_POST
 def retry(request,project_id,dossier_id):
     ctx=dossier_context(request,project_id,dossier_id)
@@ -147,6 +174,7 @@ def export(request,project_id,dossier_id):
         yield json.dumps({'type':'dossier','id':str(dossier.pk),'version':dossier.version,'status':dossier.status,'coverage':dossier.coverage,'actions_exported_at':timezone.now().isoformat()},ensure_ascii=False)+'\n'
         for item in dossier.inputs.all():yield json.dumps({'type':'input','snapshot':item.snapshot})+'\n'
         for item in dossier.categories.all():yield json.dumps({'type':'category','key':item.key,'state':item.state,'score':item.score,'coverage':item.coverage,'calculation':item.calculation},ensure_ascii=False)+'\n'
+        for ref in dossier.references.iterator(chunk_size=500):yield json.dumps({'type':'reference','source_url':ref.source_url,'url':ref.url,'destination':ref.destination,'function':ref.function,'scope':ref.scope,'outcome':ref.outcome,'reason':ref.reason,'snapshot':ref.snapshot},ensure_ascii=False)+'\n'
         for resource in dossier.resources.iterator(chunk_size=200):yield json.dumps({'type':'resource','url':resource.url,'purpose':resource.purpose,'measured_at':resource.measured_at.isoformat() if resource.measured_at else None,'checks':resource.checks,'snapshot':resource.snapshot},ensure_ascii=False)+'\n'
         for page in dossier.pages.iterator(chunk_size=200):yield json.dumps({'type':'page','url':page.url,'scope':page.scope,'measured_at':page.measured_at.isoformat() if page.measured_at else None,'checks':page.checks,'snapshot':page.snapshot},ensure_ascii=False)+'\n'
         for group in dossier.groups.prefetch_related('actions').iterator(chunk_size=100):

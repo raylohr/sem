@@ -7,11 +7,12 @@ from .models import AnalysisResult,Finding,FindingEvidence
 RULES={
  'resource_http_error':('assets','high','Bestand geeft een HTTP-fout','Herstel het gedeelde bestand of pas de verwijzingen aan; bekijk alle betrokken pagina’s bij de bestandsmeting.'),
  'resource_mime_mismatch':('assets','medium','Bestandstype wijkt af van de verwijzing','Controleer de route en het Content-Type; een HTML-antwoord is geen werkend script of stylesheet.'),
+ 'resource_download_mime':('assets','medium','Download geeft een onverwacht bestandstype','Controleer het Content-Type en de downloadroute; een HTML-antwoord is geen PDF of Office-document.'),
  'resource_image_large':('assets','low','Afbeelding boven ingestelde grootteadviesgrens','Beoordeel formaat en compressie in de getoonde gebruikscontext. Dit is geen gemeten paginalaadtijd of besparingsgarantie.'),
  'external_http_error':('technical','medium','Externe linkbestemming geeft een HTTP-fout','Controleer de externe bestemming en werk de verwijzing zo nodig bij. De externe site is niet verder gecrawld.'),
 }
 
-CONTROL_VERSION='resource-controls-v2'
+CONTROL_VERSION='resource-controls-v3'
 
 
 def checks(target,threshold,types=None):
@@ -23,8 +24,10 @@ def checks(target,threshold,types=None):
     failed=measured and (status in (404,410) or 500<=status<=599 or 400<=status<500 and status not in (401,403,408,425,429,451))
     states={}
     if target.purpose=='external':
+        if 'download' in types:states['resource_download_mime']=download_type_state(target.url,mime,status)
         states['external_http_error']='issue' if failed else 'unknown' if unknown or not measured or status in (408,425,451) or 300<=status<400 else 'pass'
         return states
+    if 'download' in types:states['resource_download_mime']=download_type_state(target.url,mime,status)
     states['resource_http_error']='issue' if failed else 'unknown' if unknown or not measured or status in (408,425,451) or 300<=status<400 else 'pass'
     expected=[kind for kind in types if kind in ('script','stylesheet','image','font')]
     valid={'script':{'text/javascript','application/javascript','application/x-javascript','text/ecmascript','application/ecmascript'},'stylesheet':{'text/css'}}
@@ -89,3 +92,19 @@ def attach(run,batch,summary):
     run.coverage['resource_controls_version']=CONTROL_VERSION
     run.coverage['resource_checks']={rule:dict(states) for rule,states in coverage.items()}
     run.coverage['resource_scan']=batch.request_metadata.get('resource_scan',{})
+
+
+def download_type_state(url,mime,status):
+    from urllib.parse import urlsplit
+    extension=urlsplit(url).path.lower().rsplit('.',1)[-1]
+    expected={'pdf':{'application/pdf'},'zip':{'application/zip','application/x-zip-compressed'},
+        'doc':{'application/msword'},'docx':{'application/vnd.openxmlformats-officedocument.wordprocessingml.document'},
+        'xls':{'application/vnd.ms-excel'},'xlsx':{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},
+        'ppt':{'application/vnd.ms-powerpoint'},'pptx':{'application/vnd.openxmlformats-officedocument.presentationml.presentation'}}
+    mime=mime.split(';')[0].lower().strip()
+    if status is not None and status>=400:return 'not_applicable'
+    family='image/' if extension in ('jpg','jpeg','png','gif','webp','avif','svg','ico') else 'audio/' if extension=='mp3' else 'video/' if extension in ('mp4','webm') else 'font/' if extension in ('woff','woff2','ttf') else ''
+    expected.update({'css':{'text/css'},'js':{'text/javascript','application/javascript'}})
+    if extension not in expected and not family:return 'not_applicable'
+    if status is None or not 200<=status<300 or not mime or mime=='application/octet-stream':return 'unknown'
+    return 'pass' if (mime.startswith(family) if family else mime in expected[extension]) else 'issue'

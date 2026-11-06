@@ -22,6 +22,8 @@ class PageParser(HTMLParser):
         self.language = ''
         self.base = ''
         self.link_details = []
+        self.fragment_targets = set()
+        self.fragment_targets_complete = True
         self.link_count = 0
         self.anchor = None
         self.robot_directives = []
@@ -36,6 +38,10 @@ class PageParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs = {key:value or '' for key,value in attrs}
+        fragment = attrs.get('id') or (attrs.get('name') if tag=='a' else None)
+        if fragment:
+            if len(self.fragment_targets)<10000:self.fragment_targets.add(fragment[:1024])
+            else:self.fragment_targets_complete=False
         if tag in ('svg', 'math'):
             self.foreign_depth += 1
         if tag == 'script' and attrs.get('type', '').lower().split(';')[0].strip() == 'application/ld+json':
@@ -76,7 +82,7 @@ class PageParser(HTMLParser):
                 self.link_count += 1
                 if len(self.links) < 2000:
                     self.links.append(attrs['href'])
-                    self.anchor = {'href': attrs['href'], 'text': [],
+                    self.anchor = {'href': attrs['href'], 'text': [], 'download':'download' in attrs,
                         'rel': (attrs.get('rel') or '').lower().split(), 'locator': f'html:{self.getpos()[0]}:{self.getpos()[1]}'}
                     self.link_details.append(self.anchor)
                     if attrs.get('data-cfemail') or '__cf_email__' in attrs.get('class', '').split():
@@ -179,14 +185,15 @@ def extract_page(result):
         reasons.append('noindex')
     if canonical_elsewhere:
         reasons.append('canonical_elsewhere')
-    fields = {'extractor_version': 'html-v8', 'transfer_measurements':getattr(result,'measurements',{}),'headers_observed':True,'response_headers':retained_headers,
+    fields = {'extractor_version': 'html-v9', 'transfer_measurements':getattr(result,'measurements',{}),'headers_observed':True,'response_headers':retained_headers,
         'canonical_sources':canonical_sources, 'hreflang':[dict(item,url=urljoin(base,item['url']) if item['url'] else '') for item in parser.hreflang[:100]], 'hreflang_truncated':len(parser.hreflang)>=100,
         'heading_sequence':parser.headings, 'headings_truncated':len(parser.headings)>=200,
         'images':[dict(item,src=urljoin(base,item['src']) if item['src'] else '') for item in parser.images], 'image_count':parser.image_count, 'images_truncated':parser.image_count>len(parser.images),
         'jsonld':parser.jsonld, 'jsonld_count':parser.jsonld_count, 'jsonld_truncated':parser.jsonld_count>20, 'protected_email_locators': parser.protected_email_locators, 'resource_urls': [urljoin(base, value) for value in parser.resource_urls], 'indexability_reasons': reasons,
         'robot_directives': parser.robot_directives + ([{'source': 'header', 'agent': 'unspecified', 'value': result.headers['x-robots-tag']}] if result.headers.get('x-robots-tag') else []),
         'link_count': parser.link_count, 'links_truncated': parser.link_count > len(parser.links),
-        'link_details': [{'url': urljoin(base, link['href']), 'anchor_text': ' '.join(' '.join(link['text']).split()), 'rel': link['rel'], 'locator': link['locator']} for link in parser.link_details],
+        'fragment_targets':sorted(parser.fragment_targets),'fragment_targets_complete':parser.fragment_targets_complete,
+        'link_details': [{'url': urljoin(base, link['href']), 'anchor_text': ' '.join(' '.join(link['text']).split()), 'raw_url':link['href'],'download':link['download'],'rel': link['rel'], 'locator': link['locator']} for link in parser.link_details],
         'text_extraction_basis': 'server HTML, excluding script/style/noscript; includes navigation and CSS-hidden text',
         'titles': parser.title, 'meta_descriptions': parser.descriptions,
         'h1': parser.h1, 'h2': parser.h2, 'canonicals': canonicals, 'robots': robots,

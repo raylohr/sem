@@ -106,7 +106,7 @@ class AssessmentTests(TestCase):
         self.assertEqual(findings.first().details['anchor_text'], 'Broken')
         result = run.results.get(source_record__data__url='https://example.com/')
         self.assertEqual(result.outcome, 'issue')
-        self.assertEqual(result.answer['links']['unmeasured_targets'], 1)
+        self.assertEqual(result.answer['links']['unmeasured_targets'], 0)
         self.assertEqual(PageMeasurement.objects.get(batch=batch, http_status=200).response_time_ms, 125)
         # Another batch's 404 must never supply evidence for this crawl.
         another = self.batch()
@@ -152,11 +152,11 @@ class AssessmentTests(TestCase):
     def test_reindex_replaces_measurements_preserves_previous_analysis(self):
         batch = self.batch()
         original = self.publish(batch, [self.page(link_details=[{'url': 'https://example.com/x'}]), self.page('/x', 404)])
-        original_evidence = list(Finding.objects.filter(result__run=original).values_list('details', flat=True))
+        original_evidence = list(Finding.objects.filter(result__run=original).order_by('id').values_list('details', flat=True))
         index_batch(batch.pk)
         self.assertEqual(PageMeasurement.objects.filter(batch=batch).count(), 2)
         self.assertEqual(LinkObservation.objects.filter(source__batch=batch).count(), 1)
-        self.assertEqual(list(Finding.objects.filter(result__run=original).values_list('details', flat=True)), original_evidence)
+        self.assertEqual(list(Finding.objects.filter(result__run=original).order_by('id').values_list('details', flat=True)), original_evidence)
 
     def test_batch_deletion_cascades_and_other_batch_survives(self):
         batch = self.batch(); other = self.batch()

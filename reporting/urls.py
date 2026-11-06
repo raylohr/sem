@@ -8,6 +8,7 @@ urlpatterns=[
     path('proposals/<int:proposal_id>/dismiss/',views.proposal_dismiss,name='proposal-dismiss'),
     path('',views.overview,name='overview'),path('start/',views.start,name='start'),
     path('dossiers/<uuid:dossier_id>/',views.detail,name='dossier'),
+    path('dossiers/<uuid:dossier_id>/references/',views.references,name='references'),
     path('dossiers/<uuid:dossier_id>/categories/<str:category_key>/',views.category_detail,name='category'),
     path('dossiers/<uuid:dossier_id>/retry/',views.retry,name='retry'),
     path('dossiers/<uuid:dossier_id>/prospect/',views.prospect,name='prospect'),

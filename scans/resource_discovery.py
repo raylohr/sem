@@ -87,7 +87,7 @@ def tag_resources(parser,tag,attrs,location):
             parser.assets_complete=False;return
         if len(raw)>4096:parser.assets_complete=False;return
         parser.asset_candidates.append({**location,'raw_url':raw,'kind':kind,'reference_type':attribute})
-    if tag=='a' and known_file(attrs.get('href','')):add(attrs.get('href',''),'download','href')
+    if tag=='a' and ('download' in attrs or known_file(attrs.get('href',''))):add(attrs.get('href',''),'download','href')
     if tag in ('img','source'):
         add(attrs.get('src',''),'image' if tag=='img' else 'media','src')
         for attribute in ('srcset','data-srcset'):

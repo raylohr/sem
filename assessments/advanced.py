@@ -110,7 +110,8 @@ def broken_links(batch,index):
     if index is None:return
     hashes={key[0] for key,target in index.items() if target['final_http_status']==404}
     if not hashes:return
-    query=LinkObservation.objects.filter(source__batch=batch)
+    from .references import internal_navigation
+    query=internal_navigation(LinkObservation.objects.filter(source__batch=batch))
     if len(hashes)<=1000:query=query.filter(destination_hash__in=hashes)
     for link in query.select_related('source').order_by('source_id','position').iterator(chunk_size=200):
         target=index.get((link.destination_hash,link.source.facts.get('privacy_scenario') or 'baseline'))
@@ -146,7 +147,7 @@ class Recorder:
         self.page=page;self.result=result;self.checks={};self.issues=defaultdict(list);self.targets=defaultdict(dict)
     def check(self,rule,state,details=None,target=None):
         old=self.checks.get(rule)
-        rank={'not_applicable':0,'pass':1,'unknown':2,'issue':3}
+        rank={'not_applicable':0,'pass':1,'not_tested':2,'unknown':3,'issue':4}
         if old is None or rank[state]>rank[old]:self.checks[rule]=state
         if state=='issue':
             if len(self.issues[rule])<20:self.issues[rule].append(details or {})
@@ -289,13 +290,14 @@ def persist_recorders(recorders,run,summary,coverage):
 def extend_link_checks(recorders,batch,targets):
     """Three bounded set queries per page chunk, avoiding correlated OR subqueries."""
     sources={rec.page.pk:rec for rec in recorders}
-    links=LinkObservation.objects.filter(source_id__in=sources)
+    from .references import internal_navigation
+    links=internal_navigation(LinkObservation.objects.filter(source_id__in=sources))
     if targets is None:return
     for link in links.order_by('source_id','position').iterator(chunk_size=500):
         rec=sources[link.source_id];scenario=rec.page.facts.get('privacy_scenario') or 'baseline'
         target=targets.get((link.destination_hash,scenario))
         if not target:
-            rec.check('link_to_nonindexable','unknown');continue
+            rec.check('link_to_nonindexable','not_tested');continue
         if target['final_http_status'] is None or (target['final_http_status']==200 and target['is_indexable'] is None):
             rec.check('link_to_nonindexable','unknown')
         target={**target,'facts__canonicals':None,'facts__hreflang':None}
@@ -342,19 +344,22 @@ def update_link_coverage(run,batch,targets):
     pages=PageMeasurement.objects.filter(batch=batch).order_by('id')
     for chunk in chunks(pages.iterator(chunk_size=100),100):
         sources={page.pk:page for page in chunk}
-        links=list(LinkObservation.objects.filter(source_id__in=sources).values_list('source_id','destination_hash'))
-        totals=Counter();measured=Counter()
-        for source_id,url_hash in links:
+        from .references import internal_navigation
+        links=list(internal_navigation(LinkObservation.objects.filter(source_id__in=sources),include_excluded=True).values_list('source_id','destination_hash','details__reference__scope'))
+        totals=Counter();measured=Counter();uncertain=Counter()
+        for source_id,url_hash,scope in links:
             totals[source_id]+=1
-            target=(targets or {}).get((url_hash,sources[source_id].facts.get('privacy_scenario') or 'baseline'))
+            target=(targets or {}).get((url_hash,sources[source_id].facts.get('privacy_scenario') or 'baseline')) if scope=='allowed' else None
             if target and target['final_http_status'] is not None:measured[source_id]+=1
+            elif target:uncertain[source_id]+=1
         results=list(AnalysisResult.objects.filter(run=run,source_record_id__in=[page.source_record_id for page in chunk]))
         by_record={page.source_record_id:page.pk for page in chunk}
         for result in results:
             source_id=by_record[result.source_record_id];total=totals[source_id];known=measured[source_id]
-            result.answer['links']={'total':total,'measured_targets':known,'unmeasured_targets':total-known}
+            result.answer['links']={'scope':'own_allowed_navigation','version':'references-v1','total':total,'measured_targets':known,'unmeasured_targets':total-known,'unknown_targets':uncertain[source_id],'not_tested_targets':total-known-uncertain[source_id]}
+            if total==0 and result.answer['checks']['links_to_404']=='pass':result.answer['checks']['links_to_404']='not_applicable'
             if total!=known:
-                if result.answer['checks']['links_to_404']!='issue':result.answer['checks']['links_to_404']='unknown'
+                if result.answer['checks']['links_to_404']!='issue':result.answer['checks']['links_to_404']='unknown' if uncertain[source_id] else 'not_tested'
                 if result.outcome=='pass':result.outcome='unknown'
         AnalysisResult.objects.bulk_update(results,['answer','outcome'],batch_size=100)
     return targets
@@ -398,7 +403,7 @@ def extend_analysis(run,batch,summary,target_index):
                 link_counts=result.answer.get('links',{})
                 known=page.coverage.get('links_known') and not any(page.coverage.get(k) for k in ('links_truncated','analysis_truncated','legacy_link_limit_unknown'))
                 fully_measured=link_counts.get('total')==link_counts.get('measured_targets') and 'total' in link_counts
-                rec.check(rule,'pass' if known and fully_measured and target_index is not None else 'unknown')
+                rec.check(rule,'not_applicable' if known and link_counts.get('total')==0 else 'pass' if known and fully_measured and target_index is not None else 'unknown' if link_counts.get('unknown_targets') else 'not_tested' if known and target_index is not None else 'unknown')
             recorders.append(rec)
         duplicate_peer_evidence(run,batch,chunk)
         extend_link_checks(recorders,batch,target_index)

@@ -112,3 +112,19 @@ class ReprocessingJob(models.Model):
     error = models.CharField(max_length=255, blank=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['batch'], condition=models.Q(status__in=['pending', 'processing']), name='assessment_active_job')]
+
+
+class ReferenceObservation(models.Model):
+    source=models.ForeignKey(PageMeasurement,on_delete=models.CASCADE,related_name='references')
+    analysis_run=models.ForeignKey(AnalysisRun,null=True,on_delete=models.CASCADE,related_name='references')
+    identity=models.CharField(max_length=64)
+    url=models.TextField()
+    destination=models.CharField(max_length=24)
+    function=models.CharField(max_length=24)
+    scope=models.CharField(max_length=24)
+    outcome=models.CharField(max_length=24)
+    reason=models.CharField(max_length=80,blank=True)
+    details=models.JSONField(default=dict)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['source','identity'],name='reference_source_identity')]
+        indexes=[models.Index(fields=['analysis_run','destination','function'],name='reference_axes'),models.Index(fields=['analysis_run','outcome'],name='reference_outcome')]

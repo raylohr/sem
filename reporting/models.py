@@ -11,7 +11,7 @@ class Dossier(models.Model):
     actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
     title=models.CharField(max_length=200)
     status=models.CharField(max_length=16,default='pending')
-    version=models.CharField(max_length=40,default='report-v1')
+    version=models.CharField(max_length=40,default='report-v2')
     created_at=models.DateTimeField(auto_now_add=True)
     completed_at=models.DateTimeField(null=True)
     coverage=models.JSONField(default=dict)
@@ -168,3 +168,18 @@ class ProposalReviewEvent(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     decision=models.CharField(max_length=16)
     reason=models.TextField(blank=True)
+
+
+class DossierReference(models.Model):
+    dossier=models.ForeignKey(Dossier,on_delete=models.CASCADE,related_name='references')
+    source=models.ForeignKey('assessments.ReferenceObservation',null=True,on_delete=models.SET_NULL)
+    source_url=models.TextField()
+    url=models.TextField()
+    destination=models.CharField(max_length=24)
+    function=models.CharField(max_length=24)
+    scope=models.CharField(max_length=24)
+    outcome=models.CharField(max_length=24)
+    reason=models.CharField(max_length=80,blank=True)
+    snapshot=models.JSONField(default=dict)
+    class Meta:
+        indexes=[models.Index(fields=['dossier','destination','function','outcome'],name='dossier_reference_filter'),models.Index(fields=['dossier','function','id'],name='dossier_ref_function'),models.Index(fields=['dossier','outcome','id'],name='dossier_ref_outcome'),models.Index(fields=['dossier','id'],name='dossier_ref_order')]

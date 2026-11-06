@@ -235,7 +235,7 @@ def collect_resources(dossier,inputs,limits):
             count+=1
             if count>50000:limits.add('resource_limit');break
             buffer.append(DossierResource(dossier=dossier,measurement=target,url=target.url,url_hash=url_identity(target.url)[1],purpose=target.purpose,
-                measured_at=target.measured_at,checks=checks(target,threshold,kinds[target.pk]),snapshot={
+                measured_at=target.measured_at,checks={rule:('not_tested' if state=='unknown' and (target.outcome.startswith('not_measured') or target.evidence.get('error_code')=='policy_denied') else state) for rule,state in checks(target,threshold,kinds[target.pk]).items()},snapshot={
                     'definitions':{item.snapshot['definition']:item.snapshot['rule_version']},'control_versions':{key:CONTROL_VERSION for key in checks(target,threshold,kinds[target.pk])},'threshold_bytes':threshold,
                     'http_status':target.http_status,'outcome':target.outcome,'final_url':target.final_url,'headers':target.headers,
                     'measurements':target.measurements,'evidence':target.evidence,'expected_types':sorted(kinds[target.pk])}))
@@ -304,6 +304,41 @@ def collect_groups(dossier,inputs,limits):
     IssueGroup.objects.bulk_update(groups.values(),['occurrences','affected_urls','severity'],batch_size=200)
 
 
+def collect_references(dossier,inputs,limits):
+    from .models import DossierReference
+    from assessments.models import ReferenceObservation
+    count=0;buffer=[]
+    for item in inputs:
+        if item.snapshot['definition']!='crawl-basics':continue
+        if item.run.coverage.get('reference_inventory_truncated'):limits.add('reference_limit')
+        for ref in ReferenceObservation.objects.filter(analysis_run_id=item.run_id).select_related('source').order_by('pk').iterator(chunk_size=500):
+            count+=1
+            if count>500000:limits.add('reference_limit');break
+            buffer.append(DossierReference(dossier=dossier,source=ref,source_url=ref.source.final_url,url=ref.url,
+                destination=ref.destination,function=ref.function,scope=ref.scope,outcome=ref.outcome,reason=ref.reason,
+                snapshot={**ref.details,'scope':item.kind,'measured_at':ref.source.measured_at.isoformat() if ref.source.measured_at else None}))
+            if len(buffer)>=500:DossierReference.objects.bulk_create(buffer,batch_size=500);buffer=[]
+    if buffer:DossierReference.objects.bulk_create(buffer,batch_size=500)
+    # Retain discovered but unscheduled targets in coverage, too: absence of a
+    # download is not success and must not vanish when a phase was disabled.
+    from django.db.models import Q
+    existing=set(dossier.resources.values_list('url_hash',flat=True));supplements=[]
+    query=dossier.references.filter(snapshot__scope='crawl').filter(Q(function__in=('loaded_resource','download'))|Q(destination='external',function='navigation')).order_by('id')
+    for ref in query.iterator(chunk_size=500):
+        url,url_hash=url_identity(ref.url)
+        if url_hash in existing:continue
+        if len(existing)>=50000:limits.add('resource_limit');break
+        existing.add(url_hash)
+        rule='external_http_error' if ref.function=='navigation' else 'resource_http_error'
+        checks={rule:ref.snapshot.get('checks',{}).get('availability',ref.outcome)}
+        if ref.function=='download':checks['resource_download_mime']=ref.snapshot.get('checks',{}).get('file_type','not_tested')
+        supplements.append(DossierResource(dossier=dossier,url=url,url_hash=url_hash,purpose='external' if ref.function=='navigation' else 'resource',
+            measured_at=date(ref.snapshot.get('measured_at')),checks=checks,snapshot={'outcome':ref.outcome,'reason':ref.reason,'evidence':ref.snapshot,'basis':'reference evidence; existing page measurement or explicitly not measured'}))
+        if len(supplements)>=500:DossierResource.objects.bulk_create(supplements,batch_size=500);supplements=[]
+    if supplements:DossierResource.objects.bulk_create(supplements,batch_size=500)
+
+
+
 def calculate_categories(dossier,limits):
     for key in EXPECTED:
         scope='browser' if key=='experience' and dossier.browser_id else 'crawl'
@@ -313,17 +348,31 @@ def calculate_categories(dossier,limits):
         if limits:state,value='insufficient',None
         coverage.update({'url_count':pages.count(),'scope':'Browsersteekproef' if scope=='browser' else 'Webcrawl'})
         CategoryScore.objects.create(dossier=dossier,key=key,title=CATEGORIES[key],state=state,score=value,coverage=coverage,calculation=calculation)
+    file_rules=['resource_http_error','external_http_error','resource_mime_mismatch','resource_download_mime','resource_image_large']
+    resource_rows=({rule:states.get(rule,'not_applicable') for rule in file_rules} for states in dossier.resources.values_list('checks',flat=True).iterator(chunk_size=500))
+    state,value,coverage,calculation=score(resource_rows,file_rules)
+    reasons=Counter()
+    for resource in dossier.resources.values('snapshot__outcome','snapshot__reason'):
+        outcome=resource['snapshot__outcome'] or 'not_measured'
+        if outcome.startswith('not_measured') or outcome=='not_tested':
+            reasons[resource['snapshot__reason'] or outcome]+=1
+        elif outcome in ('blocked','redirect_blocked','download_error','interrupted_unknown','unknown_response'):reasons[outcome]+=1
+    sections={}
+    for purpose,label in [('resource','Bestanden en downloads'),('external','Externe linkbestemmingen')]:
+        _,_,part,_=score(({rule:states.get(rule,'not_applicable') for rule in file_rules} for states in dossier.resources.filter(purpose=purpose).values_list('checks',flat=True).iterator(chunk_size=500)),file_rules)
+        sections[purpose]={**part,'title':label,'targets':dossier.resources.filter(purpose=purpose).count()}
+    coverage.update({'sections':sections,'scope':'Afzonderlijke bestanden en externe linkbestemmingen','url_count':dossier.resources.count(),'reasons':dict(reasons)})
+    if limits:state,value='insufficient',None
+    CategoryScore.objects.create(dossier=dossier,key='files',title=CATEGORIES['files'],state=state,score=value,coverage=coverage,calculation=calculation)
     counts=Counter();browser_urls=dossier.pages.filter(scope='browser').values('url_hash').distinct().count()
     for checks in dossier.pages.filter(scope__startswith='privacy:').exclude(scope='privacy:baseline').values_list('checks',flat=True):counts[checks.get('privacy_tracking','unknown')]+=1
     expected=browser_urls*4
     counts['unknown']+=max(0,expected-sum(counts.values()))
     known=counts['issue']+counts['pass']
     CategoryScore.objects.create(dossier=dossier,key='privacy',title=CATEGORIES['privacy'],state='signals' if counts['issue'] else 'observed' if expected and known==expected else 'insufficient',
-        coverage={'counts':dict(counts),'known':known,'applicable':expected,'percent':round(100*known/expected,1) if expected else 0,'scope':'Vier afzonderlijke toestemmingsscenario’s'},
+        coverage={'technology':dossier.coverage.get('frozen_technology',{}),'counts':dict(counts),'known':known,'applicable':expected,'percent':round(100*known/expected,1) if expected else 0,'scope':'Vier afzonderlijke toestemmingsscenario’s'},
         calculation={'version':VERSION,'interpretation':'technical consent signals; no legal compliance score'})
-    technology=dossier.coverage.get('frozen_technology',{})
-    CategoryScore.objects.create(dossier=dossier,key='technology',title=CATEGORIES['technology'],state='profile' if technology else 'insufficient',
-        coverage=technology,calculation={'version':VERSION,'interpretation':'publisher geography is separate from data location, contract and GDPR compliance'})
+
 
 
 @transaction.atomic
@@ -336,8 +385,8 @@ def assemble(dossier_id):
     if not inputs or any(not item.run_id or not item.batch_id or item.batch.project_id!=dossier.project_id or item.run.status!='complete' for item in inputs):
         raise ValidationError('Een bevroren analysebron is niet meer beschikbaar.')
     dossier.status='processing';dossier.save(update_fields=['status'])
-    dossier.proposals.all().delete();dossier.pages.all().delete();dossier.resources.all().delete();dossier.groups.all().delete();dossier.categories.all().delete()
-    limits=set();collect_pages(dossier,inputs,limits);collect_resources(dossier,inputs,limits);collect_groups(dossier,inputs,limits);calculate_categories(dossier,limits)
+    dossier.proposals.all().delete();dossier.pages.all().delete();dossier.resources.all().delete();dossier.groups.all().delete();dossier.categories.all().delete();dossier.references.all().delete()
+    limits=set();collect_pages(dossier,inputs,limits);collect_resources(dossier,inputs,limits);collect_references(dossier,inputs,limits);collect_groups(dossier,inputs,limits);calculate_categories(dossier,limits)
     from .proposals import build as build_proposals
     build_proposals(dossier)
     dates=dossier.pages.exclude(measured_at=None).order_by('measured_at')

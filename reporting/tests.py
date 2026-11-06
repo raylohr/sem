@@ -225,7 +225,7 @@ class ReportTests(TestCase):
         self.assertContains(download,'Voorbeeldpagina:');self.assertContains(download,'https://example.com/missing')
         export=self.client.get(reverse('ui:reports:export',args=[self.project.pk,dossier.pk]))
         rows=[json.loads(line) for line in b''.join(export.streaming_content).decode().splitlines()]
-        self.assertTrue(any(row['type']=='evidence' for row in rows));self.assertTrue(any(row['type']=='category' and row['calculation']['version']=='report-v1' for row in rows))
+        self.assertTrue(any(row['type']=='evidence' for row in rows));self.assertTrue(any(row['type']=='category' and row['calculation']['version']=='report-v2' for row in rows))
         self.assertEqual(self.client.get(reverse('ui:reports:start',args=[self.project.pk])).status_code,403)
         self.client.force_login(self.other)
         for name,args in names:self.assertEqual(self.client.get(reverse('ui:reports:'+name,args=[self.project.pk,*args])).status_code,404,name)

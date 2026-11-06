@@ -100,7 +100,10 @@ def add(work,url,purpose,reference,depth=0):
         work.resource_target_count+=1
         work.resource_purpose_counts[purpose]=work.resource_purpose_counts.get(purpose,0)+1
     else:connection.execute('UPDATE resource_targets SET depth=min(depth,?) WHERE key=?',(depth,key))
-    reference={k:v for k,v in reference.items() if k in ('source_url','locator','element_path','kind','parent_url','raw_url','reference_type')}
+    from .references import classify
+    classification=classify(url,reference.get('source_url',url),getattr(work,'reference_config',{}),function='loaded_resource' if reference.get('kind') not in ('download','hyperlink') else 'download' if reference.get('kind')=='download' else None)
+    reference={**reference,**{k:classification[k] for k in ('destination','function','scope')},'classification_version':classification['version']}
+    reference={k:v for k,v in reference.items() if k in ('source_url','locator','element_path','kind','parent_url','raw_url','reference_type','destination','function','scope','classification_version')}
     identity=hashlib.sha256(json.dumps(reference,sort_keys=True).encode()).hexdigest()
     if work.resource_ref_count>=MAX_REFS:
         work.set('resource_inventory_truncated',True);return
@@ -129,8 +132,13 @@ def seed(work,config,check_access):
                 for reference in data.get('link_details',[]):
                     try:host=urlsplit(normalize_url(reference.get('url'))).hostname
                     except ScanError:continue
+                    from .references import classify
+                    classification=classify(reference['url'],source,config,download=reference.get('download',False))
+                    if classification['function'] in ('fragment','contact','action'):continue
+                    if classification['function']=='download' and config.get('check_resources'):continue
                     if host not in navigation_hosts(config):
-                        add(work,reference['url'],'external',{**reference,'source_url':source,'kind':'hyperlink'})
+                        shared=work.connection.execute("SELECT 1 FROM resource_targets WHERE purpose='resource' AND url=?",(normalize_url(reference['url']),)).fetchone()
+                        add(work,reference['url'],'resource' if shared else 'external',{**reference,'source_url':source,'kind':'download' if classification['function']=='download' else 'hyperlink'})
                 if data.get('links_truncated') or data.get('analysis_truncated'):work.set('resource_discovery_incomplete',True)
         work.set('resource_seed_after',index+1)
     work.set('resource_seed_done',True)
@@ -182,6 +190,7 @@ def expand_css(work,key,url,depth,result,config):
 
 
 def run(batch,work,config,check_access):
+    work.reference_config=config
     initialize(work)
     if not work.get('resource_seed_done'):seed(work,config,check_access)
     if hasattr(batch,'project_id'):

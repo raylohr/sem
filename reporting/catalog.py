@@ -1,21 +1,22 @@
-"""Immutable report-v1 scoring definitions. Unknown controls never earn points."""
+"""Versioned report-v2 scoring definitions. Unknown controls never earn points."""
 from assessments.advanced import RULES,CORE_RULES
 
-VERSION='report-v1'
+VERSION='report-v2'
 CATEGORIES={'technical':'Techniek & indexeerbaarheid','content':'Content & structuur',
-    'experience':'Gebruikerservaring & toegankelijkheid','privacy':'Privacy & toestemming','technology':'Technologie & afhankelijkheid'}
+    'files':'Bestanden & externe links','experience':'Gebruikerservaring & toegankelijkheid','privacy':'Privacy & technologie','technology':'Technologie & afhankelijkheid'}
 BASE={'links_to_404':'link_to_404','titles':'missing_titles','meta_descriptions':'missing_meta_descriptions','h1':'missing_h1'}
 CONTENT={'missing_titles','missing_meta_descriptions','missing_h1','multiple_titles','multiple_meta_descriptions','multiple_h1',
     'duplicate_titles','duplicate_meta_descriptions','duplicate_text','language_missing','heading_jump','no_observed_inlinks'}
 EXPERIENCE={'image_alt_missing','mixed_content','broken_resource','a11y_contrast','a11y_alt','a11y_structure','performance_field'}
 TECHNICAL=set(CORE_RULES)-CONTENT-EXPERIENCE|{'link_to_404'}
-EXPECTED={'technical':sorted(TECHNICAL),'content':sorted(CONTENT),'experience':sorted(EXPERIENCE)}
-STATES={'issue':3,'unknown':2,'pass':1,'not_applicable':0}
+EXPECTED={'technical':sorted(TECHNICAL),'content':sorted(CONTENT),'experience':sorted(EXPERIENCE-{'broken_resource'})}
+STATES={'issue':3,'unknown':3,'not_tested':2,'pass':1,'not_applicable':0}
 
 
 def category(rule):
+    if rule in ('reference_fragment_missing','reference_contact_invalid'):return 'content'
     if rule=='browser_title_width':return 'content'
-    if rule in ('resource_http_error','resource_mime_mismatch','resource_image_large'):return 'experience'
+    if rule.startswith(('resource_','external_')) or rule=='broken_resource':return 'files'
     if rule.startswith(('tracking_','policy_')):return 'privacy'
     if rule.startswith('accessibility_') or rule in EXPERIENCE:return 'experience'
     if rule in CONTENT:return 'content'
@@ -34,8 +35,8 @@ def normalized_checks(checks):
 
 
 def score(checks_by_url,rules):
-    counts={'pass':0,'issue':0,'unknown':0,'not_applicable':0};earned=possible=0
-    per_rule={rule:{'pass':0,'issue':0,'unknown':0,'not_applicable':0,'weight':weight(rule)} for rule in rules}
+    counts={'pass':0,'issue':0,'unknown':0,'not_applicable':0,'not_tested':0};earned=possible=0
+    per_rule={rule:{'pass':0,'issue':0,'unknown':0,'not_applicable':0,'not_tested':0,'weight':weight(rule)} for rule in rules}
     for checks in checks_by_url:
         for rule in rules:
             state=checks.get(rule,'unknown');state=state if state in STATES else 'unknown'
@@ -43,7 +44,7 @@ def score(checks_by_url,rules):
             if state!='not_applicable':
                 possible+=weight(rule)
                 if state=='pass':earned+=weight(rule)
-    applicable=sum(counts[s] for s in ('pass','issue','unknown'))
+    applicable=sum(counts[s] for s in ('pass','issue','unknown','not_tested'))
     known=counts['pass']+counts['issue']
     coverage=round(100*known/applicable,1) if applicable else 0
     state='not_applicable' if counts['not_applicable'] and not applicable else 'insufficient' if not applicable or known*100<applicable*80 else 'measured'

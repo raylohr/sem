@@ -112,6 +112,23 @@ class ResourceQueueTests(SimpleTestCase):
             self.assertEqual(work.connection.execute('SELECT count(*) FROM resource_refs').fetchone()[0],4)
             self.assertEqual(work.connection.execute('SELECT count(*) FROM resource_targets').fetchone()[0],2)
 
+    def test_external_navigation_and_loaded_resource_share_one_request(self):
+        with ScanWork(self.batch.pk) as work:
+            self.seed(work,'<script src="https://other.example/bundle"></script><a href="https://other.example/bundle">Open</a>')
+            with patch.object(ResourceClient,'fetch',side_effect=lambda url:response(url,b'js',mime='text/javascript')) as fetch:
+                run(self.batch,work,self.config,lambda:None)
+            self.assertEqual(fetch.call_count,1)
+            self.assertEqual(work.connection.execute('SELECT count(*) FROM resource_targets').fetchone()[0],1)
+            self.assertEqual(work.connection.execute('SELECT count(*) FROM resource_refs').fetchone()[0],2)
+
+    def test_external_download_is_checked_even_when_resource_phase_is_off(self):
+        with ScanWork(self.batch.pk) as work:
+            self.seed(work,'<a href="https://other.example/manual.pdf">Document</a>')
+            with patch.object(ResourceClient,'fetch',side_effect=lambda url:response(url,b'%PDF',mime='application/pdf')) as fetch:
+                run(self.batch,work,{**self.config,'check_resources':False},lambda:None)
+            self.assertEqual(fetch.call_count,1)
+            self.assertEqual(work.connection.execute('SELECT purpose FROM resource_targets').fetchone()[0],'external')
+
     def test_sdk_errors_are_discovered_and_linked_to_calculator(self):
         with ScanWork(self.batch.pk) as work:
             self.seed(work,''.join('<script src="/_sdk/'+name+'.js"></script>' for name in ('a','b','c','d')),'/calculator/')

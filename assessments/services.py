@@ -18,8 +18,8 @@ from .r2 import settings_for
 from .models import (PageMeasurement, LinkObservation, AnalysisDefinition, AnalysisRun,
                      AnalysisResult, Finding, FindingEvidence)
 
-EXTRACTOR_VERSION = 'assessment-v7'
-RULE_VERSION = '7'
+EXTRACTOR_VERSION = 'assessment-v8'
+RULE_VERSION = '8'
 
 
 def chunks(iterator, size=100):
@@ -87,6 +87,7 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                 visit__source_record_id__in=[obs.source_record_id for obs in observations],kind='rendered_dom').select_related('visit')}
         pages = []
         link_rows = []
+        reference_data = []
         for obs in observations:
             original = obs.source_record.data
             data = dict(original)
@@ -125,7 +126,7 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                      'headers_observed', 'response_headers', 'robots_allowed', 'googlebot_allowed', 'error', 'error_code',
                      'redirects', 'protected_email_locators', 'privacy_scenario', 'indexability_reasons', 'text_truncated', 'text_extraction_basis', 'body_hash', 'link_count',
                      'discovery_sources','sitemap_url','link_depth_basis','exploration_depth','html_audit','document_structure',
-                     'main_content','structured_data','transfer_measurements','resource_discovery','content_audit','heading_evidence','link_name_evidence','social_metadata','metadata_evidence','aria_references','resource_details','headers_truncated','response_header_values','header_values_observed')
+                     'fragment_targets','fragment_targets_complete','main_content','structured_data','transfer_measurements','resource_discovery','content_audit','heading_evidence','link_name_evidence','social_metadata','metadata_evidence','aria_references','resource_details','headers_truncated','response_header_values','header_values_observed')
             facts = {key: data[key] for key in names if key in data}
             for field in ('titles', 'meta_descriptions'):
                 values = facts.get(field)
@@ -146,8 +147,14 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                 extractor_version=EXTRACTOR_VERSION, facts=facts, coverage=page_coverage)
             pages.append(page)
             link_rows.append(links if links_known else [])
+            reference_data.append(data)
         PageMeasurement.objects.bulk_create(pages, batch_size=100)
         phase(progress_batch,progress_name,done=coverage['pages'],total=batch.record_count)
+        from scans.references import classify
+        from .references import build
+        from .models import ReferenceObservation
+        for page,data in zip(pages,reference_data):
+            ReferenceObservation.objects.bulk_create(build(page,data,batch.request_metadata),batch_size=500)
         links_to_create = []
         for page, links in zip(pages, link_rows):
             for position, link in enumerate(links):
@@ -161,17 +168,24 @@ def rebuild_batch(batch_id, *, recover_documents=False):
                     destination_hash=identity[2], anchor_text=link.get('anchor_text'), rel=link.get('rel'),
                     locator=str(link.get('locator', ''))[:100], discovery_mode='rendered' if batch.scan_kind == 'browser' else 'server',
                     element_path=str(link.get('element_path',''))[:1024],region=str(link.get('region',''))[:24],target=str(link.get('target',''))[:80],
-                    details={key:link[key] for key in ('raw_url','element_type','reference_type','aria_label','aria_labelledby','title_attribute','static_name','name_basis','name_status','visible_text','images','hidden') if key in link} or None))
+                    details={**{'reference':classify(link.get('url',''),page.final_url,batch.request_metadata,download=link.get('download',False),raw_reference=link.get('raw_url'))},**{key:link[key] for key in ('raw_url','element_type','reference_type','aria_label','aria_labelledby','title_attribute','static_name','name_basis','name_status','visible_text','images','hidden') if key in link}}))
                 if len(links_to_create) >= 1000:
                     LinkObservation.objects.bulk_create(links_to_create, batch_size=1000)
                     links_to_create = []
         LinkObservation.objects.bulk_create(links_to_create, batch_size=1000)
+    from .references import evaluate
+    evaluate(batch)
+    coverage['reference_version']='references-v1'
+    coverage['reference_inventory_truncated']=PageMeasurement.objects.filter(batch=batch,coverage__references_truncated=True).exists()
     result=analyze(batch, dict(coverage))
+    ReferenceObservation.objects.filter(source__batch=batch).update(analysis_run=result)
     phase(progress_batch,progress_name,status='complete',done=coverage['pages'],total=batch.record_count)
     return result
 
 
 def analyze(batch, coverage):
+    from .references import prepare_legacy_links
+    prepare_legacy_links(batch)
     definition, _ = AnalysisDefinition.objects.get_or_create(key='crawl-basics', version=RULE_VERSION,
         defaults={'question': 'Welke technische pagina-, canonical-, taal- en interne linkproblemen zijn aantoonbaar in deze metingen?',
                   'output_schema': {'outcome': ['issue', 'pass', 'unknown', 'not_applicable']}})
@@ -269,6 +283,8 @@ def analyze(batch, coverage):
     extend_analysis(run, batch, summary,target_index)
     from .r4 import attach as attach_resources
     attach_resources(run,batch,summary)
+    from .references import attach_findings
+    attach_findings(run,batch,summary)
     run.summary = dict(summary)
     run.status = 'complete'
     run.completed_at = timezone.now()
