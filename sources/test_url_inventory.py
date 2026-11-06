@@ -110,14 +110,26 @@ class URLInventoryTests(TestCase):
         self.assertEqual(rows[1]['observations']['ahrefs']['traffic'],0)
         self.assertIsNone(rows[2]['observations']['ahrefs']['traffic'])
 
-    def test_titles_use_latest_available_source_and_url_is_the_clickable_line(self):
+    def test_titles_prefer_sf_then_ahrefs_and_show_source_or_dash(self):
         url = 'https://example.com/a'
-        self.add('sf', {'Address':url,'Crawl Timestamp':'2026-10-14','Title 1':'Oude titel'})
+        self.add('sf', {'Address':url,'Crawl Timestamp':'2026-10-01','Title 1':'Oude SF-titel'})
+        self.add('sf', {'Address':url,'Crawl Timestamp':'2026-10-14','Title 1':'SF <titel>'})
         self.add('ahrefs', {'URL':url,'last_seen':'2026-10-29','Title':'Nieuwe <titel>'})
         self.add('gsc', {'URL':url,'Last crawled':'2026-11-01'})
         self.add('gsc', {'URL':'https://example.com/no-title','Last crawled':'2026-11-01'})
+        self.add('ahrefs', {'URL':'https://example.com/fallback','last_seen':'2026-10-29','Title':'Ahrefs terugval'})
+        self.add('sf', {'Address':'https://example.com/fallback','Crawl Timestamp':'2026-11-01','Title 1':'   '})
         response = self.client.get(reverse('ui:project',args=[self.project.pk]))
-        self.assertContains(response, '<div class="fw-semibold">Nieuwe &lt;titel&gt;</div>', html=True)
+        self.assertContains(response, 'SF &lt;titel&gt;')
+        self.assertContains(response, 'Ahrefs terugval')
+        self.assertContains(response, 'title="Screaming Frog · 14.10.2026"')
+        self.assertContains(response, 'title="Ahrefs · 29.10.2026"')
         self.assertContains(response, '<a class="small text-muted" href="https://example.com/a">https://example.com/a</a>', html=True)
-        self.assertContains(response, '<div class="fw-semibold">/no-title</div>', html=True)
-        self.assertNotContains(response, 'Oude titel')
+        self.assertContains(response, 'aria-label="URL-details · geen titel beschikbaar"')
+        self.assertNotContains(response, 'Oude SF-titel')
+        self.assertNotContains(response, 'Nieuwe &lt;titel&gt;')
+        _, rows = project_inventory(self.project)
+        by_url = {row['url']: row for row in rows}
+        self.assertEqual(by_url[url]['title_source'], 'SF')
+        self.assertEqual(by_url['https://example.com/fallback']['title_source'], 'Ahrefs')
+        self.assertEqual(by_url['https://example.com/no-title']['title'], '')

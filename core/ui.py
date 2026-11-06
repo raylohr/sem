@@ -115,3 +115,13 @@ def source_record(request,project_id,batch_id,record_id):
     record=get_object_or_404(SourceRecord,pk=record_id,batch=batch)
     context.update(batch=batch,record=record)
     return render(request,'ui/source_record.html',context)
+
+
+@never_cache
+@login_required
+@require_GET
+def url_detail(request, project_id):
+    from sources.url_detail import url_context
+    context = project_context(request, project_id, 'overview')
+    context.update(url_context(context['project'], request.GET.get('url')))
+    return render(request, 'ui/url_detail.html', context)

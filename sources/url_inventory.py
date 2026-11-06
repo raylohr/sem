@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
 
 from django.utils import timezone
+from django.db.models import Q
 from integrations.url_validation import normalize_url
 from projects.hosts import allows_url
 from .models import SourceRecord
@@ -38,7 +39,7 @@ def observation_date(data, batch):
     return timezone.localtime(batch.imported_at).date(), True
 
 
-def project_inventory(project, *, include_data=False):
+def project_inventory(project, *, include_data=False, target_url=None):
     fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at']
     if include_data:
         fields.append('request_metadata')
@@ -46,10 +47,16 @@ def project_inventory(project, *, include_data=False):
         status__in=('complete', 'incomplete')).only(*fields)}
     columns = {}
     rows = {}
-    records = SourceRecord.objects.filter(batch_id__in=batches).order_by('id').values_list('id', 'batch_id', 'data')
+    records = SourceRecord.objects.filter(batch_id__in=batches)
+    if target_url is not None:
+        match = Q()
+        for key in URL_FIELDS:
+            match |= Q(**{f'data__{key}': target_url})
+        records = records.filter(match)
+    records = records.order_by('id').values_list('id', 'batch_id', 'data')
     for record_id, batch_id, data in records.iterator(chunk_size=1000):
         url = next((data.get(key) for key in URL_FIELDS if data.get(key)), None)
-        if not isinstance(url, str) or not normalize_url(url) or not allows_url(project, url):
+        if (target_url is not None and url != target_url) or not isinstance(url, str) or not normalize_url(url) or not allows_url(project, url):
             continue
         batch = batches[batch_id]
         source = batch.source
@@ -63,9 +70,12 @@ def project_inventory(project, *, include_data=False):
         current = rows[url]['observations'].get(source)
         # Prefer a dated source observation over an import-date fallback on a tie.
         rank = (stamp, not fallback, batch.imported_at, record_id)
-        title = data.get('Title 1') or data.get('Title')
-        if isinstance(title, str) and title.strip() and (rows[url]['title_rank'] is None or rank > rows[url]['title_rank']):
-            rows[url].update(title=title.strip(), title_rank=rank)
+        title = data.get('Title 1') if source == 'sf' else data.get('Title') if source == 'ahrefs' else None
+        title_rank = (2 if source == 'sf' else 1, *rank)
+        if isinstance(title, str) and title.strip() and (rows[url]['title_rank'] is None or title_rank > rows[url]['title_rank']):
+            rows[url].update(title=title.strip(), title_rank=title_rank,
+                             title_source=DEFAULT_SOURCES[source], title_date=stamp,
+                             title_source_name=batch.get_source_display())
         if current is None or rank > current['rank']:
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,

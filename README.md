@@ -51,3 +51,10 @@ Bij Excel-export opent direct een voortgangsvenster met werkfasen, verwerkte
 aantallen en verstreken tijd. Na ontvangst start de download; het venster biedt
 ook een downloadlink en foutfeedback. Voortgang is alleen zichtbaar voor de
 exporterende gebruiker binnen het project.
+
+Klik op een paginatitel in het URL-overzicht voor de URL-detailpagina. Titels
+komen bij voorkeur uit Screaming Frog, daarna uit Ahrefs; zonder titel verschijnt —.
+De detailpagina groepeert alle gepubliceerde waarnemingen per hoofdbron, met
+velden in twee kolommen en uitklapbare historie en importcontext. Bronnen en
+velden worden direct uit de actuele records opgebouwd; verwijderde imports
+verdwijnen automatisch uit de weergave.
