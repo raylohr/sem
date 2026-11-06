@@ -75,3 +75,30 @@ class PerformanceTests(TestCase):
         self.assertEqual((response.context['x_scale'],response.context['y_scale']),('log','linear'))
         response=self.client.get(self.url,{'x_scale':'invalid','y_scale':'invalid'})
         self.assertEqual((response.context['x_scale'],response.context['y_scale']),('log','log'))
+
+    def test_preferences_restore_autosave_validate_and_require_csrf_membership(self):
+        from django.test import Client
+        from .models import ProjectViewPreference
+        self.add('a')
+        response=self.client.get(self.url,{'x_scale':'linear','y_scale':'log','trend':'0'})
+        selected=response.context['performance_x']['id']
+        response=self.client.get(self.url)
+        self.assertEqual(response.context['x_scale'],'linear')
+        self.assertFalse(response.context['performance_trend'])
+        endpoint=reverse('ui:performance-preferences',args=[self.project.pk])
+        payload={'x':selected,'x_scale':'log','y_scale':'linear','trend':'1'}
+        client=Client(enforce_csrf_checks=True);client.force_login(self.user)
+        self.assertEqual(client.post(endpoint,payload).status_code,403)
+        self.assertEqual(self.client.post(endpoint,payload).status_code,200)
+        response=self.client.get(self.url)
+        self.assertEqual(response.context['y_scale'],'linear')
+        self.assertTrue(response.context['performance_trend'])
+        self.assertEqual(self.client.post(endpoint,{**payload,'x_scale':'invalid'}).status_code,400)
+        self.assertEqual(ProjectViewPreference.objects.get(user=self.user,project=self.project).performance['x_scale'],'log')
+        other=get_user_model().objects.create_user('performance-other')
+        Membership.objects.create(project=self.project,user=other,role='viewer')
+        self.client.force_login(other)
+        response=self.client.get(self.url)
+        self.assertEqual(response.context['y_scale'],'log')
+        Membership.objects.filter(project=self.project,user=other).delete()
+        self.assertEqual(self.client.post(endpoint,payload).status_code,404)

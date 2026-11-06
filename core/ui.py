@@ -62,8 +62,17 @@ def project_home(request, project_id):
             _, new_state = build_dataset_table(rows, available, previous, catalog)
             return redirect(reverse('ui:project', args=[project.pk]) + '?' + new_state['url_state_query'] + '#url-inventory')
     total = len(rows)
-    params = legacy_params(request.GET, columns, rows)
+    from sources.models import ProjectViewPreference
+    preference = ProjectViewPreference.objects.filter(project=project,user=request.user).first()
+    explicit = any(key == 'inventory_state' or key in ('url_q','sort','traffic_sort','content_filter','index_filter') or key.startswith(('a_','v_','lo_','hi_','q_','m_')) for key in request.GET)
+    incoming = request.GET.copy() if explicit else QueryDict(preference.inventory_query if preference else '',mutable=True)
+    if not explicit:
+        for key in ('filter_field','edit_filter','url_page'):
+            if key in request.GET:incoming[key]=request.GET[key]
+    params = legacy_params(incoming, columns, rows)
     rows, controls = build_dataset_table(rows, columns, params, catalog)
+    if preference is None or preference.inventory_query != controls['url_state_query']:
+        ProjectViewPreference.objects.update_or_create(project=project,user=request.user,defaults={'inventory_query':controls['url_state_query']})
     context.update(controls)
     context['inventory_metrics'] = inventory_metrics(rows)
     context.update(url_columns=source_columns, url_total=total, column_form=form,
@@ -158,7 +167,32 @@ def performance(request, project_id):
     from sources.performance import scatter_data
     context=project_context(request,project_id,'performance')
     _,rows=project_inventory(context['project'],include_fields=True)
-    context.update(scatter_data(rows,request.GET.get('x','')))
+    from sources.models import ProjectViewPreference
+    preference=ProjectViewPreference.objects.filter(project=context['project'],user=request.user).first()
+    options=dict(preference.performance) if preference else {}
+    for key in ('x','x_scale','y_scale','trend'):
+        if key in request.GET:options[key]=request.GET[key]
+    context.update(scatter_data(rows,options.get('x','')))
     for axis in ('x','y'):
-        context[axis+'_scale'] = 'linear' if request.GET.get(axis+'_scale') == 'linear' else 'log'
+        context[axis+'_scale'] = 'linear' if options.get(axis+'_scale') == 'linear' else 'log'
+    context['performance_trend'] = options.get('trend','1') != '0'
+    saved={'x':context['performance_x']['id'] if context['performance_x'] else '',
+           'x_scale':context['x_scale'],'y_scale':context['y_scale'],'trend':'1' if context['performance_trend'] else '0'}
+    if preference is None or preference.performance != saved:
+        ProjectViewPreference.objects.update_or_create(project=context['project'],user=request.user,defaults={'performance':saved})
     return render(request,'ui/performance.html',context)
+
+
+@never_cache
+@login_required
+@require_http_methods(['POST'])
+def save_performance_preferences(request, project_id):
+    from django.http import JsonResponse
+    from sources.models import ProjectViewPreference
+    import re
+    project=project_context(request,project_id,'performance')['project']
+    options={key:request.POST.get(key,'') for key in ('x','x_scale','y_scale','trend')}
+    if (options['x'] and not re.fullmatch(r'[a-f0-9]{64}',options['x'])) or any(options[key] not in ('log','linear') for key in ('x_scale','y_scale')) or options['trend'] not in ('0','1'):
+        return JsonResponse({'error':'Ongeldige grafiekinstellingen.'},status=400)
+    ProjectViewPreference.objects.update_or_create(project=project,user=request.user,defaults={'performance':options})
+    return JsonResponse({'saved':True})

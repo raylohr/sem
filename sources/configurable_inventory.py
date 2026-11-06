@@ -242,6 +242,14 @@ def build_dataset_table(rows, columns, params, catalog):
     if chosen is None:
         chosen=next((column for column in active if column['id']==params.get('edit_filter')),None)
     controls.update(dataset_filters=active,filter_editor=chosen,filter_catalog=sorted(catalog.values(),key=lambda f:(f['source_label'],f['report_label'],f['label'])))
+    # An explicit marker distinguishes clearing every filter from returning to the page.
+    controls['url_state_query'] += '&inventory_state=1'
+    for name in ('table_state','search_state'):
+        controls[name].append({'name':'inventory_state','value':'1'})
+    for column in columns+filters:
+        for name in ('sort_url','reset_url'):
+            column[name]=column[name].replace('#url-inventory','&inventory_state=1#url-inventory')
+        column['state'].append({'name':'inventory_state','value':'1'})
     return result,controls
 
 

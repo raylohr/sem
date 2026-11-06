@@ -71,3 +71,13 @@ class InventoryPreference(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['user', 'project'], name='unique_user_project_inventory')]
+
+
+class ProjectViewPreference(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    inventory_query = models.TextField(blank=True)
+    performance = models.JSONField(default=dict)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'project'], name='unique_user_project_view')]

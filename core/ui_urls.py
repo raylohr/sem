@@ -5,6 +5,7 @@ from integrations import settings_views, guide_views
 from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("projects/<uuid:project_id>/performance/preferences/", ui.save_performance_preferences, name="performance-preferences"),
     path("projects/<uuid:project_id>/performance/", ui.performance, name="performance"),
     path("projects/<uuid:project_id>/urls/detail/", ui.url_detail, name="url-detail"),
     path("projects/<uuid:project_id>/urls/export/progress/", export_ui.export_progress, name="export-progress"),

@@ -12,6 +12,23 @@
   const trendControl = document.getElementById('performance-trend');
   const trendStatus = document.getElementById('performance-trend-status');
   const trendCache = new Map();
+  let saveQueue = Promise.resolve();
+  function savePreferences() {
+    document.getElementById('performance-trend-value').value = trendControl.checked ? '1' : '0';
+    const body = new URLSearchParams({x: chart.dataset.xField,
+      x_scale: xScale.value, y_scale: yScale.value, trend: trendControl.checked ? '1' : '0'});
+    const url = new URL(location.href);
+    body.forEach((value, key) => url.searchParams.set(key, value));
+    window.history.replaceState(null, '', url);
+    const csrf = document.querySelector('.performance-preferences-token input').value;
+    saveQueue = saveQueue.catch(() => {}).then(async () => {
+      try {
+        const response = await fetch(chart.dataset.preferencesUrl, {method:'POST', body,
+          credentials:'same-origin', keepalive:true, headers:{'X-CSRFToken':csrf}, redirect:'error'});
+        if (!response.ok) throw new Error('save failed');
+      } catch (_) { trendStatus.textContent = 'Instellingen konden niet worden opgeslagen. Wijzig opnieuw om het nogmaals te proberen.'; }
+    });
+  }
   const transform = (value, mode) => mode === 'log' ? Math.log1p(value) : value;
   const inverse = (value, mode) => mode === 'log' ? Math.expm1(value) : value;
   const format = new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 2});
@@ -101,7 +118,8 @@
     const url = new URL(location.href);
     url.searchParams.set('x_scale', xScale.value); url.searchParams.set('y_scale', yScale.value);
     window.history.replaceState(null, '', url);
+    savePreferences();
   }));
-  trendControl.addEventListener('change', draw);
+  trendControl.addEventListener('change', () => { draw(); savePreferences(); });
   new ResizeObserver(draw).observe(chart);
 })();

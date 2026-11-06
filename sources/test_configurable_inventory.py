@@ -211,3 +211,25 @@ class ConfigurableInventoryTests(TestCase):
         self.assertEqual(response.context['url_total'],12)
         response=self.client.get(self.url,{'url_q':'/02'})
         self.assertEqual(response.context['inventory_metrics'],{'top3':None,'top10':None,'not_found':None})
+
+    def test_saved_filters_restore_clear_and_are_user_project_scoped(self):
+        from .models import ProjectViewPreference
+        rows,catalog=self.data()
+        key='field_'+self.field(catalog,'Category')['id']
+        params={'a_'+key:'1','v_'+key:value_key('A','text')}
+        self.assertEqual(self.client.get(self.url,params).context['url_filtered_count'],6)
+        self.assertEqual(self.client.get(self.url).context['url_filtered_count'],6)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(self.url).context['url_filtered_count'],12)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.url,{'inventory_state':'1'}).context['url_filtered_count'],12)
+        self.assertEqual(self.client.get(self.url).context['url_filtered_count'],12)
+        preference=ProjectViewPreference.objects.get(project=self.project,user=self.user)
+        preference.performance={'x_scale':'linear'};preference.save()
+        self.client.post(self.url,{'columns_action':'reset'})
+        preference.refresh_from_db()
+        self.assertEqual(preference.performance,{'x_scale':'linear'})
+        other=Project.objects.create(name='Second',website='https://example.com',domain='example.com',created_by=self.user)
+        Membership.objects.create(project=other,user=self.user,role='viewer')
+        self.client.get(reverse('ui:project',args=[other.pk]),{'url_q':'different'})
+        self.assertEqual(self.client.get(self.url).context['url_query'],'')
