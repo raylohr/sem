@@ -19,8 +19,17 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "scans", "catalog", "assessments", "browser_scans", "site_intelligence", "reporting",
+    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "catalog",
 ]
+# Migration compatibility only; explicit labels preserve the existing migration graph.
+INSTALLED_APPS += [
+    "config.retired_apps.scans.apps.ScansMigrationsConfig",
+    "config.retired_apps.browser_scans.apps.BrowserScansMigrationsConfig",
+    "config.retired_apps.assessments.apps.AssessmentsMigrationsConfig",
+    "config.retired_apps.reporting.apps.ReportingMigrationsConfig",
+    "config.retired_apps.site_intelligence.apps.SiteIntelligenceMigrationsConfig",
+]
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
