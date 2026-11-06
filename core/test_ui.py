@@ -3,7 +3,6 @@ from django.test import TestCase
 from django.urls import reverse
 from projects.models import Project, Membership
 from sources.models import ImportBatch
-from scans.models import ScanTarget
 
 
 class WorkspaceTests(TestCase):
@@ -27,7 +26,7 @@ class WorkspaceTests(TestCase):
         self.assertTrue(response['Content-Type'].startswith('text/html'))
 
     def test_project_pages_render(self):
-        for name in ('project','sources','scans','connections'):
+        for name in ('project','sources','connections'):
             with self.subTest(name=name):
                 response=self.client.get(reverse('ui:'+name,args=[self.project.pk]))
                 self.assertEqual(response.status_code,200)
@@ -37,7 +36,7 @@ class WorkspaceTests(TestCase):
                 self.assertNotContains(response,'cdn.jsdelivr.net')
 
     def test_hidden_project_404_on_all_pages(self):
-        for name in ('project','sources','scans','connections'):
+        for name in ('project','sources','connections'):
             self.assertEqual(self.client.get(reverse('ui:'+name,args=[self.hidden.pk])).status_code,404)
 
     def test_batch_from_other_project_not_visible(self):
@@ -56,20 +55,6 @@ class WorkspaceTests(TestCase):
         self.assertNotContains(response,'name="file"')
         response=self.client.get(reverse('ui:batch',args=[self.project.pk,self.batch.pk]))
         self.assertNotContains(response,'Definitief verwijderen')
-
-    def test_scans_show_target_and_start_form(self):
-        ScanTarget.objects.create(project=self.project,created_by=self.owner,name='Own website',url='https://example.com/',allowed_hosts=['example.com'])
-        response=self.client.get(reverse('ui:scans',args=[self.project.pk]))
-        self.assertContains(response,'Own website')
-        self.assertContains(response,'Crawl starten')
-        self.assertContains(response,'Sitemapimport starten')
-        self.assertContains(response,'name="kind" value="crawl"')
-        self.assertContains(response,'name="kind" value="sitemap"')
-        self.client.force_login(self.viewer)
-        response=self.client.get(reverse('ui:scans',args=[self.project.pk]))
-        self.assertContains(response,'Sitemap inlezen')
-        self.assertNotContains(response,'data-scan-config=')
-        self.assertNotContains(response,'data-api-form')
 
     def test_json_api_is_unchanged(self):
         response=self.client.get(reverse('projects:list'))

@@ -17,7 +17,7 @@ def prune_urls(project_id):
 
 
 @transaction.atomic
-def index_batch(batch_id, *, derive_assessment=True, recover_documents=False):
+def index_batch(batch_id):
     project_id = ImportBatch.objects.values_list("project_id", flat=True).get(pk=batch_id)
     Project.objects.select_for_update().get(pk=project_id)
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
@@ -67,7 +67,4 @@ def index_batch(batch_id, *, derive_assessment=True, recover_documents=False):
     summary["indexed_records"]=count
     batch.url_index_info=summary
     batch.save(update_fields=["url_index_info"])
-    if derive_assessment:
-        from assessments.services import rebuild_batch
-        rebuild_batch(batch.pk, recover_documents=recover_documents)
     return count

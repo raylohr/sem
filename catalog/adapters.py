@@ -99,8 +99,6 @@ def adapt_record(batch, data, context=None):
         return None
     facts = {}
     source = batch.source
-    if source == "semscan":
-        source = "crawler" if batch.scan_kind in ("crawl", "browser") else batch.scan_kind
     scope = "subtree" if "site structure" in str(data.get("sheet", "")).lower() else "page"
     def add(key, value):
         if value is not None:
@@ -139,43 +137,20 @@ def adapt_record(batch, data, context=None):
     elif source == "gsc":
         add("gsc_indexing_reason", context.get("gsc_problem"))
         add("gsc_last_crawled", date_value(values.get("Laatst gecrawld")).isoformat() if date_value(values.get("Laatst gecrawld")) else None)
-    if source in ("screaming_frog", "ahrefs", "crawler"):
-        status = data.get("status") if source == "crawler" else first(values, "Status Code", "HTTP status code", "Page HTTP code")
-        status = number(status, integer=True)
+    if source in ("screaming_frog", "ahrefs"):
+        status = number(first(values, "Status Code", "HTTP status code", "Page HTTP code"), integer=True)
         if status is not None and 100 <= status <= 599:
             facts["http_status"] = status
-        if source == "crawler":
-            add("final_http_status", data.get("final_status"))
-            add("robots_blocked", data.get("robots_blocked"))
-            add("scan_error", data.get("error"))
-            add("scan_error_code", data.get("error_code"))
-            add("scan_error_stage", data.get("error_details",{}).get("stage"))
-        content_type = data.get("content_type") if source == "crawler" else first(values, "Content Type", "Content type")
+        content_type = first(values, "Content Type", "Content type")
         add("content_type", content_type)
-        title = None
-        if source == "crawler" and isinstance(data.get("titles"), list):
-            title = data["titles"][0] if data["titles"] else ""
-        else:
-            for key in ("Title 1", "Title", "Page title"):
-                if key in values:
-                    title = str(values.get(key) or "")
-                    break
+        title = next((str(values.get(key) or "") for key in ("Title 1", "Title", "Page title") if key in values), None)
         add("title", title)
         if title is not None and (not content_type or "html" in str(content_type).lower()):
-            facts["missing_title"] = not bool(str(title).strip())
-        add("is_indexable", boolean(data.get("is_indexable") if source == "crawler" else first(values, "Indexability", "Is indexable page")))
-        canonical = data.get("canonicals", []) if source == "crawler" else []
-        add("canonical", canonical[0] if canonical else first(values, "Canonical Link Element 1"))
-        add("language", data.get("language") or first(values, "Language"))
-        if source == "crawler":
-            for key in ("robots_allowed", "googlebot_allowed", "robots_respected"):
-                add(key, boolean(data.get(key)))
-        add("word_count", number(data.get("word_count") if source == "crawler" else values.get("Word Count"), integer=True))
-        if source == "crawler":
-            for key in ("meta_descriptions", "h1", "h2", "depth", "response_time", "final_url", "discovery_sources", "sitemap_url", "link_depth_basis",
-                        "redirects", "privacy_scenario", "text_hash", "body_hash", "indexability_reasons", "links_truncated", "text_truncated"):
-                add(key, data.get(key))
-
+            facts["missing_title"] = not bool(title.strip())
+        add("is_indexable", boolean(first(values, "Indexability", "Is indexable page")))
+        add("canonical", first(values, "Canonical Link Element 1"))
+        add("language", first(values, "Language"))
+        add("word_count", number(values.get("Word Count"), integer=True))
     if source == "ahrefs":
         mapping = {"organic_traffic_estimate": ["Organic traffic"], "referring_domains": ["No. of referring domains", "Referring domains"],
             "backlinks": ["No. of backlinks", "Links to target"], "dofollow_backlinks": ["No. of dofollow backlinks", "Dofollow"],
@@ -183,10 +158,6 @@ def adapt_record(batch, data, context=None):
             "page_rating": ["PR"], "url_rating": ["UR"]}
         for key, columns in mapping.items():
             add("ahrefs_"+key, number(first(values, *columns)))
-    if source == "sitemap":
-        add("sitemap_lastmod", data.get("lastmod"))
-        add("sitemap_url", data.get("sitemap_url"))
-        facts["page_fetched"] = False
     if source == "audit":
         mapping = {"audit_title": ["Paginatitel uit crawl", "Title"], "audit_page_type": ["Paginatype", "Type URL"],
             "audit_finding": ["Bevinding / aandachtspunt", "Wat mist / aandachtspunt", "Bevinding uit bronregister"],

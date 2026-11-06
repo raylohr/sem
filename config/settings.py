@@ -117,7 +117,7 @@ CELERY_BEAT_SCHEDULE = {
 GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integrations/gsc/callback/")
 INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")
 
-CELERY_TASK_ROUTES = {"scans.tasks.*": {"queue": "scans"}}
+CELERY_TASK_ROUTES = {}
 
 CACHES = {"default": {"BACKEND":"django.core.cache.backends.redis.RedisCache",
     "LOCATION":os.environ.get("AUTH_CACHE_URL","redis://redis:6379/2"),
@@ -131,10 +131,3 @@ OTP_STATIC_THROTTLE_FACTOR = 1
 PASSWORD_RESET_TIMEOUT = 3600
 SESSION_COOKIE_AGE = 8 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-
-BROWSER_SOCKET = os.environ.get("BROWSER_SOCKET", "/run/sem-browser/renderer.sock")
-CELERY_TASK_ROUTES["browser_scans.tasks.*"] = {"queue": "browser"}
-
-CELERY_TASK_ROUTES["site_intelligence.tasks.*"] = {"queue": "celery"}
-
-CELERY_TASK_ROUTES["reporting.tasks.*"] = {"queue": "celery"}

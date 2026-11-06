@@ -26,7 +26,7 @@ class URLFilterForm(forms.Form):
     q=forms.CharField(max_length=250,required=False,label='URL keyword',help_text='Zoekt tekst overal in de URL, zonder onderscheid tussen hoofdletters en kleine letters. Bijvoorbeeld: aansprakelijkheid.',widget=forms.TextInput(attrs={'placeholder':'Bijvoorbeeld: aansprakelijkheid','aria-describedby':'id_q_help'}))
     host=forms.CharField(max_length=253,required=False,label='Host',help_text='Alleen de domeinnaam, bijvoorbeeld www.gmw.nl. Gebruik URL keyword voor een pad.',widget=forms.TextInput(attrs={'placeholder':'www.gmw.nl'}))
     source=SourceChoices(choices=ImportBatch.Source.choices,required=False,label='Bronnen',widget=forms.CheckboxSelectMultiple)
-    batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import / scan',empty_label='Alle imports en scans')
+    batch=BatchChoice(queryset=ImportBatch.objects.none(),required=False,label='Import',empty_label='Alle imports')
     expertise=ExpertiseChoice(queryset=Label.objects.none(),required=False,label='Expertise',empty_label='Alle expertises')
     scope=forms.ChoiceField(choices=URLObservation.Scope.choices,required=False,initial='page',label='Gegevenstype')
     http=forms.IntegerField(min_value=100,max_value=599,required=False,label='Gemeten HTTP-status')
@@ -78,7 +78,7 @@ class URLFilterForm(forms.Form):
                        'Ze beschrijven niet automatisch de huidige situatie. Klik op een URL voor de herkomst en cijfers per bron.')
         explanations = {
             'source': 'Standaard zijn alle beschikbare bronnen behalve Contentaudit geselecteerd. Bij sitestructuur wordt Contentaudit ook meegenomen. Je kunt bronnen afzonderlijk selecteren; zonder selectie gelden opnieuw deze standaardbronnen.',
-            'batch': 'Beperk de selectie tot één import of scan. Bijvoorbeeld: de laatste SEMScan.',
+            'batch': 'Beperk de selectie tot één import.',
             'expertise': 'Toon URL’s met het gekozen expertiselabel. De labels zijn afkomstig uit het labelregister van dit project.',
             'scope': 'Kies individuele URL-metingen of sitestructuur / paden. Bij sitestructuur kunnen cijfers een heel pad met onderliggende pagina’s omvatten. Bijvoorbeeld: /diensten/.',
             'http': 'Filter op een gemeten HTTP-status. Bijvoorbeeld: 404 voor niet gevonden. ' + signal_help,

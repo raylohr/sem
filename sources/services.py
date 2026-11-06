@@ -18,11 +18,6 @@ def delete_batch(*, batch_id, project, actor):
     BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk, batch_id=batch.id, actor=actor)
     if batch.file:
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
-    if batch.scan_target_id:
-        from scans.work import work_paths
-        from scans.activity import paths as activity_paths
-        for path in work_paths(batch.pk)+activity_paths(batch.pk):
-            PendingFileDeletion.objects.get_or_create(path=path)
     batch.delete()
     URLLabel.objects.filter(pk__in=affected_assignments, status='source', evidence__isnull=True).delete()
     from catalog.services import prune_urls
@@ -32,7 +27,7 @@ def delete_batch(*, batch_id, project, actor):
 
 
 @transaction.atomic
-def publish_records(*, batch_id, records, derive_assessment=True):
+def publish_records(*, batch_id, records):
     """Worker entry point: lock, recheck access and publish a whole batch once."""
     project_id = ImportBatch.objects.values_list("project_id", flat=True).get(pk=batch_id)
     project = Project.objects.select_for_update().get(pk=project_id)
@@ -52,5 +47,5 @@ def publish_records(*, batch_id, records, derive_assessment=True):
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status"])
     from catalog.services import index_batch
-    index_batch(batch.id, derive_assessment=derive_assessment)
+    index_batch(batch.id)
     return batch.record_count

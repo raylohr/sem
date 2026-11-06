@@ -26,7 +26,6 @@ FACT_LABELS={
  'ahrefs_backlinks':'Ahrefs backlinks','ahrefs_dofollow_backlinks':'Ahrefs dofollow-backlinks',
  'ahrefs_keywords_top3':'Ahrefs keywords top 3','ahrefs_keywords_top10':'Ahrefs keywords top 10',
  'ahrefs_page_rating':'Ahrefs Page Rating','ahrefs_url_rating':'Ahrefs URL Rating',
- 'robots_allowed':'Toegestaan volgens robots.txt (SEMScan)',
  'googlebot_allowed':'Toegestaan volgens robots.txt (Googlebot)',
  'robots_respected':'Robotsregels toegepast als crawlfilter',
  'sitemap_lastmod':'Lastmod volgens sitemap','sitemap_url':'Bron-sitemap','page_fetched':'Pagina opgehaald',
@@ -124,13 +123,7 @@ def detail(request,project_id,url_id):
     item=get_object_or_404(ProjectURL.objects.filter(observations__batch__status__in=('complete','incomplete')).distinct(),pk=url_id,project=context['project'])
     observations=item.observations.filter(batch__project=context['project'],batch__status__in=('complete','incomplete')).select_related('batch__created_by').order_by(F('measured_date').desc(nulls_last=True),'-batch__imported_at','-id')
     page=Paginator(observations,25).get_page(request.GET.get('page'))
-    from assessments.models import PageMeasurement
-    measurements = {item.source_record_id: item for item in PageMeasurement.objects.filter(source_record_id__in=[obs.source_record_id for obs in page.object_list], batch__project=context['project'])}
-    from browser_scans.models import BrowserVisit
-    browser_visits = {visit.source_record_id: visit for visit in BrowserVisit.objects.filter(source_record_id__in=[obs.source_record_id for obs in page.object_list], run__batch__project=context['project'])}
     for observation in page.object_list:
-        observation.browser_visit = browser_visits.get(observation.source_record_id)
-        observation.crawl_measurement = measurements.get(observation.source_record_id)
         observation.fact_items=[(FACT_LABELS.get(key,key),('Ja' if value else 'Nee') if isinstance(value,bool) else value) for key,value in observation.facts.items()]
         if 'discovery_sources' in observation.facts:
             labels={'start_url':'Startadres','sitemap':'Sitemap','internal_link':'Interne link'}
@@ -177,7 +170,7 @@ def api_detail(request,project_id,url_id):
     rows=[]
     for observation in page:
         rows.append({'original_url':observation.original_url,'scope':observation.scope,'measured_date':observation.measured_date,
-            'measured_at':observation.measured_at,'source':observation.batch.source,'scan_kind':observation.batch.scan_kind,'batch_id':str(observation.batch_id),
+            'measured_at':observation.measured_at,'source':observation.batch.source,'batch_id':str(observation.batch_id),
             'user_id':observation.batch.created_by_id,'username':observation.batch.created_by.get_username(),
             'imported_at':observation.batch.imported_at,'period_start':observation.batch.period_start,'period_end':observation.batch.period_end,
             'source_record_id':observation.source_record_id,'facts':observation.facts})

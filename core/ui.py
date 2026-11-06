@@ -38,7 +38,7 @@ def project_home(request, project_id):
     project=context['project']
     context.update(stats=project.import_batches.aggregate(total=Count('id'),records=Sum('record_count'),
         running=Count('id',filter=Q(status__in=['pending','processing']))),
-        recent=project.import_batches.select_related('created_by')[:8],target_count=project.scan_targets.filter(active=True).count())
+        recent=project.import_batches.select_related('created_by')[:8])
     return render(request,'ui/project.html',context)
 
 
@@ -65,45 +65,9 @@ def sources(request, project_id):
 def batch(request, project_id, batch_id):
     context=project_context(request,project_id,'sources')
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
-    from scans.work import stale_scan
-    from scans.diagnostics import MESSAGES
-    counts = item.request_metadata.get('scan_outcome',{}).get('errors_by_code',{})
-    labels = {**MESSAGES,'legacy_http_error':'HTTP-fout (historisch; technische oorzaak niet opgeslagen)', 'scan_error':'Download- of verwerkingsfout'}
-    context['browser_run'] = getattr(item, 'browser_run', None) if item.scan_kind == 'browser' else None
-    context.update(scan_error_counts=[{'label': labels.get(code, code.replace('http_', 'HTTP ')), 'count': count} for code, count in counts.items()],
-        scan_stale=stale_scan(item),batch=item,records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [],
-        documents=item.scan_documents.defer('body').order_by('index')[:50],
+    context.update(batch=item, records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [],
         url_index_issues=item.records.filter(pk__in=item.url_index_info.get('rejected_record_ids',[])).only('id','locator').order_by('id'))
     return render(request,'ui/batch.html',context)
-
-
-@never_cache
-@login_required
-@require_GET
-def scans(request, project_id):
-    context=project_context(request,project_id,'scans')
-    from urllib.parse import urljoin
-    from scans.forms import ScanForm
-    targets = list(context['project'].scan_targets.all())
-    for target in targets:
-        target.default_sitemap_url = urljoin(target.url, '/sitemap.xml')
-        from scans.scope import host_scope
-        target.scope = host_scope(target)
-        from scans.settings import defaults_for
-        target.crawl_defaults=defaults_for(target,'crawl')
-        target.sitemap_defaults=defaults_for(target,'sitemap')
-    modes = [
-        {'kind':'crawl','title':'Website crawlen','button_label':'Crawl starten','description':'Bezoekt pagina’s uit gevonden sitemaps en interne links binnen de toegestane website. Onderzoekt onder meer HTTP-status, titels, canonicals en robots-instructies.',
-         'url_label':'Start-URL','depth_label':'Maximale linkdiepte','depth_help':'Aantal linkstappen vanaf de startpagina; maximaal 100.',
-         'url_help':'Leeg laten gebruikt de startpagina van deze website.'},
-        {'kind':'sitemap','title':'Sitemap inlezen','button_label':'Sitemapimport starten','description':'Leest URL’s en gegevens uit sitemapbestanden en onderliggende sitemapindexen. De gevonden webpagina’s worden hierbij niet opgehaald.',
-         'url_label':'Sitemap-URL','depth_label':'Maximale sitemapdiepte','depth_help':'Aantal niveaus met onderliggende sitemapindexen; maximaal 100.',
-         'url_help':'Leeg laten gebruikt /sitemap.xml op deze website. Een andere locatie kun je hier invullen.'},
-    ]
-    context.update(targets=targets,scan_modes=modes,host_policies=context['project'].host_policies.order_by('navigation','host'),
-        scan_defaults={name:ScanForm.base_fields[name].initial for name in ('max_urls','max_depth','robots_mode','concurrency','requests_per_second','connect_timeout','read_timeout','max_attempts','title_min_chars','title_max_chars','description_min_chars','description_max_chars','heading_max_chars','check_resources','check_external_links','resource_max_targets','external_max_targets','resource_max_bytes','external_max_bytes','resource_file_bytes','resource_max_depth','image_advice_bytes','browser_phase','browser_max_pages','browser_timeout_seconds')},
-        recent=context['project'].import_batches.filter(method='scan')[:10])
-    return render(request,'ui/scans.html',context)
 
 
 @never_cache

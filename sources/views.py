@@ -16,7 +16,7 @@ def visible_project(request, project_id):
 
 
 def batch_data(batch):
-    return {"id": str(batch.id), "source": batch.source, "method": batch.method, "scan_kind": batch.scan_kind,
+    return {"id": str(batch.id), "source": batch.source, "method": batch.method,
         "label": batch.label, "original_filename": batch.original_filename,
         "user_id": batch.created_by_id, "username": batch.created_by.get_username(),
         "imported_at": batch.imported_at.isoformat(),
@@ -180,22 +180,13 @@ def retry(request, project_id, batch_id):
         if not can_edit(request.user, project):
             return JsonResponse({"error": "Geen bewerkrechten."}, status=403)
         batch = get_object_or_404(ImportBatch.objects.select_for_update(), pk=batch_id, project=project)
-        from scans.work import stale_scan
-        if (not batch.file and not batch.gsc_connection_id and not batch.scan_target_id) or (batch.status not in ("failed", "pending") and not stale_scan(batch)):
+        if (not batch.file and not batch.gsc_connection_id) or batch.status not in ("failed", "pending"):
             return JsonResponse({"error": "Batch kan niet opnieuw worden gestart."}, status=409)
         # Keep the original importing user; retries do not overwrite provenance.
         batch.status = "pending"
         batch.error = ""
         batch.save(update_fields=["status", "error"])
-        if batch.scan_kind == 'browser':
-            from browser_scans.views import enqueue
-            from browser_scans.models import BrowserRun
-            run = get_object_or_404(BrowserRun, batch=batch)
-            transaction.on_commit(lambda: enqueue(run))
-        elif batch.scan_target_id:
-            from scans.tasks import enqueue_scan
-            transaction.on_commit(lambda: enqueue_scan(batch.id))
-        elif batch.gsc_connection_id:
+        if batch.gsc_connection_id:
             from integrations.tasks import enqueue_gsc
             transaction.on_commit(lambda: enqueue_gsc(batch.id))
         else:

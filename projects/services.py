@@ -82,27 +82,20 @@ def delete_project(*, actor, project_id, confirmation_name):
     from sources.models import ImportBatch, BatchDeletionEvent, PendingFileDeletion
     from sources.tasks import enqueue_cleanup
     from integrations.models import GSCConnection
-    from scans.models import ScanTarget
     lock_access_changes()
     platform_actor(actor)
     project = Project.objects.select_for_update().get(pk=project_id)
     if confirmation_name != project.name:
         raise ValidationError('De projectnaam is gewijzigd. Controleer de bevestiging opnieuw.')
-    batches = list(ImportBatch.objects.filter(project=project).values_list('id', 'file', 'scan_target_id'))
-    for batch_id, file_path, scan_target_id in batches:
+    batches = list(ImportBatch.objects.filter(project=project).values_list('id', 'file'))
+    for batch_id, file_path in batches:
         BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk,
                                            batch_id=batch_id, actor=actor)
         if file_path:
             PendingFileDeletion.objects.get_or_create(path=file_path)
-        if scan_target_id:
-            from scans.work import work_paths
-            from scans.activity import paths as activity_paths
-            for path in work_paths(batch_id)+activity_paths(batch_id):
-                PendingFileDeletion.objects.get_or_create(path=path)
     # Remove protected children in dependency order; late workers cannot recreate batches.
     ImportBatch.objects.filter(project=project).delete()
     GSCConnection.objects.filter(project=project).delete()
-    ScanTarget.objects.filter(project=project).delete()
     AuditEvent.objects.create(actor=actor, action='project_deleted',
                               details={'project_id': str(project.pk), 'name': project.name,
                                        'batches': len(batches)})

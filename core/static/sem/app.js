@@ -21,56 +21,6 @@ document.querySelectorAll('input[data-value-type="integer"]:not([type="hidden"])
   input.addEventListener('input', () => validateInteger(input));
   input.addEventListener('blur', () => validateInteger(input, true));
 });
-document.querySelectorAll('form[data-scan-config]').forEach(editor => {
-  const scanForm = document.getElementById(editor.dataset.scanConfig);
-  const modal = editor.closest('.modal');
-  const card = scanForm.closest('[data-scan-card]');
-  const names = ['url', 'max_urls', 'max_depth', 'robots_mode', 'concurrency', 'requests_per_second', 'connect_timeout', 'read_timeout', 'max_attempts', 'title_min_chars', 'title_max_chars', 'description_min_chars', 'description_max_chars', 'heading_max_chars', 'check_resources', 'check_external_links', 'resource_max_targets', 'external_max_targets', 'resource_max_bytes', 'external_max_bytes', 'resource_file_bytes', 'resource_max_depth', 'image_advice_bytes', 'browser_phase','browser_max_pages','browser_timeout_seconds','schema_profiles'].filter(name => editor.elements.namedItem(name) && scanForm.elements.namedItem(name));
-  const restore = () => {
-    names.forEach(name => {
-      const input = editor.elements.namedItem(name);
-      if(input.multiple){const selected=scanForm.elements.namedItem(name).value.split(',');Array.from(input.options).forEach(option=>option.selected=selected.includes(option.value));}else input.value = scanForm.elements.namedItem(name).value;
-      if (input.dataset.valueType === 'integer') validateInteger(input, true);
-    });
-  };
-  modal.addEventListener('show.bs.modal', restore);
-  modal.addEventListener('hidden.bs.modal', restore);
-  modal.addEventListener('shown.bs.modal', () => editor.elements.namedItem('url').focus());
-  editor.addEventListener('submit', async event => {
-    event.preventDefault();
-    if(editor.dataset.saving==='true') return;
-    editor.querySelectorAll('input[data-value-type="integer"]').forEach(input => validateInteger(input));
-    if (!editor.reportValidity()) return;
-    const values={kind:scanForm.elements.namedItem('kind').value};
-    names.forEach(name=>{
-      const input=editor.elements.namedItem(name);
-      values[name]=input.multiple ? Array.from(input.selectedOptions).map(option=>option.value) : input.dataset.valueType==='integer' ? parseInteger(input.value) : input.value==='true' ? true : input.value==='false' ? false : input.value.trim();
-    });
-    const button=editor.querySelector('button[type="submit"]');
-    const errorMessage=editor.querySelector('[data-scan-settings-result]');
-    errorMessage.textContent='';editor.dataset.saving='true';button.disabled=true;
-    try {
-      const response=await fetch(editor.dataset.saveUrl,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRFToken':scanForm.elements.namedItem('csrfmiddlewaretoken').value},body:JSON.stringify(values)});
-      if(response.redirected) throw new Error('Je sessie is verlopen. Log opnieuw in.');
-      if(!response.headers.get('content-type')?.includes('application/json')) throw new Error('Instellingen konden niet worden opgeslagen. Vernieuw de pagina en probeer opnieuw.');
-      const payload=await response.json();
-      if(!response.ok){
-        const errors=payload.errors ? Object.entries(payload.errors).flatMap(([field,items])=>items.map(item=>`${field}: ${item.message}`)).join(' · ') : '';
-        throw new Error(payload.error || errors || 'Instellingen konden niet worden opgeslagen.');
-      }
-      Object.entries(payload.settings).forEach(([name,value])=>{
-        const input=scanForm.elements.namedItem(name);if(!input) return;
-        input.value=Array.isArray(value)?value.join(','):String(value);
-        const summary=card.querySelector(`[data-scan-summary="${name}"]`);
-        if(summary) summary.textContent=name==='url'?(value||card.dataset.defaultUrl):integerFormatter.format(value);
-      });
-      card.querySelector('[data-scan-config-message]').textContent='Instellingen opgeslagen voor deze website. Volgende onderzoeken gebruiken deze waarden.';
-      const result=scanForm.querySelector('.form-result');result.textContent='';result.classList.add('d-none');
-      window.bootstrap.Modal.getOrCreateInstance(modal).hide();
-    } catch(error) {errorMessage.textContent=error.message || 'Opslaan mislukt. Probeer opnieuw.';}
-    finally {editor.dataset.saving='false';button.disabled=false;}
-  });
-});
 document.querySelectorAll('form[data-api-form]').forEach((form) => {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

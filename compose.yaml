@@ -52,57 +52,6 @@ services:
   beat:
     <<: *app
     command: celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
-  scan-worker:
-    <<: *app
-    stop_grace_period: 150s
-    command: celery -A config worker --loglevel=INFO --concurrency=2 --queues=scans --hostname=scans@%h
-    cpus: 2
-    mem_limit: 1g
-    environment:
-      <<: *app-env
-      GSC_CLIENT_ID: ""
-      GSC_CLIENT_SECRET: ""
-      INTEGRATION_TOKEN_KEY: ""
-  browser-worker:
-    <<: *app
-    command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=browser --hostname=browser@%h
-    stop_grace_period: 150s
-    cpus: 1
-    mem_limit: 512m
-    volumes:
-      - media:/app/media
-      - browser_ipc:/run/sem-browser
-    environment:
-      <<: *app-env
-      GSC_CLIENT_ID: ""
-      GSC_CLIENT_SECRET: ""
-      INTEGRATION_TOKEN_KEY: ""
-    depends_on:
-      redis:
-        condition: service_healthy
-      browser-sandbox:
-        condition: service_started
-  browser-sandbox:
-    image: sem-browser:local
-    build:
-      context: .
-      dockerfile: Dockerfile.browser
-    restart: unless-stopped
-    init: true
-    network_mode: none
-    pids_limit: 256
-    read_only: true
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:./ops/browser-seccomp.json
-    volumes:
-      - browser_ipc:/run/sem-browser
-    tmpfs:
-      - /tmp:size=256m,uid=1000,gid=1000
-    shm_size: 256m
-    mem_limit: 1g
-    cpus: 1
   migrate:
     <<: *app
     profiles: [tools]
@@ -128,5 +77,4 @@ services:
       - no-new-privileges:true
 volumes:
   media:
-  browser_ipc:
   redis_data:

@@ -18,7 +18,5 @@
 
 .account-form{max-width:680px}.mfa-qr{max-width:100%;height:auto}.recovery-codes code{font-size:1.05rem;letter-spacing:.12em;color:#0b2d4d}
 
-.scan-config-button{width:44px;height:44px;display:grid;place-items:center;flex-shrink:0;font-size:1.25rem;line-height:1}
 
 .status-incomplete{background:#fff3cd;color:#664d03}
-.scan-ticker{position:relative;min-width:0}.scan-ticker svg{display:block;width:100%;height:auto;min-height:170px}.scan-ticker-axis{font-size:12px;fill:#647580}.scan-ticker-swatch{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.4rem}.scan-ticker-tooltip{position:absolute;top:12px;z-index:2;min-width:155px;padding:.65rem .8rem;background:rgba(255,255,255,.97);border:1px solid #e0e7e8;border-radius:.5rem;box-shadow:0 4px 14px #182d3819;pointer-events:none;font-size:.8rem}@media(max-width:575px){.scan-ticker-axis{font-size:18px}.scan-ticker svg{min-height:150px}}

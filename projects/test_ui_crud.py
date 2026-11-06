@@ -14,7 +14,6 @@ from sources.models import ImportBatch, SourceRecord, BatchDeletionEvent, Pendin
 from sources.services import publish_records
 from sources.tasks import cleanup_files, process_upload
 from integrations.models import GSCConnection, APIResponsePage
-from scans.models import ScanTarget, ScanDocument
 from catalog.models import ProjectURL, URLObservation
 from .models import Project, Membership
 from .services import create_project, update_project, delete_project
@@ -109,16 +108,14 @@ class ProjectCRUDTests(TestCase):
     def test_delete_cleans_related_data_preserves_logs_and_other_project(self):
         other = Project.objects.create(name='Keep', website='https://keep.example.com', created_by=self.root)
         connection = GSCConnection.objects.create(project=self.project, owner=self.root, property_url='https://example.com', encrypted_refresh_token='not-a-real-token')
-        target = ScanTarget.objects.create(project=self.project, created_by=self.root, name='Site', url='https://example.com', allowed_hosts=['example.com'])
         previous = BatchDeletionEvent.objects.create(project=self.project, batch_id='11111111-1111-1111-1111-111111111111', actor=self.root)
         event = AuditEvent.objects.create(actor=self.root, project=self.project, action='project_access_set', details={'role':'admin'})
         with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
-            batch = ImportBatch.objects.create(project=self.project, created_by=self.root, source='ahrefs', method='upload', label='Delete', gsc_connection=connection, scan_target=target)
+            batch = ImportBatch.objects.create(project=self.project, created_by=self.root, source='ahrefs', method='upload', label='Delete', gsc_connection=connection)
             batch.file.save('fixture.csv', ContentFile(b'url\nhttps://example.com/\n'))
             path = batch.file.name
             publish_records(batch_id=batch.pk, records=[{'locator':'row:2','data':{'URL':'https://example.com/'}}])
             self.assertEqual(URLObservation.objects.filter(batch=batch).count(), 1)
-            ScanDocument.objects.create(batch=batch,index=0,url='https://example.com',status=200,content_type='text/html',fetched_at=timezone.now(),body=b'example')
             APIResponsePage.objects.create(batch=batch,page_index=0,requested_at=timezone.now(),request_body={},payload={})
             with self.assertLogs('sources.tasks', level='ERROR'), \
                     patch('sources.tasks.cleanup_files.delay', side_effect=ConnectionError('broker unavailable')), \
@@ -128,7 +125,6 @@ class ProjectCRUDTests(TestCase):
             self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
             self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
             self.assertFalse(ProjectURL.objects.filter(project_id=self.project.pk).exists())
-            self.assertFalse(ScanTarget.objects.filter(pk=target.pk).exists())
             self.assertFalse(GSCConnection.objects.filter(pk=connection.pk).exists())
             self.assertTrue(PendingFileDeletion.objects.filter(path=path).exists())
             self.assertTrue(default_storage.exists(path))

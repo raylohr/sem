@@ -1,3 +1,0 @@
-{% extends 'ui/base.html' %}
-{% block title %}Leverancier wijzigen{% endblock %}
-{% block content %}<a href="{% url 'ui:intelligence:registry' project.id %}">← Leveranciersregister</a><h2 class="h4 mt-3">{{ supplier.name }}</h2><p>Openbare kennis; iedere wijziging krijgt een nieuwe revisie. Eerdere rapportages blijven ongewijzigd.</p><form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary align-self-start">Nieuwe revisie opslaan</button></form>{% endblock %}

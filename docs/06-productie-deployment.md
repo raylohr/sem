@@ -18,7 +18,7 @@ cd /srv/sem
 
 Het script haalt origin/main op, controleert dat de commit daarop staat, bouwt images
 uit git archive (zonder .env), voert productiemigraties uit met de migratierol en
-start web, worker, scan-worker en gateway. De productiecontainers gebruiken uitsluitend
+start web, worker, beat en gateway. De productiecontainers gebruiken uitsluitend
 images met de volledige releasecommit als tag; een dev-build vervangt die niet.
 Geen automatische deploy bij een push. Controleer voor latere releases eerst een
 recente database- en media-back-up; migraties worden niet automatisch teruggedraaid.

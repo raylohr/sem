@@ -68,7 +68,7 @@ def export_archive(project, observations, filters):
                 allowed = {'URL / pad uit bronexport', 'Pad zoals aangeleverd', 'Ref. pages', 'Ref. domains'}
                 data = {'sheet': sheet, 'values': {k: v for k, v in values.items()
                         if k in allowed or k.startswith(('Previous ', 'Current ')) or k.endswith(' change')}}
-            group = (batch.source, batch.scan_kind, sheet, obs.scope)
+            group = (batch.source, sheet, obs.scope)
             if group not in groups:
                 groups[group] = {'file': stack.enter_context(tempfile.TemporaryFile(mode='w+t', encoding='utf-8')),
                                  'keys': {}, 'count': 0}
@@ -84,7 +84,7 @@ def export_archive(project, observations, filters):
             item['file'].write(json.dumps([meta, raw], ensure_ascii=False) + '\n')
             item['count'] += 1
             urls[str(obs.url_id)] = [str(obs.url_id), obs.url.normalized_url, obs.url.host]
-            batches[str(batch.pk)] = [str(batch.pk), batch.source, batch.method, batch.scan_kind,
+            batches[str(batch.pk)] = [str(batch.pk), batch.source, batch.method,
                 batch.label, batch.original_filename, batch.imported_at.isoformat(),
                 batch.measured_at.isoformat() if batch.measured_at else None,
                 batch.period_start, batch.period_end, batch.status, batch.record_count,
@@ -105,7 +105,7 @@ def export_archive(project, observations, filters):
                                 append_excel(excel, row)
                                 writer.writerow([safe_csv(v) for v in row])
                 table('URL-register', ['url_id', 'normalized_url', 'host'], urls.values())
-                table('Imports', ['batch_id', 'source', 'method', 'scan_kind', 'label', 'original_filename',
+                table('Imports', ['batch_id', 'source', 'method', 'label', 'original_filename',
                       'imported_at', 'measured_at', 'period_start', 'period_end', 'status',
                       'batch_record_count', 'import_parameters_json', 'warnings_json'], batches.values())
                 manifest = []
@@ -119,7 +119,7 @@ def export_archive(project, observations, filters):
                             yield meta + [raw.get(key) for key in keys]
                     table(name, META + ['raw.' + key for key in keys], rows())
                     manifest.append([name, *group, item['count']])
-                table('Datasets', ['dataset', 'source', 'scan_kind', 'source_sheet', 'scope', 'exported_records'], manifest)
+                table('Datasets', ['dataset', 'source', 'source_sheet', 'scope', 'exported_records'], manifest)
                 table('Exportinformatie', ['property', 'value'], [
                     ['project_id', str(project.pk)], ['exported_at', timezone.now().isoformat()],
                     ['filters', filters], ['selection', 'Alle metingen die aan de actieve filters voldoen; geen paginering.'],

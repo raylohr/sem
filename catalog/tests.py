@@ -50,19 +50,10 @@ class AdapterTests(SimpleTestCase):
         self.assertNotIn('ahrefs_organic_traffic_estimate',result['facts'])
 
     def test_lastmod_and_report_period_are_not_measurement_dates(self):
-        batch=self.batch('sitemap');batch.period_end=datetime.date(2026,10,31)
+        batch=self.batch('ahrefs');batch.period_end=datetime.date(2026,10,31)
         result=adapt_record(batch,{'url':'https://example.com/','lastmod':'2026-01-01','sitemap_url':'https://example.com/sitemap.xml'})
         self.assertIsNone(result['measured_date'])
-        self.assertEqual(result['facts']['sitemap_lastmod'],'2026-01-01')
         self.assertNotIn('http_status',result['facts'])
-
-    def test_semscan_keeps_crawl_and_sitemap_observations_distinct(self):
-        crawl=adapt_record(self.batch('semscan','scan',scan_kind='crawl'),{'url':'https://example.com/','status':200,'robots_allowed':False,'googlebot_allowed':False,'is_indexable':False})
-        sitemap=adapt_record(self.batch('semscan','scan',scan_kind='sitemap'),{'url':'https://example.com/','lastmod':'2026-01-01','page_fetched':False})
-        self.assertEqual(crawl['facts']['http_status'],200)
-        self.assertFalse(crawl['facts']['googlebot_allowed'])
-        self.assertNotIn('http_status',sitemap['facts'])
-        self.assertFalse(sitemap['facts']['page_fetched'])
 
     def test_screaming_frog_timestamp_has_no_invented_timezone(self):
         result=adapt_record(self.batch('screaming_frog'),{'values':{'Address':'https://example.com/','Crawl Timestamp':'2026-10-14 12:07:09','Status Code':200,'Indexability':'Indexable'}})
@@ -88,11 +79,11 @@ class CatalogTests(TestCase):
         Membership.objects.create(project=self.project,user=self.viewer,role='viewer')
         self.client.force_login(self.owner)
         self.a=self.publish('ahrefs',[{'values':{'URL':'HTTPS://EXAMPLE.com:443/','Title':'Home','HTTP status code':'200','Organic traffic':'900','Is indexable page':'true'}}])
-        self.b=self.publish('semscan',[{'url':'https://example.com/','measured_at':'2026-10-02T10:00:00+00:00','status':404,'is_indexable':False,'titles':['Missing'],'content_type':'text/html'}],method='scan')
+        self.b=self.publish('screaming_frog',[{'url':'https://example.com/','measured_at':'2026-10-02T10:00:00+00:00','Status Code':404,'Indexability':'Non-Indexable','Title 1':'Missing','Content Type':'text/html'}],method='upload')
 
-    def publish(self,source,rows,method='upload',project=None,scan_kind='crawl'):
+    def publish(self,source,rows,method='upload',project=None):
         project=project or self.project
-        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source,request_metadata={'scan':scan_kind} if source=='semscan' else {})
+        batch=ImportBatch.objects.create(project=project,created_by=self.owner if project==self.project else self.other,source=source,method=method,label=source)
         if project==self.hidden:
             Membership.objects.get_or_create(project=project,user=self.other,defaults={'role':'admin'})
         publish_records(batch_id=batch.pk,records=[{'locator':f'row:{i}','data':data} for i,data in enumerate(rows)])
@@ -107,14 +98,14 @@ class CatalogTests(TestCase):
         result=self.client.get(self.url(), {'content': ''}).json()
         self.assertEqual(result['total'],1)
         self.assertEqual(result['urls'][0]['observation_count'],2)
-        self.assertEqual(set(result['urls'][0]['sources']),{'ahrefs','semscan'})
+        self.assertEqual(set(result['urls'][0]['sources']),{'ahrefs','screaming_frog'})
         self.assertEqual(result['urls'][0]['http_signals'],[200,404])
         self.assertEqual(set(result['urls'][0]['indexability_signals']),{True,False})
         self.assertEqual(result['urls'][0]['unknown_dates'],1)
 
     def test_filters_apply_to_the_same_observation(self):
         self.assertEqual(self.client.get(self.url(),{'source':'ahrefs','http':404}).json()['total'],0)
-        self.assertEqual(self.client.get(self.url(),{'source':'semscan','http':404}).json()['total'],1)
+        self.assertEqual(self.client.get(self.url(),{'source':'screaming_frog','http':404}).json()['total'],1)
 
     def test_known_dates_do_not_fall_back_to_import_time(self):
         result=self.client.get(self.url(),{'date_from':'2026-10-02','date_to':'2026-10-02'}).json()
@@ -214,14 +205,14 @@ class CatalogTests(TestCase):
         item=ProjectURL.objects.get(project=self.project)
         result=self.client.get(reverse('projects:urls:detail',args=[self.project.pk,item.pk])).json()
         self.assertEqual(result['total'],2)
-        self.assertEqual({row['source'] for row in result['observations']},{'ahrefs','semscan'})
+        self.assertEqual({row['source'] for row in result['observations']},{'ahrefs','screaming_frog'})
         for row in result['observations']:
             self.assertEqual(row['user_id'],self.owner.pk)
             self.assertTrue(row['imported_at'])
             self.assertTrue(row['source_record_id'])
 
     def test_url_pagination_has_stable_order(self):
-        self.publish('semscan',[{'url':f'https://example.com/page-{i:02d}'} for i in range(30)],method='scan',scan_kind='sitemap')
+        self.publish('screaming_frog',[{'url':f'https://example.com/page-{i:02d}'} for i in range(30)],method='upload')
         first=self.client.get(self.url(), {'content': ''}).json()
         second=self.client.get(self.url(),{'page':2, 'content': ''}).json()
         self.assertEqual(len(first['urls']),25)
@@ -258,10 +249,10 @@ class CatalogTests(TestCase):
     def test_export_filters_on_same_measurement_and_rejects_invalid_filters(self):
         import csv
         import io
-        with self.read_export(source='semscan', http=404) as archive:
+        with self.read_export(source='screaming_frog', http=404) as archive:
             rows = list(csv.DictReader(io.StringIO(archive.read('Data-01.csv').decode('utf-8-sig'))))
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]['raw.status'], '404')
+            self.assertEqual(rows[0]['raw.Status Code'], '404')
             self.assertNotIn('Data-02.csv', archive.namelist())
         endpoint = reverse('ui:catalog:export', args=[self.project.pk])
         self.assertEqual(self.client.get(endpoint, {'http': 'invalid'}).status_code, 400)
@@ -298,9 +289,9 @@ class CatalogTests(TestCase):
 
     def test_multiple_sources_combine_and_keep_measurement_filters(self):
         self.publish('gsc', [{'url': 'https://example.com/gsc-only', 'raw': {'clicks': 12}}], method='api')
-        result = self.client.get(self.url(), {'source': ['ahrefs', 'semscan'], 'content': ''}).json()
+        result = self.client.get(self.url(), {'source': ['ahrefs', 'screaming_frog'], 'content': ''}).json()
         self.assertEqual(result['total'], 1)
-        self.assertEqual(set(result['urls'][0]['sources']), {'ahrefs', 'semscan'})
+        self.assertEqual(set(result['urls'][0]['sources']), {'ahrefs', 'screaming_frog'})
         self.assertEqual(result['urls'][0]['observation_count'], 2)
         result = self.client.get(self.url(), {'source': ['ahrefs', 'gsc'], 'http': 404}).json()
         self.assertEqual(result['total'], 0)
@@ -311,9 +302,9 @@ class CatalogTests(TestCase):
         import csv
         import io
         self.publish('gsc', [{'url': 'https://example.com/gsc-only'}], method='api')
-        response = self.client.get(reverse('ui:catalog:overview', args=[self.project.pk]), {'source': ['ahrefs', 'semscan']})
-        self.assertContains(response, 'source=ahrefs&amp;source=semscan')
+        response = self.client.get(reverse('ui:catalog:overview', args=[self.project.pk]), {'source': ['ahrefs', 'screaming_frog']})
+        self.assertContains(response, 'source=ahrefs&amp;source=screaming_frog')
         self.assertContains(response, 'type="checkbox" name="source" value="ahrefs"')
-        with self.read_export(source=['ahrefs', 'semscan']) as archive:
+        with self.read_export(source=['ahrefs', 'screaming_frog']) as archive:
             rows = list(csv.DictReader(io.StringIO(archive.read('Imports.csv').decode('utf-8-sig'))))
-            self.assertEqual({row['source'] for row in rows}, {'ahrefs', 'semscan'})
+            self.assertEqual({row['source'] for row in rows}, {'ahrefs', 'screaming_frog'})

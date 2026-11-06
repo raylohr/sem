@@ -1,8 +1,0 @@
-{% extends 'ui/base.html' %}{% load report_tags l10n %}
-{% block title %}Onderzoeksdossiers · {{ project.name }}{% endblock %}
-{% block content %}
-<div class="d-flex flex-wrap justify-content-between gap-3 mb-4"><div><h2 class="h4">Onderzoeksdossiers</h2><p class="text-muted mb-0">Van meting naar inzicht, bewijs en actie.</p></div><div class="d-flex gap-2 align-self-start"><a class="btn btn-outline-primary" href="{% url 'ui:reports:actions' project.id %}">Actielijst</a>{% if can_edit %}<a class="btn btn-primary" href="{% url 'ui:reports:start' project.id %}">Onderzoek samenstellen</a>{% endif %}</div></div>
-<p>Combineer een afgeronde webcrawl met het bijbehorende browseronderzoek. Elk dossier bewaart de geselecteerde analyses en meetdekking; een nieuw dossier vervangt het eerdere onderzoek niet.</p>
-<div class="table-responsive"><table class="table"><thead><tr><th>Onderzoek</th><th>Samengesteld op</th><th>Status</th><th>Bereik</th></tr></thead><tbody>{% for item in page %}<tr><td><a href="{% url 'ui:reports:dossier' project.id item.id %}">{{ item.title }}</a></td><td>{{ item.created_at|date:'d-m-Y H:i' }}</td><td>{{ item.status|report_label }}</td><td>{{ item.coverage.crawl_urls|default:'—' }} crawl-URL’s · {{ item.coverage.browser_urls|default:'0' }} browser-URL’s</td></tr>{% empty %}<tr><td colspan="4">Nog geen onderzoeksdossier. Rond eerst een crawl en de pagina-analyse af.</td></tr>{% endfor %}</tbody></table></div>
-{% if page.has_other_pages %}<nav>{% if page.has_previous %}<a href="?page={{ page.previous_page_number|unlocalize }}">Vorige</a>{% endif %} {{ page.number }} / {{ page.paginator.num_pages }} {% if page.has_next %}<a href="?page={{ page.next_page_number|unlocalize }}">Volgende</a>{% endif %}</nav>{% endif %}
-{% endblock %}
