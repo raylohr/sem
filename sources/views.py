@@ -79,7 +79,6 @@ def retry(request, project_id, batch_id):
         batch.status = "pending"
         batch.error = ""
         batch.save(update_fields=["status", "error"])
-        if batch.gsc_connection_id:
-            from integrations.tasks import enqueue_gsc
-            transaction.on_commit(lambda: enqueue_gsc(batch.id))
+        from integrations.tasks import enqueue_gsc
+        transaction.on_commit(lambda: enqueue_gsc(batch.id))
     return JsonResponse({"queued": True}, status=202)

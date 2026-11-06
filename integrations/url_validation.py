@@ -1,5 +1,4 @@
 """URL validation for Search Console property boundaries."""
-import hashlib
 import ipaddress
 import re
 from urllib.parse import urlsplit, urlunsplit
@@ -28,7 +27,7 @@ def normalize_url(value):
         if port is not None and port != (443 if scheme == "https" else 80):
             authority += f":{port}"
         normalized = urlunsplit((scheme, authority, parsed.path or "/", parsed.query, ""))
-        return normalized, host, hashlib.sha256(normalized.encode()).hexdigest()
+        return normalized, host
     except (ValueError, UnicodeError):
         return None
 

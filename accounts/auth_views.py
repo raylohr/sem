@@ -6,7 +6,6 @@ from django.contrib.auth.views import PasswordChangeView,PasswordResetView,Passw
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.http import JsonResponse
 from django.shortcuts import redirect,render
 from django.urls import reverse,reverse_lazy
 from django.utils.decorators import method_decorator
@@ -22,7 +21,7 @@ from two_factor.forms import AuthenticationTokenForm,BackupTokenForm
 from two_factor.utils import default_device,get_otpauth_url
 from .models import User,AuditEvent
 from .forms import RateLimitedAuthenticationForm,ConfirmPasswordForm,style_form
-from .policy import recent_password,mfa_required,has_mfa,lock_access_changes,auth_allowed,auth_failure,auth_success
+from .policy import recent_password,mfa_required,lock_access_changes,auth_allowed,auth_failure,auth_success
 
 
 class AccountTokenGenerator(PasswordResetTokenGenerator):

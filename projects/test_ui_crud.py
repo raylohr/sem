@@ -1,17 +1,16 @@
-from unittest.mock import patch
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.test import TestCase, Client, override_settings
+from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from accounts.models import User, AuditEvent
-from sources.models import ImportBatch, SourceRecord, BatchDeletionEvent
+from sources.models import ImportBatch, BatchDeletionEvent
 from sources.services import publish_records
 from integrations.models import GSCConnection, APIResponsePage
 from .models import Project, Membership
-from .services import create_project, update_project, delete_project
+from .services import create_project, delete_project
 
 PASSWORD = 'Project-Management-Test-Password!91'
 

@@ -10,7 +10,6 @@ click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.4.1
 cryptography==46.0.7
-defusedxml==0.7.1
 Django==5.2.18
 django-formtools==2.7
 django-otp==1.7.5

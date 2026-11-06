@@ -82,7 +82,7 @@ def schedule_daily_gsc():
             if connection.last_scheduled_date != today:
                 # A three-day lag and seven-day overlap allow late final data to arrive.
                 end = today - datetime.timedelta(days=3)
-                batch = ImportBatch.objects.create(project=connection.project, source="gsc", method="api",
+                ImportBatch.objects.create(project=connection.project, source="gsc", method="api",
                     label=f"GSC dagelijkse import {today}", created_by=connection.owner,
                     period_start=end-datetime.timedelta(days=6), period_end=end,
                     gsc_connection=connection, parser_version="gsc-api-v1",

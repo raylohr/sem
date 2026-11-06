@@ -1,22 +1,18 @@
-import datetime,json,re
+import json,re
 from urllib.parse import urlsplit
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase,Client,RequestFactory,override_settings,SimpleTestCase
 from django.urls import reverse
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
 from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.oath import totp
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django_otp.plugins.otp_static.models import StaticDevice,StaticToken
 from projects.models import Project,Membership
-from projects.services import set_membership
 from .models import User,AuditEvent
-from .services import update_account,reset_mfa,admin_password_reset
+from .services import update_account,admin_password_reset
 from .auth_views import reset_tokens
 from .forms import RateLimitedAuthenticationForm
 

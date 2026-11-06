@@ -1,4 +1,4 @@
-from django.urls import include,path
+from django.urls import path
 from . import ui
 from integrations import settings_views, guide_views
 from projects import ui as project_ui
