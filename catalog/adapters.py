@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 
-URL_COLUMNS = ["Address", "URL", "Page URL", "URL zoals gebruikt in audit", "URL / pad uit bronexport", "URL expertisepagina", "Archief-URL"]
+URL_COLUMNS = ["Address", "URL", "Page URL", "URL zoals gebruikt in audit", "URL / pad uit bronexport", "Archief-URL"]
 
 
 def normalize_url(value):
