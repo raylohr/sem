@@ -86,7 +86,7 @@ def field_catalog(rows):
         values=field.pop('values')
         label=field['label'].lower()
         force_text=any(word in label for word in ('title','description','address','url','canonical','name')) and not any(word in label for word in ('length','width','count','score'))
-        numeric_name=any(word in label for word in ('traffic','clicks','impressions','ctr','position','count','length','width','depth','score','size','bytes','inlinks','outlinks','status code')) or label=='pr'
+        numeric_name=any(word in label for word in ('traffic','clicks','impressions','ctr','position','count','length','width','depth','score','size','bytes','inlinks','outlinks','backlinks','referring domains','status code')) or label=='pr'
         field['type']='number' if not force_text and (numeric_name or values and all(number(v) is not None for v in values)) else 'date' if values and not force_text and all((isinstance(v,date) or isinstance(v,str) and len(v)==10) and calendar_date(v) is not None for v in values) else 'text'
     return catalog
 

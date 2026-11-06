@@ -148,3 +148,15 @@ def url_detail(request, project_id):
     context = project_context(request, project_id, 'overview')
     context.update(url_context(context['project'], request.GET.get('url')))
     return render(request, 'ui/url_detail.html', context)
+
+
+@never_cache
+@login_required
+@require_GET
+def performance(request, project_id):
+    from sources.url_inventory import project_inventory
+    from sources.performance import scatter_data
+    context=project_context(request,project_id,'performance')
+    _,rows=project_inventory(context['project'],include_fields=True)
+    context.update(scatter_data(rows,request.GET.get('x','')))
+    return render(request,'ui/performance.html',context)

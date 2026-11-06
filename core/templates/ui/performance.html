@@ -1,0 +1,16 @@
+{% extends 'ui/base.html' %}{% load static %}
+{% block title %}Performance · {{ project.name }}{% endblock %}
+{% block content %}
+<section class="card"><div class="card-header"><h2 class="h5 mb-0">Performance per URL</h2></div><div class="card-body">
+<form method="get" class="row g-3 align-items-end mb-3"><div class="col-md-8"><label class="form-label" for="performance-x">X-as</label><select class="form-select" name="x" id="performance-x">{% if not performance_x %}<option value="">Aantal backlinks (niet beschikbaar)</option>{% endif %}{% for field in performance_fields %}<option value="{{ field.id }}" {% if field.id == performance_x.id %}selected{% endif %}>{{ field.source_label }} / {{ field.report_label }} / {{ field.label }}</option>{% endfor %}</select></div><div class="col-md-4"><button class="btn btn-light" type="submit">Grafiek bijwerken</button></div></form>
+<p class="small text-muted">Y-as: organisch verkeer (Ahrefs). Filter: contenttype HTML, SF als voorkeursbron en Ahrefs als fallback. Elk punt is één URL. De nieuwste beschikbare veldmetingen worden gebruikt; meetdatums kunnen verschillen.</p>
+<p class="small text-muted">{{ performance_points|length }} van {{ performance_html_count }} HTML-URLs weergegeven · {{ performance_missing_count }} zonder bruikbare X- of Y-waarde. Nulwaarden worden meegenomen.</p>
+{% if performance_points %}
+<div class="performance-chart" data-performance-chart data-x-label="{{ performance_x.label }}" data-detail-url="{% url 'ui:url-detail' project.id %}"><canvas aria-label="Scatterplot van organisch verkeer tegenover {{ performance_x.label }}. Kies hieronder een pagina om de waarden te bekijken." role="img"></canvas><div class="performance-tooltip" role="status" hidden></div></div>
+<div class="row g-3 mt-2 align-items-end"><div class="col-md-8"><label class="form-label" for="performance-page">Pagina bekijken</label><select class="form-select" id="performance-page"><option value="">Kies een pagina of wijs een punt aan</option></select></div><div class="col-md-4"><a class="btn btn-light d-none" id="performance-details">URL-details</a></div></div>
+<p class="small mt-3 mb-0" id="performance-selection" aria-live="polite"></p>
+{{ performance_points|json_script:'performance-points' }}
+{% else %}<p class="text-muted mb-0">Geen HTML-URLs met beide meetwaarden beschikbaar. Importeer Ahrefs Site Audit-data met organisch verkeer en backlinks, of kies een ander numeriek veld voor de X-as.</p>{% endif %}
+</div></section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'sem/performance.js' %}" defer></script>{% endblock %}

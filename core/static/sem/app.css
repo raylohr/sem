@@ -63,3 +63,7 @@
 .configurable-inventory thead .inventory-url-column{text-align:left}
 .configurable-inventory thead th{position:relative;padding-bottom:2.3rem}
 .configurable-inventory thead .column-meta{position:absolute;bottom:.65rem;left:.75rem;right:.75rem}
+.performance-chart{position:relative;width:100%;min-width:0}
+.performance-chart canvas{display:block;max-width:100%}
+.performance-tooltip{position:absolute;z-index:4;max-width:310px;padding:.7rem;background:#182d38;color:#fff;border-radius:8px;white-space:pre-line;overflow-wrap:anywhere;pointer-events:none;font-size:.8rem;box-shadow:0 3px 14px #182d3820}
+#performance-selection{white-space:pre-line;overflow-wrap:anywhere}
