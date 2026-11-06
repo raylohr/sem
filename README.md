@@ -11,5 +11,6 @@ De actieve applicatieapps zijn accounts, core, projects, sources en integrations
 Historische migraties staan apart in `config/retired_apps`, zonder modellen of
 functionaliteit. Expliciete oorspronkelijke app-labels houden de migratiegeschiedenis intact.
 
-Start de testomgeving met `docker compose up -d --build`.
-Voer databasemigraties uit met `docker compose run --rm migrate`.
+Er is één vaste productieomgeving. Test wijzigingen met `./ops/test.sh` en rol
+ze na commit en push uit met `./ops/deploy-production.sh`.
+Zie [deployment](docs/06-productie-deployment.md) voor de werkwijze.

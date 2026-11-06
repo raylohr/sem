@@ -1,20 +1,20 @@
-name: sem-test
+name: sem-prod
 x-app: &app
-  image: sem-app:local
+  image: ${SEM_PROD_IMAGE:?Run ops/deploy-production.sh}
   restart: unless-stopped
   init: true
   environment: &app-env
-    DB_NAME: sem_test
-    DB_USER: sem_test_app
-    DB_PASSWORD: ${PG_PASSWORD_TEST_APP}
-    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_TEST}
+    DB_NAME: sem_prod
+    DB_USER: sem_prod_app
+    DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
+    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY_PROD}
     DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,sem.lohr.nl
     DB_SSLROOTCERT: /app/ops/database/certs/db-pg.crt
     CELERY_BROKER_URL: redis://redis:6379/0
     GSC_CLIENT_ID: ${GSC_CLIENT_ID:-}
     GSC_CLIENT_SECRET: ${GSC_CLIENT_SECRET:-}
     GSC_REDIRECT_URI: ${GSC_REDIRECT_URI:-https://sem.lohr.nl/integrations/gsc/callback/}
-    INTEGRATION_TOKEN_KEY: ${INTEGRATION_TOKEN_KEY_TEST:-}
+    INTEGRATION_TOKEN_KEY: ${INTEGRATION_TOKEN_KEY_PROD:-}
   volumes:
     - media:/app/media
   depends_on:
@@ -27,9 +27,9 @@ x-app: &app
 services:
   web:
     <<: *app
-    build: .
     environment:
       <<: *app-env
+      TRUST_PROXY_HTTPS: "1"
       ACCOUNT_EMAIL_ENABLED: ${ACCOUNT_EMAIL_ENABLED:-0}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}
@@ -40,10 +40,12 @@ services:
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://sem.lohr.nl}
     ports:
-      - "127.0.0.1:${SEM_PORT:-8001}:8000"
+      - "127.0.0.1:8002:8000"
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
       interval: 30s
+      start_period: 15s
+      start_interval: 1s
       timeout: 5s
       retries: 3
   worker:
@@ -52,14 +54,25 @@ services:
   beat:
     <<: *app
     command: celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+  gateway:
+    image: ${SEM_PROD_GATEWAY_IMAGE:?Run ops/deploy-production.sh}
+    restart: unless-stopped
+    ports:
+      - "192.168.178.159:8002:8080"
+    depends_on:
+      web:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
   migrate:
     <<: *app
     profiles: [tools]
     restart: "no"
     environment:
       <<: *app-env
-      DB_USER: sem_test_migrate
-      DB_PASSWORD: ${PG_PASSWORD_TEST_MIGRATE}
+      DB_USER: sem_prod_migrate
+      DB_PASSWORD: ${PG_PASSWORD_PROD_MIGRATE}
     command: python manage.py migrate --noinput
   redis:
     image: redis:7.4-alpine

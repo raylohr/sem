@@ -43,9 +43,9 @@ TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIR
     "OPTIONS": {"context_processors": ["django.template.context_processors.request",
     "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 WSGI_APPLICATION = "config.wsgi.application"
-DB_NAME = os.environ.get("DB_NAME", "sem_test")
-DB_USER = os.environ.get("DB_USER", "sem_test_app")
-if DB_NAME not in {"sem_prod", "sem_test"}:
+DB_NAME = os.environ.get("DB_NAME", "sem_prod")
+DB_USER = os.environ.get("DB_USER", "sem_prod_app")
+if DB_NAME != "sem_prod":
     raise ImproperlyConfigured("Unknown SEM database")
 if DB_USER not in {f"{DB_NAME}_app", f"{DB_NAME}_migrate"}:
     raise ImproperlyConfigured("Database and account environment must match")
@@ -56,7 +56,6 @@ DATABASES = {"default": {
     "OPTIONS": {"hostaddr": "192.168.178.152", "sslmode": "verify-full",
                 "sslrootcert": os.environ.get("DB_SSLROOTCERT", str(BASE_DIR / "ops/database/certs/db-pg.crt")),
                 "connect_timeout": 5},
-    "TEST": {"NAME": "sem_test"},
 }}
 AUTH_USER_MODEL = "accounts.User"
 AUTH_PASSWORD_VALIDATORS = [
@@ -141,3 +140,6 @@ OTP_STATIC_THROTTLE_FACTOR = 1
 PASSWORD_RESET_TIMEOUT = 3600
 SESSION_COOKIE_AGE = 8 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Tests must explicitly select the isolated test configuration.
+TEST_RUNNER = "config.test_runner.IsolatedDatabaseTestRunner"

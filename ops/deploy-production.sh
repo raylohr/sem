@@ -20,15 +20,10 @@ trap 'rm -rf "$build_dir"' EXIT
 git archive "$revision" | tar -x -C "$build_dir"
 docker build -t "$SEM_PROD_IMAGE" "$build_dir"
 docker build -t "$SEM_PROD_GATEWAY_IMAGE" -f "$build_dir/ops/proxy/Dockerfile" "$build_dir/ops/proxy"
-compose=(docker compose -f compose.yaml -f compose.prod.yaml)
-# Retired workers must stop before destructive schema migrations.
+./ops/test.sh "$SEM_PROD_IMAGE"
+compose=(docker compose -f compose.yaml)
+# Stop writers before database migrations.
 "${compose[@]}" stop web worker beat
-for retired in sem-prod-scan-worker-1 sem-prod-browser-worker-1 sem-prod-browser-sandbox-1; do
-  if docker container inspect "$retired" >/dev/null 2>&1; then
-    docker stop "$retired"
-    docker rm "$retired"
-  fi
-done
 "${compose[@]}" --profile tools run --rm migrate
 "${compose[@]}" up -d --no-build web gateway
 "${compose[@]}" up -d --no-build worker beat
