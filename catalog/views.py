@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F, Count, Prefetch, prefetch_related_objects
+from django.db.models import F
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404,render
 from django.views.decorators.cache import never_cache
@@ -8,7 +8,7 @@ from django.views.decorators.http import require_GET
 from core.ui import project_context
 from sources.models import ImportBatch
 from .forms import URLFilterForm
-from .models import ProjectURL,URLObservation,Label,URLLabel
+from .models import ProjectURL,URLObservation
 from .queries import url_overview,summarize_urls,selected_observations
 
 SOURCE_LABELS=dict(ImportBatch.Source.choices)
@@ -57,9 +57,6 @@ def overview_context(request,project_id):
         urls=urls.none();observations=observations.none()
     page=Paginator(urls,25).get_page(request.GET.get('page'))
     page.object_list=[present_url(item) for item in summarize_urls(page.object_list,observations)]
-    prefetch_related_objects(page.object_list, Prefetch('label_assignments',
-        queryset=URLLabel.objects.filter(label__project=context['project']).select_related('label').order_by('label__name', 'label_id'),
-        to_attr='overview_labels'))
     query=request.GET.copy();query.pop('page',None)
     excluded_unknown_content = 0
     if valid and filters.get('content') == 'html' and (filters.get('scope') or 'page') == 'page':
@@ -72,10 +69,9 @@ def overview_context(request,project_id):
     columns=[]
     explanations={'http':'Sorteert op de hoogste gemeten HTTP-status binnen de filters.',
         'sources':'Sorteert op de eerste bronnaam in alfabetische volgorde.',
-        'labels':'Sorteert op het eerste label in alfabetische volgorde.',
         'date':'Sorteert op de laatste bekende meetdatum.',
         'traffic':'Geschat maandelijks organisch verkeer volgens de laatste beschikbare Ahrefs-meting binnen de actieve filters. Geen gemeten bezoekersaantal. Bij onbekende meetdatum wordt de importvolgorde gebruikt.'}
-    for key,title in [('url','URL'),('sources','Bronnen'),('http','Gemeten HTTP'),('traffic','Traffic'),('labels','Labels'),('date','Meetdatums')]:
+    for key,title in [('url','URL'),('sources','Bronnen'),('http','Gemeten HTTP'),('traffic','Traffic'),('date','Meetdatums')]:
         active=key==sort
         next_direction=('desc' if direction=='asc' else 'asc') if active else ('desc' if key in ('traffic','http','date') else 'asc')
         link=query.copy();link['sort']=key;link['direction']=next_direction
@@ -130,33 +126,8 @@ def detail(request,project_id,url_id):
             observation.fact_items=[(label,', '.join(labels.get(item,item) for item in value) if label=='Gevonden via' else 'Niet vastgesteld' if label=='Linkdiepte vanaf startadres' and value is None else value) for label,value in observation.fact_items]
             if 'depth' not in observation.facts:
                 observation.fact_items.append(('Linkdiepte vanaf startadres','Niet vastgesteld'))
-    context.update(url=item,page=page,label_assignments=item.label_assignments.select_related('label').prefetch_related('evidence__source_record__batch').order_by('label__name'))
+    context.update(url=item,page=page)
     return render(request,'catalog/detail.html',context)
-
-
-@never_cache
-@login_required
-@require_GET
-def labels(request, project_id):
-    context = project_context(request, project_id, 'labels')
-    project = context['project']
-    labels = Label.objects.filter(project=project).annotate(url_count=Count('assignments'))
-    query = request.GET.get('q', '').strip()[:200]
-    if query:
-        labels = labels.filter(name__icontains=query)
-    selected = None
-    assignments = URLLabel.objects.none()
-    if request.GET.get('label'):
-        try:
-            label_id = int(request.GET['label'])
-        except (ValueError, TypeError):
-            from django.http import Http404
-            raise Http404
-        selected = get_object_or_404(Label, project=project, pk=label_id)
-        assignments = URLLabel.objects.filter(label=selected, url__project=project).select_related('url', 'label').prefetch_related('evidence__source_record__batch').order_by('url__normalized_url')
-    context.update(labels=labels, query=query, selected=selected, assignments=Paginator(assignments, 25).get_page(request.GET.get('page')),
-        label_count=project.labels.count(), labeled_url_count=ProjectURL.objects.filter(project=project,label_assignments__isnull=False).distinct().count())
-    return render(request, 'catalog/labels.html', context)
 
 
 @never_cache

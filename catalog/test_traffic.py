@@ -6,8 +6,7 @@ from projects.models import Project, Membership
 from sources.models import ImportBatch
 from sources.services import publish_records
 from .queries import url_overview, summarize_urls
-from .models import Label, URLLabel, ProjectURL
-from .labels import label_key
+from .models import ProjectURL
 
 
 @override_settings(STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}, 'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'}})
@@ -74,19 +73,13 @@ class TrafficColumnTests(TestCase):
         self.assertEqual(parse_qs(columns['traffic']['query']),
             {'sort':['traffic'],'direction':['asc'],'source':['ahrefs'],'q':['example.com']})
 
-    def test_all_columns_and_label_ordering_are_supported(self):
+    def test_all_columns_are_supported(self):
         self.publish({'a/':10,'b/':20,'c/':None})
-        for name,path in [('Zulu','a/'),('Alpha','b/')]:
-            label=Label.objects.create(project=self.project,name=name,key=label_key(name))
-            URLLabel.objects.create(label=label,url=ProjectURL.objects.get(project=self.project,normalized_url='https://example.com/'+path))
         url=reverse('ui:catalog:overview',args=[self.project.pk])
-        for column in ['url','sources','http','traffic','labels','date']:
+        for column in ['url','sources','http','traffic','date']:
             for direction in ['asc','desc']:
                 response=self.client.get(url,{'sort':column,'direction':direction})
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.context['url_count'],3)
-        response=self.client.get(url,{'sort':'labels','direction':'asc'})
-        self.assertEqual([u.normalized_url for u in response.context['page']],
-            ['https://example.com/b/','https://example.com/a/','https://example.com/c/'])
         self.assertEqual(self.client.get(url,{'sort':'invalid'}).status_code,400)
         self.assertEqual(self.client.get(url,{'direction':'invalid'}).status_code,400)

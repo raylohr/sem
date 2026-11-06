@@ -12,14 +12,10 @@ def delete_batch(*, batch_id, project, actor):
     if not can_manage(actor, project):
         raise PermissionDenied
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id, project=project)
-    from catalog.models import URLLabel
-    affected_assignments = list(URLLabel.objects.filter(url__project=project,
-        evidence__source_record__batch=batch).values_list('pk', flat=True).distinct())
     BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk, batch_id=batch.id, actor=actor)
     if batch.file:
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     batch.delete()
-    URLLabel.objects.filter(pk__in=affected_assignments, status='source', evidence__isnull=True).delete()
     from catalog.services import prune_urls
     prune_urls(project.pk)
     from .tasks import enqueue_cleanup

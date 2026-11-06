@@ -13,7 +13,7 @@ def prune_urls(project_id):
     # 100k-URL project because PostgreSQL may choose an unparameterized join scan.
     first_observation = URLObservation.objects.filter(url_id=OuterRef('pk')).values('pk')[:1]
     return ProjectURL.objects.filter(project_id=project_id).alias(
-        first_observation=Subquery(first_observation)).filter(first_observation__isnull=True, label_assignments__isnull=True).delete()
+        first_observation=Subquery(first_observation)).filter(first_observation__isnull=True).delete()
 
 
 @transaction.atomic

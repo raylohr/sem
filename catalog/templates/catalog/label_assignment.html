@@ -1,6 +1,0 @@
-<div class="card card-body mb-3">
-<div><strong>{{ assignment.label.name }}</strong> <span class="badge text-bg-light">{{ assignment.get_status_display }}</span></div>
-<a class="small text-break" href="{% url 'ui:catalog:detail' project.id assignment.url_id %}">{{ assignment.url.normalized_url }}</a>
-<details class="mt-2 small"><summary>Bronverwijzingen ({{ assignment.evidence.all|length }})</summary>
-{% for evidence in assignment.evidence.all %}<div class="border-top mt-2 pt-2"><a href="{% url 'ui:record' project.id evidence.source_record.batch_id evidence.source_record_id %}">{{ evidence.source_record.batch.original_filename }} · {{ evidence.source_record.data.sheet }} · rij {{ evidence.source_record.data.row }}</a><div>Kolom: {{ evidence.column }}</div><div class="text-break">Oorspronkelijk label: {{ evidence.original_label|linebreaksbr }}</div><div class="text-break">Bron-URL: {{ evidence.original_url }}</div></div>{% endfor %}
-</details></div>

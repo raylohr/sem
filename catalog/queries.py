@@ -3,15 +3,11 @@ from django.db.models import Count, Exists, Max, Min, OuterRef, Q, F, Subquery, 
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 from sources.models import ImportBatch
-from .models import ProjectURL,URLObservation,URLLabel,Label
+from .models import ProjectURL,URLObservation
 
 
 def selected_observations(project,filters):
     query=URLObservation.objects.filter(url__project=project,batch__project=project,batch__status__in=('complete','incomplete'),scope=filters.get('scope') or 'page')
-    if filters.get('expertise'):
-        assignments = URLLabel.objects.filter(url_id=OuterRef('url_id'), label=filters['expertise'],
-            label__project=project, label__label_type=Label.Type.EXPERTISE)
-        query = query.filter(Exists(assignments))
     if 'source' in filters:
         query=query.filter(batch__source__in=filters['source'])
     if filters.get('batch'):
@@ -79,8 +75,6 @@ def url_overview(project,filters):
     elif sort=='sources':
         source_name=Case(*[When(batch__source=code,then=Value(name)) for code,name in ImportBatch.Source.choices],default=F('batch__source'),output_field=CharField())
         value=Subquery(selected.annotate(value=Min(source_name)).values('value')[:1])
-    elif sort=='labels':
-        value=Subquery(URLLabel.objects.filter(url_id=OuterRef('pk'),label__project=project).order_by('label__name','label_id').values('label__name')[:1])
     else:
         return urls.order_by('normalized_url','id'),observations
     urls=urls.alias(sort_value=value)
