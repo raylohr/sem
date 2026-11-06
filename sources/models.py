@@ -7,8 +7,10 @@ from projects.models import Project
 class ImportBatch(models.Model):
     class Source(models.TextChoices):
         GSC = "gsc", "Google Search Console"
+        SF = "sf", "Screaming Frog"
     class Method(models.TextChoices):
         API = "api", "API"
+        FILE = "file", "Bestand"
     class Status(models.TextChoices):
         PENDING = "pending", "Wacht op verwerking"
         PROCESSING = "processing", "Wordt verwerkt"
@@ -22,6 +24,7 @@ class ImportBatch(models.Model):
     source = models.CharField(max_length=24, choices=Source.choices)
     method = models.CharField(max_length=10, choices=Method.choices)
     label = models.CharField(max_length=255)
+    file_checksum = models.CharField(max_length=64, null=True, blank=True, editable=False)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     imported_at = models.DateTimeField(auto_now_add=True)
     measured_at = models.DateTimeField(null=True, blank=True)
@@ -38,7 +41,7 @@ class ImportBatch(models.Model):
 
     class Meta:
         ordering = ["-imported_at", "-id"]
-        constraints = [models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
+        constraints = [models.UniqueConstraint(fields=["project", "file_checksum"], name="unique_project_file_import"), models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
 
 
 class SourceRecord(models.Model):

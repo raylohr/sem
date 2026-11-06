@@ -23,5 +23,5 @@ class FileImportRemovalTests(TestCase):
     def test_gsc_model_has_no_file_import_fields(self):
         fields = {field.name for field in ImportBatch._meta.fields}
         self.assertFalse(fields & {'file', 'checksum', 'fingerprint', 'original_filename', 'sheet_summary'})
-        self.assertEqual(ImportBatch.Source.values, ['gsc'])
-        self.assertEqual(ImportBatch.Method.values, ['api'])
+        self.assertEqual(ImportBatch.Source.values, ['gsc', 'sf'])
+        self.assertEqual(ImportBatch.Method.values, ['api', 'file'])

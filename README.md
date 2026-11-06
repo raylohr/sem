@@ -1,8 +1,14 @@
 # TrafficStack
 
-Django-werkplek voor projecten en Google Search Console.
+Django-werkplek voor projecten, Google Search Console en Screaming Frog URL-imports.
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
-Bestandsuploads en imports uit CSV, TSV, XLS en XLSX zijn verwijderd.
+Via Data → Import worden Screaming Frog Internal → All CSV-exports automatisch herkend.
+Een voorbeeld toont domeinen, URL-aantallen, crawl-tijden en de huidige gebruiker.
+Na bevestiging verschijnt een doorzoekbare URL-lijst met HTML- en resourcefilters.
+Elke import bewaart alle oorspronkelijke kolommen als afzonderlijke projectsnapshot;
+hetzelfde bestand wordt binnen een project niet dubbel geïmporteerd.
+Tijden zonder tijdzone worden geïnterpreteerd als Europe/Amsterdam.
+Andere bestandsformaten en algemene spreadsheetimports worden niet ondersteund.
 
 De ingebouwde websitecrawler, sitemapscanner, browseronderzoeken en hun afgeleide
 analyses, technologie-/privacyverrijking en onderzoeksdossiers zijn verwijderd.

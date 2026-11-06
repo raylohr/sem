@@ -1,0 +1,16 @@
+{% extends 'ui/base.html' %}{% load l10n %}
+{% block title %}Import controleren{% endblock %}
+{% block content %}
+<h2 class="h4">Import controleren</h2>
+<div class="card mb-3"><div class="card-body"><dl>
+<dt>Bron</dt><dd>Screaming Frog</dd><dt>Type</dt><dd>Interne URLs (internal_all)</dd>
+<dt>Project</dt><dd>{{ project.name }}</dd><dt>Toegevoegd door</dt><dd>{{ batch.created_by.get_username }}</dd>
+<dt>Inhoud</dt><dd>{{ batch.record_count }} URLs · {{ summary.html_count }} HTML-items</dd>
+<dt>Domeinen</dt><dd>{% for host,count in summary.hosts.items %}{{ host }} ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+<dt>Crawl-tijden</dt><dd>{{ summary.crawl_start|default:'Niet aanwezig' }} — {{ summary.crawl_end|default:'Niet aanwezig' }}</dd>
+</dl><p class="small text-muted">Tijden zonder tijdzone worden gelezen als {{ summary.timezone }}. Alle oorspronkelijke kolommen blijven bewaard. De import wordt aan jouw account gekoppeld.</p>
+{% for warning in batch.warnings %}<div class="alert alert-warning">{{ warning }}</div>{% endfor %}
+</div></div>
+<div class="table-responsive mb-3"><table class="table"><thead><tr><th>URL (eerste 10)</th></tr></thead><tbody>{% for record in sample %}<tr><td class="text-break">{{ record.data.Address }}</td></tr>{% endfor %}</tbody></table></div>
+<form method="post">{% csrf_token %}<button class="btn btn-primary" name="action" value="confirm">Importeer {{ batch.record_count }} URLs</button> <button class="btn btn-light" name="action" value="cancel">Annuleren</button></form>
+{% endblock %}

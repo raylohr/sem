@@ -65,6 +65,20 @@ def sources(request, project_id):
 def batch(request, project_id, batch_id):
     context=project_context(request,project_id,'sources')
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
+    if item.source == 'sf' and item.status == 'complete':
+        rows = item.records.order_by('id')
+        resource = request.GET.get('resource', 'html')
+        if resource != 'all':
+            rows = rows.filter(Q(**{'data__Content Type__istartswith': 'text/html'}) | Q(**{'data__Content Type__istartswith': 'application/xhtml+xml'}))
+        query = request.GET.get('q', '').strip()[:500]
+        if query:
+            rows = rows.filter(data__Address__icontains=query)
+        page = Paginator(rows, 50).get_page(request.GET.get('page'))
+        for record in page.object_list:
+            record.sf_status = record.data.get('Status Code', '')
+            record.sf_indexability = record.data.get('Indexability', '')
+            record.sf_title = record.data.get('Title 1', '')
+        context.update(url_page=page, resource=resource, query=query)
     context.update(batch=item, records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [])
     return render(request,'ui/batch.html',context)
 
