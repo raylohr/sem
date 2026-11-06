@@ -47,9 +47,8 @@
 @media(max-width:767px){.configurable-inventory .inventory-url-column{position:static;box-shadow:none}}
 .configurable-inventory th,.configurable-inventory td{padding:.85rem .75rem}
 .column-meta{display:flex;flex-direction:column;align-items:center;gap:4px;white-space:nowrap;font-size:.72rem}
-.column-meta .status-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;font-size:.65rem;padding:.2rem .35rem}
 
-.configurable-inventory thead th{text-align:center;font-size:calc(.72rem + 3pt)}
+.configurable-inventory thead th{text-align:center;vertical-align:top;font-size:calc(.72rem + 3pt)}
 .configurable-inventory td:not(.inventory-url-column){text-align:center}
 .configurable-inventory .inventory-column-control{text-align:center}
 .inventory-heading-row{position:relative;padding-inline:16px}
