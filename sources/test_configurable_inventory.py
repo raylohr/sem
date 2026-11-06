@@ -160,3 +160,36 @@ class ConfigurableInventoryTests(TestCase):
         columns=InventoryPreference.objects.get(user=self.user).columns
         self.assertEqual(len(columns),5)
         self.assertEqual(len({col['id'] for col in columns}),5)
+
+    def test_dataset_filters_work_without_visible_column_and_survive_layout_changes(self):
+        rows,catalog=self.data()
+        field=self.field(catalog,'Category');key='field_'+field['id']
+        params=QueryDict(mutable=True)
+        params['a_'+key]='1';params.setlist('v_'+key,[value_key('A','text')])
+        response=self.client.get(self.url,params)
+        self.assertEqual(response.context['url_filtered_count'],6)
+        self.assertNotIn(field['id'],[column['field_id'] for column in response.context['value_columns']])
+        self.assertEqual(response.context['dataset_filters'][0]['field_id'],field['id'])
+        response=self.client.post(self.url,{'columns_action':'save','return_state':params.urlencode()},follow=True)
+        self.assertEqual(response.context['value_columns'],[])
+        self.assertEqual(response.context['url_filtered_count'],6)
+        response=self.client.post(self.url,{'columns_action':'reset','return_state':params.urlencode()},follow=True)
+        self.assertEqual(response.context['url_filtered_count'],6)
+        response=self.client.get(self.url,{'filter_field':field['id']})
+        self.assertEqual(response.context['filter_editor']['field_id'],field['id'])
+        self.assertContains(response,'data-open-modal')
+        self.assertNotContains(response,'data-bs-target="#columnFilter-')
+        response=self.client.get(self.url,{'filter_field':'not-in-project','a_field_invalid':'1'})
+        self.assertIsNone(response.context['filter_editor'])
+        self.assertEqual(response.context['url_filtered_count'],12)
+
+    def test_dataset_numeric_keyword_and_combined_filters(self):
+        rows,catalog=self.data()
+        number_key='field_'+self.field(catalog,'Organic traffic')['id']
+        text_key='field_'+self.field(catalog,'Title')['id']
+        response=self.client.get(self.url,{'lo_'+number_key:'2','hi_'+number_key:'5','q_'+text_key:'TITLE 3'})
+        self.assertEqual(response.context['url_filtered_count'],1)
+        self.assertEqual(len(response.context['dataset_filters']),2)
+        response=self.client.get(self.url,{'lo_'+number_key:'5','hi_'+number_key:'2'})
+        self.assertEqual(response.context['url_filtered_count'],0)
+        self.assertTrue(response.context['table_errors'])

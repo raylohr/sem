@@ -54,3 +54,9 @@
 .configurable-inventory .inventory-column-control{text-align:center}
 .inventory-heading-row{position:relative;padding-inline:16px}
 .inventory-heading-row .inventory-sort{position:absolute;right:0;top:0;font-size:inherit}
+
+.inventory-tools{display:flex;gap:1rem;align-items:start;margin-bottom:1rem;flex-wrap:wrap}
+.inventory-search{width:calc(100% - var(--inventory-value-width)*170px);min-width:336px;padding-right:.75rem;flex-shrink:0}
+.inventory-filters{display:flex;flex:1;gap:.5rem;align-items:center;flex-wrap:wrap}
+.configurable-inventory .inventory-column-control{cursor:default}
+@media(max-width:767px){.inventory-search{width:100%;min-width:0;padding-right:0}.inventory-filters{flex-basis:100%}}

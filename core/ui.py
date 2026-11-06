@@ -42,7 +42,7 @@ def project_home(request, project_id):
     from django.urls import reverse
     from sources.url_inventory import project_inventory
     from sources.column_fields import field_catalog
-    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params
+    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params,build_dataset_table
     from sources.models import InventoryPreference
     source_columns, rows = project_inventory(project, include_fields=True)
     catalog = field_catalog(rows)
@@ -52,17 +52,18 @@ def project_home(request, project_id):
         previous = QueryDict(request.POST.get('return_state', '')[:20000])
         if request.POST.get('columns_action') == 'reset':
             InventoryPreference.objects.filter(project=project, user=request.user).delete()
-            from urllib.parse import urlencode
-            return redirect(reverse('ui:project', args=[project.pk]) + '?' + urlencode({'url_q':previous.get('url_q','')[:500]}) + '#url-inventory')
+            available = selected_columns(project, request.user, catalog, rows)
+            _, new_state = build_dataset_table(rows, available, previous, catalog)
+            return redirect(reverse('ui:project', args=[project.pk]) + '?' + new_state['url_state_query'] + '#url-inventory')
         if request.POST.get('columns_action') == 'save' and form.is_valid():
             configuration = form.configuration(rows)
             InventoryPreference.objects.update_or_create(project=project, user=request.user, defaults={'columns':configuration})
             available = selected_columns(project, request.user, catalog, rows)
-            _, new_state = build_table(rows, available, previous)
+            _, new_state = build_dataset_table(rows, available, previous, catalog)
             return redirect(reverse('ui:project', args=[project.pk]) + '?' + new_state['url_state_query'] + '#url-inventory')
     total = len(rows)
     params = legacy_params(request.GET, columns, rows)
-    rows, controls = build_table(rows, columns, params)
+    rows, controls = build_dataset_table(rows, columns, params, catalog)
     context.update(controls)
     context.update(url_columns=source_columns, url_total=total, column_form=form,
                    field_catalog_json=list(catalog.values()),

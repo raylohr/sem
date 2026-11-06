@@ -145,7 +145,7 @@ class URLInventoryTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.context['inventory_page'].paginator.count,102)
         self.assertEqual(len(response.context['inventory_page']),2)
-        for value in ('o-traffic','AHREFS','contenttype','columnFilter-sf','aria-sort="descending"','a_sf=1','sort=ahrefs%3Adesc'):
+        for value in ('o-traffic','AHREFS','contenttype','datasetFilterModal','aria-sort="descending"','a_sf=1','sort=ahrefs%3Adesc'):
             self.assertContains(response,value)
         self.assertContains(response,'name="v_sf"')
         self.assertContains(self.client.get(url,{'content_filter':'1'}),'Geen URLs gevonden voor deze combinatie van filters.')
@@ -160,7 +160,7 @@ class URLInventoryTests(TestCase):
         self.add('ahrefs', {'URL':'https://example.com/a','Organic traffic':'10'})
         url=reverse('ui:project',args=[self.project.pk])
         response=self.client.get(url)
-        for value in ('Index Status','columnFilter-gsc','gsc_report_status','not_indexed','indexed'):
+        for value in ('Index Status','datasetFilterModal','gsc_report_status','not_indexed','indexed'):
             self.assertContains(response,value)
         self.assertNotContains(response,reverse('ui:record',args=[self.project.pk,latest.batch_id,latest.pk]))
         self.assertNotContains(response,reverse('ui:record',args=[self.project.pk,old.batch_id,old.pk]))

@@ -222,3 +222,24 @@ def legacy_params(params,columns,rows):
                     selected.append(value_key(raw,column['type']))
             result['a_'+column_id]='1';result.setlist('v_'+column_id,sorted(set(selected)))
     return result
+
+
+def build_dataset_table(rows, columns, params, catalog):
+    """Filter any dataset field independently of the displayed value columns."""
+    requested=params.get('filter_field','')
+    filters=[]
+    for field in catalog.values():
+        key='field_'+field['id']
+        if field['id']==requested or any(params.get(prefix+key) for prefix in ('a_','lo_','hi_','q_','m_')):
+            filters.append({**configured_field(field,rows,key),'available':True})
+    result,controls=build_table(rows,columns+filters,params)
+    controls['value_columns']=columns
+    controls['table_width']=360+170*len(columns)
+    for row in result:row['value_cells']=row['value_cells'][:len(columns)]
+    # Existing bookmarked column filters remain editable during the transition.
+    active=[column for column in columns+filters if column['active']]
+    chosen=next((column for column in filters if column['field_id']==requested),None)
+    if chosen is None:
+        chosen=next((column for column in active if column['id']==params.get('edit_filter')),None)
+    controls.update(dataset_filters=active,filter_editor=chosen,filter_catalog=sorted(catalog.values(),key=lambda f:(f['source_label'],f['report_label'],f['label'])))
+    return result,controls
