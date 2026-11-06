@@ -30,7 +30,7 @@
     draw();
   }
   function draw() {
-    const width = chart.clientWidth, height = 440;
+    const width = chart.clientWidth, height = window.innerWidth < 768 ? 380 : 480;
     const ratio = window.devicePixelRatio || 1;
     canvas.width = Math.round(width * ratio); canvas.height = height * ratio;
     canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
@@ -41,10 +41,15 @@
     const maxY = points.reduce((max, p) => Math.max(max, p.y), 1);
     const extentX = transform(maxX, xScale.value), extentY = transform(maxY, yScale.value);
     canvas.setAttribute('aria-label', `Scatterplot: ${chart.dataset.xLabel} (${xScale.value}) tegenover organisch verkeer (${yScale.value}). Kies hieronder een pagina om de waarden te bekijken.`);
-    ctx.font = '12px system-ui'; ctx.lineWidth = 1;
+    const background = ctx.createLinearGradient(0, top, 0, top + plotH);
+    background.addColorStop(0, '#f8fbfd'); background.addColorStop(1, '#ffffff');
+    ctx.fillStyle = background; ctx.fillRect(left, top, plotW, plotH);
+    ctx.font = '11px system-ui'; ctx.lineWidth = 1;
     for (let i = 0; i <= 5; i++) {
       const x = left + plotW * i / 5, y = top + plotH * (1 - i / 5);
-      ctx.strokeStyle = '#e0e7e8'; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
+      ctx.strokeStyle = '#e5edf2'; ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + plotH); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = '#647580'; ctx.textAlign = 'right'; ctx.fillText(format.format(inverse(extentY * i / 5, yScale.value)), left - 10, y + 4);
       ctx.textAlign = 'center'; ctx.fillText(format.format(inverse(extentX * i / 5, xScale.value)), x, height - bottom + 24);
     }
@@ -59,21 +64,36 @@
       trendStatus.textContent = curve.length ? 'Oranje lijn: niet-lineaire trend, lokaal geschat op de gekozen asschalen.' : 'Trend niet beschikbaar: minimaal vijf URLs en drie verschillende X-waarden nodig.';
       if (curve.length) {
         ctx.save(); ctx.beginPath(); ctx.rect(left, top, plotW, plotH); ctx.clip();
-        ctx.beginPath(); ctx.strokeStyle = '#c45c12'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.strokeStyle = '#d97732'; ctx.lineWidth = 2.75; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         curve.forEach((p, i) => { const x = left + p.x * plotW, y = top + (1 - p.y) * plotH; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
         ctx.stroke(); ctx.restore();
       }
     } else trendStatus.textContent = 'Trendlijn verborgen';
-    plotted.forEach((p, i) => { ctx.beginPath(); ctx.arc(p.x, p.y, i === selected ? 6 : 3.5, 0, Math.PI * 2); ctx.fillStyle = i === selected ? '#0b2d4d' : '#16a6c19c'; ctx.fill(); });
+    plotted.forEach((p, i) => {
+      const active = i === selected || i === hovered;
+      if (active) { ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fillStyle = '#0891b21c'; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(p.x, p.y, active ? 5 : 3.8, 0, Math.PI * 2);
+      ctx.fillStyle = active ? '#0e7490' : '#0891b28c'; ctx.fill();
+      if (active) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.75; ctx.stroke(); }
+    });
+    if (hovered !== null) {
+      const p = plotted[hovered]; ctx.save(); ctx.setLineDash([3, 4]); ctx.strokeStyle = '#0e74904d'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(left, p.y); ctx.lineTo(p.x, p.y); ctx.lineTo(p.x, top + plotH); ctx.stroke(); ctx.restore();
+    }
   }
   canvas.addEventListener('pointermove', event => {
     const bounds = canvas.getBoundingClientRect(), x = event.clientX - bounds.left, y = event.clientY - bounds.top;
     let nearest = null, distance = 144;
     plotted.forEach((p, i) => { const d = (p.x - x) ** 2 + (p.y - y) ** 2; if (d < distance) { distance = d; nearest = i; } });
-    hovered = nearest; tooltip.hidden = nearest === null; canvas.style.cursor = nearest === null ? 'default' : 'pointer';
-    if (nearest !== null) { tooltip.textContent = description(points[nearest]); tooltip.style.left = `${Math.min(Math.max(0,x + 12), Math.max(0,chart.clientWidth - 310))}px`; tooltip.style.top = `${Math.max(0,y - 100)}px`; }
+    const changed = hovered !== nearest; hovered = nearest; if (changed) draw(); tooltip.hidden = nearest === null; canvas.style.cursor = nearest === null ? 'default' : 'pointer';
+    if (nearest !== null) { const point = points[nearest];
+      tooltip.querySelector('[data-tooltip-title]').textContent = point.title;
+      tooltip.querySelector('[data-tooltip-url]').textContent = point.url;
+      tooltip.querySelector('[data-tooltip-x-label]').textContent = chart.dataset.xLabel;
+      tooltip.querySelector('[data-tooltip-x]').textContent = format.format(point.x);
+      tooltip.querySelector('[data-tooltip-y]').textContent = format.format(point.y); tooltip.style.left = `${Math.min(Math.max(0,x + 12), Math.max(0,chart.clientWidth - 310))}px`; tooltip.style.top = `${Math.max(0,y - 160)}px`; }
   });
-  canvas.addEventListener('pointerleave', () => { tooltip.hidden = true; hovered = null; });
+  canvas.addEventListener('pointerleave', () => { tooltip.hidden = true; hovered = null; draw(); });
   canvas.addEventListener('click', () => { if (hovered !== null) choose(hovered); });
   picker.addEventListener('change', () => choose(picker.value === '' ? null : Number(picker.value)));
   [xScale, yScale].forEach(control => control.addEventListener('change', () => {
