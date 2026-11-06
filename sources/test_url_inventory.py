@@ -133,3 +133,19 @@ class URLInventoryTests(TestCase):
         self.assertEqual(by_url[url]['title_source'], 'SF')
         self.assertEqual(by_url['https://example.com/fallback']['title_source'], 'Ahrefs')
         self.assertEqual(by_url['https://example.com/no-title']['title'], '')
+
+    def test_column_headers_modal_and_controls_survive_search_and_pagination(self):
+        batch,_=self.add('sf',{'Address':'https://example.com/a','Content Type':'text/html','Status Code':'200'})
+        for index in range(101):
+            SourceRecord.objects.create(batch=batch,locator=str(index+2),data={
+                'Address':f'https://example.com/item-{index:03}','Content Type':'text/html','Status Code':'200'})
+        self.add('ahrefs',{'URL':'https://example.com/a','Organic traffic':'10'})
+        url=reverse('ui:project',args=[self.project.pk])
+        response=self.client.get(url,{'traffic_sort':'desc','content_filter':'1','content_type':'html','url_page':'2'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.context['inventory_page'].paginator.count,102)
+        self.assertEqual(len(response.context['inventory_page']),2)
+        for value in ('o-traffic','AHREFS','contenttype','contentTypeFilterModal','aria-sort="descending"','content_type=html','traffic_sort=desc'):
+            self.assertContains(response,value)
+        self.assertContains(response,'name="content_type" value="html"')
+        self.assertContains(self.client.get(url,{'content_filter':'1'}),'Geen URLs gevonden voor deze combinatie van filters.')

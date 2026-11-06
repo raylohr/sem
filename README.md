@@ -58,3 +58,9 @@ De detailpagina groepeert alle gepubliceerde waarnemingen per hoofdbron, met
 velden in twee kolommen en uitklapbare historie en importcontext. Bronnen en
 velden worden direct uit de actuele records opgebouwd; verwijderde imports
 verdwijnen automatisch uit de weergave.
+
+Het URL-overzicht toont o-traffic met een AHREFS-bronbadge en contenttype met
+een SF-bronbadge. Klikken op o-traffic wisselt tussen oplopend, aflopend en
+URL-padvolgorde; ontbrekend verkeer staat onderaan. De contenttypekop opent
+een modal met meervoudige selectie en aantallen per SF-type/status, inclusief
+URLs zonder SF-meting. Zoekterm, sortering en filters blijven behouden bij pagineren.

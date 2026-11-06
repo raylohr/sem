@@ -40,11 +40,11 @@ def project_home(request, project_id):
         recent=project.import_batches.select_related('created_by')[:8])
     from sources.url_inventory import project_inventory
     columns, rows = project_inventory(project)
-    query = request.GET.get('url_q', '').strip()[:500]
+    from sources.inventory_controls import inventory_controls
     total = len(rows)
-    if query:
-        rows = [row for row in rows if query.casefold() in row['url'].casefold()]
-    context.update(url_columns=columns, url_total=total, url_query=query,
+    rows, controls = inventory_controls(rows, columns, request.GET)
+    context.update(controls)
+    context.update(url_columns=columns, url_total=total,
                    inventory_page=Paginator(rows, 100).get_page(request.GET.get('url_page')))
     return render(request,'ui/project.html',context)
 

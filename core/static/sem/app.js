@@ -142,3 +142,13 @@ document.querySelectorAll('[data-excel-export]').forEach((button) => {
     }
   });
 });
+
+document.querySelectorAll('[data-content-select]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const form = button.closest('form');
+    if (!form) return;
+    form.querySelectorAll('input[name="content_type"]').forEach((checkbox) => {
+      checkbox.checked = button.dataset.contentSelect === 'all';
+    });
+  });
+});
