@@ -25,3 +25,25 @@ window.semPerformanceTrend = function (points) {
   }
   return curve;
 };
+
+// Shape-preserving cubic interpolation: rounded joins without artificial peaks.
+window.semDrawSmoothTrend = function (ctx, points) {
+  if (!points.length) return;
+  ctx.moveTo(points[0].x, points[0].y);
+  if (points.length < 2) return;
+  const slopes = points.slice(1).map((point, i) => (point.y - points[i].y) / (point.x - points[i].x));
+  const tangents = points.map((point, i) => {
+    if (i === 0) return slopes[0];
+    if (i === points.length - 1) return slopes[i - 1];
+    const before = slopes[i - 1], after = slopes[i];
+    if (before * after <= 0) return 0;
+    const left = point.x - points[i - 1].x, right = points[i + 1].x - point.x;
+    const a = 2 * right + left, b = right + 2 * left;
+    return (a + b) / (a / before + b / after);
+  });
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i], end = points[i + 1], third = (end.x - start.x) / 3;
+    ctx.bezierCurveTo(start.x + third, start.y + tangents[i] * third,
+      end.x - third, end.y - tangents[i + 1] * third, end.x, end.y);
+  }
+};

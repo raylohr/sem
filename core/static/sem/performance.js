@@ -65,7 +65,7 @@
       if (curve.length) {
         ctx.save(); ctx.beginPath(); ctx.rect(left, top, plotW, plotH); ctx.clip();
         ctx.beginPath(); ctx.strokeStyle = '#d97732'; ctx.lineWidth = 2.75; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        curve.forEach((p, i) => { const x = left + p.x * plotW, y = top + (1 - p.y) * plotH; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        window.semDrawSmoothTrend(ctx, curve.map(p => ({x: left + p.x * plotW, y: top + (1 - p.y) * plotH})));
         ctx.stroke(); ctx.restore();
       }
     } else trendStatus.textContent = 'Trendlijn verborgen';
