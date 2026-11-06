@@ -109,3 +109,15 @@ class URLInventoryTests(TestCase):
         self.assertEqual(rows[0]['observations']['ahrefs']['traffic'],1152)
         self.assertEqual(rows[1]['observations']['ahrefs']['traffic'],0)
         self.assertIsNone(rows[2]['observations']['ahrefs']['traffic'])
+
+    def test_titles_use_latest_available_source_and_url_is_the_clickable_line(self):
+        url = 'https://example.com/a'
+        self.add('sf', {'Address':url,'Crawl Timestamp':'2026-10-14','Title 1':'Oude titel'})
+        self.add('ahrefs', {'URL':url,'last_seen':'2026-10-29','Title':'Nieuwe <titel>'})
+        self.add('gsc', {'URL':url,'Last crawled':'2026-11-01'})
+        self.add('gsc', {'URL':'https://example.com/no-title','Last crawled':'2026-11-01'})
+        response = self.client.get(reverse('ui:project',args=[self.project.pk]))
+        self.assertContains(response, '<div class="fw-semibold">Nieuwe &lt;titel&gt;</div>', html=True)
+        self.assertContains(response, '<a class="small text-muted" href="https://example.com/a">https://example.com/a</a>', html=True)
+        self.assertContains(response, '<div class="fw-semibold">/no-title</div>', html=True)
+        self.assertNotContains(response, 'Oude titel')

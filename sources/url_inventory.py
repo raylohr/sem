@@ -59,10 +59,13 @@ def project_inventory(project, *, include_data=False):
             parts = urlsplit(url)
             rows[url] = {'url': url, 'path': parts.path or '/',
                          'display_path': (parts.path or '/') + ('?' + parts.query if parts.query else ''),
-                         'host': parts.netloc, 'observations': {}}
+                         'host': parts.netloc, 'observations': {}, 'title': '', 'title_rank': None}
         current = rows[url]['observations'].get(source)
         # Prefer a dated source observation over an import-date fallback on a tie.
         rank = (stamp, not fallback, batch.imported_at, record_id)
+        title = data.get('Title 1') or data.get('Title')
+        if isinstance(title, str) and title.strip() and (rows[url]['title_rank'] is None or rank > rows[url]['title_rank']):
+            rows[url].update(title=title.strip(), title_rank=rank)
         if current is None or rank > current['rank']:
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
