@@ -34,7 +34,7 @@
 
 .configurable-inventory{table-layout:fixed}
 .configurable-inventory th,.configurable-inventory td{max-width:220px;overflow-wrap:anywhere}
-.configurable-inventory .inventory-url-column{position:sticky;left:0;z-index:1;background:#fff;max-width:360px;box-shadow:1px 0 0 var(--sem-border)}
+.configurable-inventory .inventory-url-column{position:sticky;left:0;z-index:1;background:#fff;max-width:none;box-shadow:1px 0 0 var(--sem-border)}
 .configurable-inventory thead .inventory-url-column{z-index:3;background:#f8fafb}
 .inventory-heading,.url-title,.inventory-value{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .inventory-heading{max-height:3.1em}
@@ -46,5 +46,11 @@
 .inventory-choice{min-width:0;overflow-wrap:anywhere}
 @media(max-width:767px){.configurable-inventory .inventory-url-column{position:static;box-shadow:none}}
 .configurable-inventory th,.configurable-inventory td{padding:.85rem .75rem}
-.column-meta{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.column-meta{display:flex;flex-direction:column;align-items:center;gap:4px;white-space:nowrap;font-size:.72rem}
 .column-meta .status-badge{max-width:72px;overflow:hidden;text-overflow:ellipsis;font-size:.65rem;padding:.2rem .35rem}
+
+.configurable-inventory thead th{text-align:center;font-size:calc(.72rem + 3pt)}
+.configurable-inventory td:not(.inventory-url-column){text-align:center}
+.configurable-inventory .inventory-column-control{text-align:center}
+.inventory-heading-row{position:relative;padding-inline:16px}
+.inventory-heading-row .inventory-sort{position:absolute;right:0;top:0;font-size:inherit}

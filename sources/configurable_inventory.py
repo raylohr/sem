@@ -8,7 +8,7 @@ from django.utils.formats import number_format
 from .column_fields import field_catalog,present,typed_value,value_key,number,calendar_date
 from .models import InventoryPreference
 
-MAX_COLUMNS=7
+MAX_COLUMNS=5
 
 
 def choices_for(rows,field):

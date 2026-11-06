@@ -74,7 +74,7 @@ class ConfigurableInventoryTests(TestCase):
         self.assertEqual(result,[])
         self.assertTrue(state['table_errors'])
 
-    def test_saved_layout_is_user_project_scoped_seven_slots_and_filter_mode_frozen(self):
+    def test_saved_layout_is_user_project_scoped_five_slots_and_filter_mode_frozen(self):
         rows,catalog=self.data();category=self.field(catalog,'Category')
         post={'columns_action':'save','field_0':category['id'],'name_0':'My categories'}
         response=self.client.post(self.url,post)
@@ -94,7 +94,7 @@ class ConfigurableInventoryTests(TestCase):
         self.client.post(self.url,post)
         pref.refresh_from_db();self.assertEqual(pref.columns[0]['mode'],'keyword')
         form=self.client.get(self.url).context['column_form']
-        self.assertEqual(len(form.slots),7)
+        self.assertEqual(len(form.slots),5)
 
     def test_remove_column_clears_its_filter_and_sort_and_reset_restores_defaults(self):
         rows,catalog=self.data();field=self.field(catalog,'Organic traffic')
@@ -148,7 +148,7 @@ class ConfigurableInventoryTests(TestCase):
         Membership.objects.filter(project=self.project,user=self.user).delete()
         self.assertEqual(self.client.post(self.url,{'columns_action':'reset'}).status_code,404)
 
-    def test_exact_threshold_and_seven_column_limit(self):
+    def test_exact_threshold_and_five_column_limit(self):
         rows,catalog=self.data()
         for name in ('Organic traffic','Title'):
             field=self.field(catalog,name)
@@ -158,5 +158,5 @@ class ConfigurableInventoryTests(TestCase):
         payload={'columns_action':'save',**{f'field_{i}':field['id'] for i in range(8)}}
         self.client.post(self.url,payload)
         columns=InventoryPreference.objects.get(user=self.user).columns
-        self.assertEqual(len(columns),7)
-        self.assertEqual(len({col['id'] for col in columns}),7)
+        self.assertEqual(len(columns),5)
+        self.assertEqual(len({col['id'] for col in columns}),5)
