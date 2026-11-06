@@ -28,6 +28,12 @@ def publish_records(*, batch_id, records):
         return batch.record_count
     if batch.status not in (ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING):
         raise ValueError("Batch cannot be published in this state")
+    from projects.hosts import filter_records
+    records, excluded = filter_records(project, records)
+    if excluded:
+        batch.warnings = [*batch.warnings, f'{excluded} URL-rijen buiten de toegestane hosts overgeslagen.']
+    batch.request_metadata = {**batch.request_metadata, 'host_filter': {
+        **project.host_rules, 'excluded_rows': excluded, 'accepted_rows': len(records)}}
     iterator = iter(records)
     count = 0
     while chunk := list(islice(iterator, 50)):
@@ -35,5 +41,5 @@ def publish_records(*, batch_id, records):
         count += len(chunk)
     batch.record_count = count
     batch.status = ImportBatch.Status.COMPLETE
-    batch.save(update_fields=["record_count", "status"])
+    batch.save(update_fields=["record_count", "status", "warnings", "request_metadata"])
     return batch.record_count

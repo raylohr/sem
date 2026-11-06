@@ -182,7 +182,7 @@ class IntegrationTests(TestCase):
         from django.utils import timezone
         batch = self.make_batch()
         page = {'page_index': 0, 'requested_at': timezone.now(), 'request_body': {'startDate': '2026-10-01'}, 'payload': {'rows': [ROW]}}
-        with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_search_analytics', return_value=([{'locator': 'api:0:0', 'data': {'raw': ROW}}], [page], ['Limited data'])) as fetch:
+        with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_search_analytics', return_value=([{'locator': 'api:0:0', 'data': {'url': ROW['keys'][1], 'date': ROW['keys'][0], 'raw': ROW}}], [page], ['Limited data'])) as fetch:
             process_gsc(str(batch.pk))
             process_gsc(str(batch.pk))
             fetch.assert_called_once()
@@ -212,7 +212,7 @@ class IntegrationTests(TestCase):
         from django.utils import timezone
         batch = self.make_batch()
         page = {'page_index': 0, 'requested_at': timezone.now(), 'request_body': {}, 'payload': {'rows': [ROW]}}
-        with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_search_analytics', return_value=([{'locator': 'api:0:0', 'data': {'raw': ROW}}], [page], [])), patch('integrations.tasks.APIResponsePage.objects.bulk_create', side_effect=RuntimeError('test failure')):
+        with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_search_analytics', return_value=([{'locator': 'api:0:0', 'data': {'url': ROW['keys'][1], 'date': ROW['keys'][0], 'raw': ROW}}], [page], [])), patch('integrations.tasks.APIResponsePage.objects.bulk_create', side_effect=RuntimeError('test failure')):
             process_gsc(str(batch.pk))
         batch.refresh_from_db()
         self.assertEqual(batch.status, 'failed')
@@ -223,7 +223,7 @@ class IntegrationTests(TestCase):
         batch = self.make_batch()
         def fetch(*args, **kwargs):
             Membership.objects.filter(user=self.editor).delete()
-            return [{'locator': 'api:0:0', 'data': {'raw': ROW}}], [], []
+            return [{'locator': 'api:0:0', 'data': {'url': ROW['keys'][1], 'date': ROW['keys'][0], 'raw': ROW}}], [], []
         with patch('integrations.tasks.authorized_session'), patch('integrations.tasks.fetch_search_analytics', side_effect=fetch):
             process_gsc(str(batch.pk))
         batch.refresh_from_db()

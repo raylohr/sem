@@ -6,9 +6,9 @@ from .models import Project
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ['name', 'website']
-        labels = {'name': 'Projectnaam', 'website': 'Website'}
-        help_texts = {'website': 'Het volledige websiteadres, bijvoorbeeld https://voorbeeld.nl.'}
+        fields = ['name', 'website', 'domain', 'include_subdomains']
+        labels = {'name': 'Projectnaam', 'website': 'Website', 'domain': 'Hoofddomein', 'include_subdomains': 'Ook alle overige subdomeinen toestaan'}
+        help_texts = {'website': 'Het volledige websiteadres, bijvoorbeeld https://voorbeeld.nl.', 'domain': 'Bijvoorbeeld voorbeeld.nl. Standaard zijn dit domein en www.voorbeeld.nl toegestaan. Leeg: afleiden van het websiteadres. Het hoofddomein moet via DNS bestaan (A/AAAA).', 'include_subdomains': 'Sta ook hosts zoals blog.voorbeeld.nl toe. Externe domeinen worden altijd uitgefilterd.'}
         widgets = {'name': forms.TextInput(attrs={'autofocus': True}),
                    'website': forms.URLInput(attrs={'placeholder': 'https://voorbeeld.nl'})}
 

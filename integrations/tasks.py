@@ -41,9 +41,19 @@ def process_gsc(batch_id):
             check_batch_access(batch_id)
             if batch.status == "complete":
                 return
+            from projects.hosts import allows_url
             publish_records(batch_id=batch_id, records=records)
+            batch.refresh_from_db()
+            for page in pages:
+                payload = page['payload']
+                if 'rows' in payload:
+                    payload['rows'] = [row for row in payload['rows'] if isinstance(row, dict)
+                                       and len(row.get('keys', [])) == 2
+                                       and allows_url(batch.project, row['keys'][1])]
+            pages = [page for page in pages if not page['request_body'].get('inspectionUrl')
+                     or allows_url(batch.project, page['request_body']['inspectionUrl'])]
             APIResponsePage.objects.bulk_create([APIResponsePage(batch=batch, **p) for p in pages], batch_size=10)
-            batch.warnings = warnings
+            batch.warnings = list(dict.fromkeys([*batch.warnings, *warnings]))
             batch.save(update_fields=["warnings"])
     except ImportBatch.DoesNotExist:
         return

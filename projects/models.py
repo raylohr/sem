@@ -17,6 +17,8 @@ class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
     website = models.URLField(max_length=2048)
+    domain = models.CharField(max_length=253, blank=True)
+    include_subdomains = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
                                    related_name="created_projects")
@@ -24,6 +26,22 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
+
+    def clean(self):
+        super().clean()
+        from .hosts import normalize_domain, website_domain, allows_url, check_dns
+        try:
+            self.domain = normalize_domain(self.domain) if self.domain else website_domain(self.website)
+            if not allows_url(self, self.website):
+                raise ValidationError('Het websiteadres valt niet binnen de toegestane hosts.')
+            check_dns(self.domain)
+        except ValidationError as exc:
+            raise ValidationError({'domain': exc.messages}) from exc
+
+    @property
+    def host_rules(self):
+        from .hosts import host_rules
+        return host_rules(self)
 
     def __str__(self):
         return self.name

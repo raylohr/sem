@@ -39,6 +39,14 @@ def project_home(request, project_id):
     context.update(stats=project.import_batches.aggregate(total=Count('id'),records=Sum('record_count'),
         running=Count('id',filter=Q(status__in=['pending','processing']))),
         recent=project.import_batches.select_related('created_by')[:8])
+    from sources.url_inventory import project_inventory
+    columns, rows = project_inventory(project)
+    query = request.GET.get('url_q', '').strip()[:500]
+    total = len(rows)
+    if query:
+        rows = [row for row in rows if query.casefold() in row['url'].casefold()]
+    context.update(url_columns=columns, url_total=total, url_query=query,
+                   inventory_page=Paginator(rows, 100).get_page(request.GET.get('url_page')))
     return render(request,'ui/project.html',context)
 
 
@@ -65,16 +73,18 @@ def sources(request, project_id):
 def batch(request, project_id, batch_id):
     context=project_context(request,project_id,'sources')
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
-    if item.source == 'sf' and item.status == 'complete':
+    if item.method == 'file' and item.status == 'complete':
         rows = item.records.order_by('id')
-        resource = request.GET.get('resource', 'html')
+        resource = request.GET.get('resource', 'html') if item.source == 'sf' else 'all'
         if resource != 'all':
             rows = rows.filter(Q(**{'data__Content Type__istartswith': 'text/html'}) | Q(**{'data__Content Type__istartswith': 'application/xhtml+xml'}))
         query = request.GET.get('q', '').strip()[:500]
         if query:
-            rows = rows.filter(data__Address__icontains=query)
+            rows = rows.filter(**{('data__Address__icontains' if item.source == 'sf' else 'data__URL__icontains'): query})
         page = Paginator(rows, 50).get_page(request.GET.get('page'))
         for record in page.object_list:
+            record.url_address = record.data.get('Address') or record.data.get('URL')
+            record.last_crawled = record.data.get('Last crawled', '')
             record.sf_status = record.data.get('Status Code', '')
             record.sf_indexability = record.data.get('Indexability', '')
             record.sf_title = record.data.get('Title 1', '')

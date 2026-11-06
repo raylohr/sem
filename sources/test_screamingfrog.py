@@ -81,9 +81,11 @@ class ImportFlowTests(TestCase):
         membership.delete()
         self.assertEqual(self.client.get(self.url).status_code, 404)
 
-    def test_cancel_and_domain_warning(self):
+    def test_reject_all_foreign_urls_and_cancel_valid_preview(self):
         response = self.client.post(self.url, {'file': export('https://elsewhere.com/')})
-        self.assertContains(self.client.get(response.url), 'Afwijkende domeinen')
+        self.assertContains(response, 'Geen URLs binnen de toegestane hosts')
+        self.assertFalse(ImportBatch.objects.exists())
+        response = self.upload()
         self.client.post(response.url, {'action': 'cancel'})
         self.assertFalse(ImportBatch.objects.exists())
 

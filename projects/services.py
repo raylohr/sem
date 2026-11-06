@@ -50,29 +50,30 @@ def remove_membership(*,actor,project_id,user_id):
 
 
 @transaction.atomic
-def create_project(*, actor, name, website):
+def create_project(*, actor, name, website, domain="", include_subdomains=False):
     from accounts.services import platform_actor
     lock_access_changes()
     platform_actor(actor)
-    project = Project(name=name, website=website, created_by=actor)
+    project = Project(name=name, website=website, created_by=actor, domain=domain, include_subdomains=include_subdomains)
     project.full_clean()
     project.save()
     Membership.objects.create(project=project, user=actor, role=Membership.Role.ADMIN)
     AuditEvent.objects.create(actor=actor, project=project, action='project_created',
-                              details={'name': project.name, 'website': project.website})
+                              details={'name': project.name, 'website': project.website, **project.host_rules})
     return project
 
 
 @transaction.atomic
-def update_project(*, actor, project_id, name, website):
+def update_project(*, actor, project_id, name, website, domain="", include_subdomains=False):
     lock_access_changes()
     project = editable_project(actor, project_id)
-    previous = {'name': project.name, 'website': project.website}
+    previous = {'name': project.name, 'website': project.website, **project.host_rules}
     project.name, project.website = name, website
+    project.domain, project.include_subdomains = domain, include_subdomains
     project.full_clean()
-    project.save(update_fields=['name', 'website'])
+    project.save(update_fields=['name', 'website', 'domain', 'include_subdomains'])
     AuditEvent.objects.create(actor=actor, project=project, action='project_updated',
-                              details={'before': previous, 'after': {'name': name, 'website': website}})
+                              details={'before': previous, 'after': {'name': name, 'website': website, **project.host_rules}})
     return project
 
 

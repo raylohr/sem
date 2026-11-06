@@ -9,7 +9,7 @@ from .permissions import role_for, can_manage
 
 def project_data(project, user):
     return {"id": str(project.pk), "name": project.name, "website": project.website,
-            "role": role_for(user, project)}
+            "host_rules": project.host_rules, "role": role_for(user, project)}
 
 
 @login_required

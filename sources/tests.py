@@ -59,7 +59,7 @@ class BatchTests(TestCase):
         self.assertEqual(self.batch.records.count(), 0)
 
     def test_retry_does_not_duplicate_records(self):
-        records = [{'locator': 'row:2', 'data': {'x': 1}}]
+        records = [{'locator': 'row:2', 'data': {'url': 'https://a.example/', 'x': 1}}]
         publish_records(batch_id=self.batch.pk, records=records)
         publish_records(batch_id=self.batch.pk, records=records)
         self.assertEqual(self.batch.records.count(), 1)

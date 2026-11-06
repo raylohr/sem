@@ -17,6 +17,10 @@ PASSWORD = 'Project-Management-Test-Password!91'
 
 class ProjectCRUDTests(TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        dns = patch('projects.hosts.check_dns')
+        dns.start()
+        self.addCleanup(dns.stop)
         cache.clear()
         self.root = User.objects.create_superuser('project-root', 'root@example.test', PASSWORD)
         self.manager = User.objects.create_user('project-manager', password=PASSWORD)
@@ -145,3 +149,19 @@ class ProjectCRUDTests(TestCase):
         self.login_root(client)
         for action in ('create','edit','delete'):
             self.assertEqual(client.post(self.url(action),{}).status_code,403)
+
+    def test_host_settings_persist_and_dns_failure_prevents_save(self):
+        from unittest.mock import patch
+        response = self.client.post(self.url('edit'), {
+            'name': self.project.name, 'website': 'https://www.example.com',
+            'domain': 'example.com', 'include_subdomains': 'on'})
+        self.assertEqual(response.status_code, 302)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.domain, 'example.com')
+        self.assertTrue(self.project.include_subdomains)
+        with patch('projects.hosts.check_dns', side_effect=ValidationError('DNS ontbreekt')):
+            response = self.client.post(self.url('edit'), {
+                'name': 'Must not save', 'website': 'https://missing.test', 'domain': 'missing.test'})
+        self.assertContains(response, 'DNS ontbreekt')
+        self.project.refresh_from_db()
+        self.assertNotEqual(self.project.name, 'Must not save')
