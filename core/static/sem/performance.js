@@ -7,6 +7,10 @@
   const picker = document.getElementById('performance-page');
   const details = document.getElementById('performance-details');
   const summary = document.getElementById('performance-selection');
+  const xScale = document.getElementById('performance-x-scale');
+  const yScale = document.getElementById('performance-y-scale');
+  const transform = (value, mode) => mode === 'log' ? Math.log1p(value) : value;
+  const inverse = (value, mode) => mode === 'log' ? Math.expm1(value) : value;
   const format = new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 2});
   const fragment = document.createDocumentFragment();
   points.forEach((p, i) => fragment.append(new Option(`${p.title} · ${p.url}`, String(i))));
@@ -32,16 +36,18 @@
     const plotW = width - left - right, plotH = height - top - bottom;
     const maxX = points.reduce((max, p) => Math.max(max, p.x), 1);
     const maxY = points.reduce((max, p) => Math.max(max, p.y), 1);
+    const extentX = transform(maxX, xScale.value), extentY = transform(maxY, yScale.value);
+    canvas.setAttribute('aria-label', `Scatterplot: ${chart.dataset.xLabel} (${xScale.value}) tegenover organisch verkeer (${yScale.value}). Kies hieronder een pagina om de waarden te bekijken.`);
     ctx.font = '12px system-ui'; ctx.lineWidth = 1;
     for (let i = 0; i <= 5; i++) {
       const x = left + plotW * i / 5, y = top + plotH * (1 - i / 5);
       ctx.strokeStyle = '#e0e7e8'; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
-      ctx.fillStyle = '#647580'; ctx.textAlign = 'right'; ctx.fillText(format.format(maxY * i / 5), left - 10, y + 4);
-      ctx.textAlign = 'center'; ctx.fillText(format.format(maxX * i / 5), x, height - bottom + 24);
+      ctx.fillStyle = '#647580'; ctx.textAlign = 'right'; ctx.fillText(format.format(inverse(extentY * i / 5, yScale.value)), left - 10, y + 4);
+      ctx.textAlign = 'center'; ctx.fillText(format.format(inverse(extentX * i / 5, xScale.value)), x, height - bottom + 24);
     }
-    ctx.fillStyle = '#182d38'; ctx.textAlign = 'center'; ctx.fillText(chart.dataset.xLabel, left + plotW / 2, height - 15);
-    ctx.save(); ctx.translate(16, top + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('Organisch verkeer (Ahrefs)', 0, 0); ctx.restore();
-    plotted = points.map(p => ({x: left + p.x / maxX * plotW, y: top + (1 - p.y / maxY) * plotH}));
+    ctx.fillStyle = '#182d38'; ctx.textAlign = 'center'; ctx.fillText(`${chart.dataset.xLabel} (${xScale.value === 'log' ? 'Log' : 'Linear'})`, left + plotW / 2, height - 15);
+    ctx.save(); ctx.translate(16, top + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(`Organisch verkeer (Ahrefs · ${yScale.value === 'log' ? 'Log' : 'Linear'})`, 0, 0); ctx.restore();
+    plotted = points.map(p => ({x: left + transform(p.x, xScale.value) / extentX * plotW, y: top + (1 - transform(p.y, yScale.value) / extentY) * plotH}));
     plotted.forEach((p, i) => { ctx.beginPath(); ctx.arc(p.x, p.y, i === selected ? 6 : 3.5, 0, Math.PI * 2); ctx.fillStyle = i === selected ? '#0b2d4d' : '#16a6c19c'; ctx.fill(); });
   }
   canvas.addEventListener('pointermove', event => {
@@ -54,5 +60,11 @@
   canvas.addEventListener('pointerleave', () => { tooltip.hidden = true; hovered = null; });
   canvas.addEventListener('click', () => { if (hovered !== null) choose(hovered); });
   picker.addEventListener('change', () => choose(picker.value === '' ? null : Number(picker.value)));
+  [xScale, yScale].forEach(control => control.addEventListener('change', () => {
+    tooltip.hidden = true; hovered = null; canvas.style.cursor = 'default'; draw();
+    const url = new URL(location.href);
+    url.searchParams.set('x_scale', xScale.value); url.searchParams.set('y_scale', yScale.value);
+    window.history.replaceState(null, '', url);
+  }));
   new ResizeObserver(draw).observe(chart);
 })();

@@ -159,4 +159,6 @@ def performance(request, project_id):
     context=project_context(request,project_id,'performance')
     _,rows=project_inventory(context['project'],include_fields=True)
     context.update(scatter_data(rows,request.GET.get('x','')))
+    for axis in ('x','y'):
+        context[axis+'_scale'] = 'linear' if request.GET.get(axis+'_scale') == 'linear' else 'log'
     return render(request,'ui/performance.html',context)

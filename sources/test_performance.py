@@ -62,3 +62,16 @@ class PerformanceTests(TestCase):
         self.assertEqual(self.client.get(self.url).status_code,404)
         self.client.logout()
         self.assertEqual(self.client.get(self.url).status_code,302)
+
+    def test_axis_scales_default_to_log_and_preserve_independent_choices(self):
+        self.add('a')
+        response=self.client.get(self.url)
+        self.assertEqual((response.context['x_scale'],response.context['y_scale']),('log','log'))
+        self.assertContains(response,'id="performance-x-scale"')
+        self.assertContains(response,'id="performance-y-scale"')
+        response=self.client.get(self.url,{'x_scale':'linear','y_scale':'log'})
+        self.assertEqual((response.context['x_scale'],response.context['y_scale']),('linear','log'))
+        response=self.client.get(self.url,{'x_scale':'log','y_scale':'linear'})
+        self.assertEqual((response.context['x_scale'],response.context['y_scale']),('log','linear'))
+        response=self.client.get(self.url,{'x_scale':'invalid','y_scale':'invalid'})
+        self.assertEqual((response.context['x_scale'],response.context['y_scale']),('log','log'))
