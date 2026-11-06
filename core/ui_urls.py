@@ -1,10 +1,11 @@
 from django.urls import path
 from . import ui
-from sources import import_ui
+from sources import import_ui, export_ui
 from integrations import settings_views, guide_views
 from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("projects/<uuid:project_id>/urls/export/", export_ui.export_urls, name="export-urls"),
     path("projects/<uuid:project_id>/import/", import_ui.upload, name="import"),
     path("projects/<uuid:project_id>/import/<uuid:batch_id>/", import_ui.preview, name="import-preview"),
     path("handleiding/gsc/",guide_views.work_instructions,name="gsc-guide"),

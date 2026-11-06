@@ -39,3 +39,10 @@ functionaliteit. Expliciete oorspronkelijke app-labels houden de migratiegeschie
 Er is één vaste productieomgeving. Test wijzigingen met `./ops/test.sh` en rol
 ze na commit en push uit met `./ops/deploy-production.sh`.
 Zie [deployment](docs/06-productie-deployment.md) voor de werkwijze.
+
+Op het projectoverzicht downloadt **Exporteren naar Excel** een werkbestand met
+hoofdoverzicht, URL-inventaris, actieplan, bronwaarnemingen en leesmij. De download
+bevat alle gepubliceerde URLs binnen de hostregels, los van zoekfilter/paginering.
+Bronmetingen blijven gescheiden; GSC-indexeringsgegevens worden apart van
+zoekprestaties geselecteerd. Beoordeling en actievelden zijn leeg en hebben
+keuzelijsten voor prioriteit en controlestatus. Excel-bewerkingen worden niet teruggeschreven.

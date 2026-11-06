@@ -1,6 +1,6 @@
 {% load l10n %}
 <section class="card mb-4" id="url-inventory" aria-labelledby="url-inventory-title">
-<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><h2 class="h6 mb-0" id="url-inventory-title">Alle URLs <span class="text-muted fw-normal">· {{ url_total }} unieke URLs</span></h2></div>
+<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><h2 class="h6 mb-0" id="url-inventory-title">Alle URLs <span class="text-muted fw-normal">· {{ url_total }} unieke URLs</span></h2><a class="btn btn-outline-primary btn-sm" href="{% url 'ui:export-urls' project.id %}">Exporteren naar Excel</a></div>
 <div class="card-body">
 <p class="small text-muted">Gesorteerd op URL-pad. Per bron staat de laatste waarneming (dd.mm). Klik op een datum voor het bronrecord; de volledige datum staat ook bij de datum. Een streepje betekent dat de URL niet in die bron is aangetroffen.</p>
 <form method="get" action="#url-inventory" class="d-flex gap-2 mb-3" role="search"><label class="visually-hidden" for="inventory-search">Zoek URL</label><input class="form-control" type="search" name="url_q" id="inventory-search" value="{{ url_query }}" placeholder="Zoek een URL of pad"><button class="btn btn-light" type="submit">Zoeken</button></form>

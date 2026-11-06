@@ -36,10 +36,12 @@ def observation_date(data, batch):
     return timezone.localtime(batch.imported_at).date(), True
 
 
-def project_inventory(project):
+def project_inventory(project, *, include_data=False):
+    fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at']
+    if include_data:
+        fields.append('request_metadata')
     batches = {batch.pk: batch for batch in project.import_batches.filter(
-        status__in=('complete', 'incomplete')).only(
-            'id', 'source', 'measured_at', 'period_end', 'imported_at')}
+        status__in=('complete', 'incomplete')).only(*fields)}
     columns = {}
     rows = {}
     records = SourceRecord.objects.filter(batch_id__in=batches).order_by('id').values_list('id', 'batch_id', 'data')
@@ -63,6 +65,8 @@ def project_inventory(project):
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
                 'record_id': record_id, 'rank': rank}
+            if include_data:
+                rows[url]['observations'][source].update(data=data, metadata=batch.request_metadata)
     source_order = {key: index for index, key in enumerate(DEFAULT_SOURCES)}
     ordered_columns = [{'key': key, 'label': columns[key]} for key in sorted(
         columns, key=lambda key: (source_order.get(key, len(source_order)), key))]
