@@ -24,7 +24,7 @@ def batch_data(batch):
         "period_start": batch.period_start.isoformat() if batch.period_start else None,
         "period_end": batch.period_end.isoformat() if batch.period_end else None,
         "status": batch.status, "record_count": batch.record_count, "warnings": batch.warnings,
-        "sheets": batch.sheet_summary, "error": batch.error, "has_file": bool(batch.file), "request": batch.request_metadata, "url_index": batch.url_index_info}
+        "sheets": batch.sheet_summary, "error": batch.error, "has_file": bool(batch.file), "request": batch.request_metadata}
 
 
 @login_required

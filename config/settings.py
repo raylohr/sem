@@ -19,10 +19,11 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations", "catalog",
+    "django.contrib.gis", "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp", "two_factor", "accounts.apps.AccountsConfig", "core", "projects", "sources", "integrations",
 ]
 # Migration compatibility only; explicit labels preserve the existing migration graph.
 INSTALLED_APPS += [
+    "config.retired_apps.catalog.apps.CatalogMigrationsConfig",
     "config.retired_apps.scans.apps.ScansMigrationsConfig",
     "config.retired_apps.browser_scans.apps.BrowserScansMigrationsConfig",
     "config.retired_apps.assessments.apps.AssessmentsMigrationsConfig",

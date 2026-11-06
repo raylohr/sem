@@ -12,7 +12,7 @@ class WorkInstructionAccessTests(TestCase):
         response = self.client.get(reverse('ui:gsc-project-guide', args=[self.project.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse('ui:connections', args=[self.project.pk]))
-        self.assertContains(response, reverse('ui:catalog:overview', args=[self.project.pk]))
+        self.assertContains(response, reverse('ui:sources', args=[self.project.pk]))
         self.assertNotContains(response, reverse('ui:gsc-settings'))
         self.assertNotContains(response, self.connection.encrypted_refresh_token)
         self.assertIn('no-store', response['Cache-Control'])

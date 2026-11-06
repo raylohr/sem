@@ -16,8 +16,6 @@ def delete_batch(*, batch_id, project, actor):
     if batch.file:
         PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     batch.delete()
-    from catalog.services import prune_urls
-    prune_urls(project.pk)
     from .tasks import enqueue_cleanup
     transaction.on_commit(enqueue_cleanup)
 
@@ -42,6 +40,4 @@ def publish_records(*, batch_id, records):
     batch.record_count = count
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status"])
-    from catalog.services import index_batch
-    index_batch(batch.id)
     return batch.record_count

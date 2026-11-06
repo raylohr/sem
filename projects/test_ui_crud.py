@@ -14,7 +14,6 @@ from sources.models import ImportBatch, SourceRecord, BatchDeletionEvent, Pendin
 from sources.services import publish_records
 from sources.tasks import cleanup_files, process_upload
 from integrations.models import GSCConnection, APIResponsePage
-from catalog.models import ProjectURL, URLObservation
 from .models import Project, Membership
 from .services import create_project, update_project, delete_project
 
@@ -115,7 +114,6 @@ class ProjectCRUDTests(TestCase):
             batch.file.save('fixture.csv', ContentFile(b'url\nhttps://example.com/\n'))
             path = batch.file.name
             publish_records(batch_id=batch.pk, records=[{'locator':'row:2','data':{'URL':'https://example.com/'}}])
-            self.assertEqual(URLObservation.objects.filter(batch=batch).count(), 1)
             APIResponsePage.objects.create(batch=batch,page_index=0,requested_at=timezone.now(),request_body={},payload={})
             with self.assertLogs('sources.tasks', level='ERROR'), \
                     patch('sources.tasks.cleanup_files.delay', side_effect=ConnectionError('broker unavailable')), \
@@ -124,7 +122,6 @@ class ProjectCRUDTests(TestCase):
             self.assertRedirects(response, reverse('ui:dashboard'))
             self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
             self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
-            self.assertFalse(ProjectURL.objects.filter(project_id=self.project.pk).exists())
             self.assertFalse(GSCConnection.objects.filter(pk=connection.pk).exists())
             self.assertTrue(PendingFileDeletion.objects.filter(path=path).exists())
             self.assertTrue(default_storage.exists(path))

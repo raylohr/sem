@@ -172,7 +172,7 @@ def fetch_search_analytics(session, *, property_url, start, end, check_access):
 
 
 def property_contains(property_url, url):
-    from catalog.adapters import normalize_url
+    from .url_validation import normalize_url
     from urllib.parse import urlsplit
     identity = normalize_url(url)
     if not identity:

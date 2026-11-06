@@ -22,7 +22,7 @@ class NumberDisplayTests(SimpleTestCase):
 
     def test_accordion_identifiers_are_not_grouped(self):
         project = SimpleNamespace(id=UUID('11111111-1111-1111-1111-111111111111'), name='Project', website='https://example.com')
-        batch = SimpleNamespace(id=UUID('22222222-2222-2222-2222-222222222222'), label='Import', status='complete', record_count=100000, request_metadata={}, url_index_info={}, warnings=[])
+        batch = SimpleNamespace(id=UUID('22222222-2222-2222-2222-222222222222'), label='Import', status='complete', record_count=100000, request_metadata={}, warnings=[])
         record = SimpleNamespace(id=123456, locator='row:123456', data={'count': 100000})
         html = render_to_string('ui/batch.html', {'project':project,'batch':batch,'records':[record]})
         self.assertIn('id="record-123456"', html)

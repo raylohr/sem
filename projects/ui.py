@@ -68,7 +68,7 @@ def remove(request, project_id):
         except ValidationError as exc:
             form.add_error(None, ' '.join(exc.messages))
     context.update(form=form, deletion_counts={
-        'batches': project.import_batches.count(), 'urls': project.urls.count(),
+        'batches': project.import_batches.count(),
         'connections': project.gsc_connections.count(),
         'members': project.memberships.count(),
     })

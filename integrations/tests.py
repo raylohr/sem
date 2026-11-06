@@ -297,13 +297,13 @@ class ExtendedIntegrationTests(TestCase):
             process_gsc(batch.pk)
         batch.refresh_from_db()
         self.assertEqual(batch.status, 'complete')
-        observation = batch.url_observations.get()
-        self.assertEqual(observation.facts['gsc_index_verdict'], 'PASS')
-        self.assertIsNotNone(observation.measured_at)
+        record = batch.records.get()
+        self.assertEqual(record.data['raw']['indexStatusResult']['verdict'], 'PASS')
+        self.assertIn('measured_at', record.data)
         self.assertEqual(batch.api_pages.get().payload, payload)
 
-    def test_inspection_rejects_unknown_and_foreign_urls(self):
-        for url in ['https://example.test/unknown', 'https://evil.test/']:
+    def test_inspection_rejects_invalid_and_foreign_urls(self):
+        for url in ['javascript:alert(1)', 'https://evil.test/']:
             self.assertEqual(self.client.post(self.url('gsc-inspect', True), {"urls": url}).status_code, 400)
         self.client.force_login(self.viewer)
         self.assertEqual(self.client.post(self.url('gsc-inspect', True), {"urls": 'https://example.test/'}).status_code, 403)
@@ -335,11 +335,9 @@ class ExtendedIntegrationTests(TestCase):
         self.assertContains(response, 'Property koppelen')
         self.assertNotContains(response, self.connection.encrypted_refresh_token)
 
-    def test_inspection_endpoint_queues_project_url(self):
-        from catalog.models import ProjectURL
-        from catalog.adapters import normalize_url
+    def test_inspection_endpoint_queues_property_url(self):
+        from integrations.url_validation import normalize_url
         identity = normalize_url('https://example.test/')
-        ProjectURL.objects.create(project=self.project, normalized_url=identity[0], host=identity[1], url_hash=identity[2])
         with patch('integrations.views.enqueue_gsc') as enqueue, self.captureOnCommitCallbacks(execute=True):
             response = self.client.post(self.url('gsc-inspect', True), {'urls': identity[0]})
         self.assertEqual(response.status_code, 302)

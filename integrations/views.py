@@ -215,7 +215,6 @@ def schedule(request, project_id, connection_id):
 @login_required
 @require_POST
 def inspect_urls(request, project_id, connection_id):
-    from catalog.models import ProjectURL
     from .gsc import property_contains
     project = visible_project(request, project_id)
     if not can_edit(request.user, project):
@@ -228,8 +227,6 @@ def inspect_urls(request, project_id, connection_id):
     urls = list(dict.fromkeys(request.POST.get("urls", "").split()))
     if not 1 <= len(urls) <= 20 or any(not property_contains(connection.property_url, u) for u in urls):
         return JsonResponse({"error": "Kies 1 tot 20 URL’s binnen de gekoppelde property."}, status=400)
-    if ProjectURL.objects.filter(project=project, normalized_url__in=urls).count() != len(urls):
-        return JsonResponse({"error": "Kies URL’s uit het URL-overzicht van dit project."}, status=400)
     batch = ImportBatch.objects.create(project=project, source="gsc", method="api",
         label="GSC URL-inspecties", created_by=request.user, gsc_connection=connection,
         parser_version="gsc-inspection-v1", request_metadata={"property": connection.property_url,
