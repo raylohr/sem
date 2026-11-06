@@ -9,6 +9,9 @@
   const summary = document.getElementById('performance-selection');
   const xScale = document.getElementById('performance-x-scale');
   const yScale = document.getElementById('performance-y-scale');
+  const trendControl = document.getElementById('performance-trend');
+  const trendStatus = document.getElementById('performance-trend-status');
+  const trendCache = new Map();
   const transform = (value, mode) => mode === 'log' ? Math.log1p(value) : value;
   const inverse = (value, mode) => mode === 'log' ? Math.expm1(value) : value;
   const format = new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 2});
@@ -47,7 +50,20 @@
     }
     ctx.fillStyle = '#182d38'; ctx.textAlign = 'center'; ctx.fillText(`${chart.dataset.xLabel} (${xScale.value === 'log' ? 'Log' : 'Linear'})`, left + plotW / 2, height - 15);
     ctx.save(); ctx.translate(16, top + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(`Organisch verkeer (Ahrefs · ${yScale.value === 'log' ? 'Log' : 'Linear'})`, 0, 0); ctx.restore();
-    plotted = points.map(p => ({x: left + transform(p.x, xScale.value) / extentX * plotW, y: top + (1 - transform(p.y, yScale.value) / extentY) * plotH}));
+    const normalized = points.map(p => ({x: transform(p.x, xScale.value) / extentX, y: transform(p.y, yScale.value) / extentY}));
+    plotted = normalized.map(p => ({x: left + p.x * plotW, y: top + (1 - p.y) * plotH}));
+    if (trendControl.checked) {
+      const key = `${xScale.value}:${yScale.value}`;
+      if (!trendCache.has(key)) trendCache.set(key, window.semPerformanceTrend(normalized));
+      const curve = trendCache.get(key);
+      trendStatus.textContent = curve.length ? 'Oranje lijn: niet-lineaire trend, lokaal geschat op de gekozen asschalen.' : 'Trend niet beschikbaar: minimaal vijf URLs en drie verschillende X-waarden nodig.';
+      if (curve.length) {
+        ctx.save(); ctx.beginPath(); ctx.rect(left, top, plotW, plotH); ctx.clip();
+        ctx.beginPath(); ctx.strokeStyle = '#c45c12'; ctx.lineWidth = 2.5;
+        curve.forEach((p, i) => { const x = left + p.x * plotW, y = top + (1 - p.y) * plotH; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke(); ctx.restore();
+      }
+    } else trendStatus.textContent = 'Trendlijn verborgen';
     plotted.forEach((p, i) => { ctx.beginPath(); ctx.arc(p.x, p.y, i === selected ? 6 : 3.5, 0, Math.PI * 2); ctx.fillStyle = i === selected ? '#0b2d4d' : '#16a6c19c'; ctx.fill(); });
   }
   canvas.addEventListener('pointermove', event => {
@@ -66,5 +82,6 @@
     url.searchParams.set('x_scale', xScale.value); url.searchParams.set('y_scale', yScale.value);
     window.history.replaceState(null, '', url);
   }));
+  trendControl.addEventListener('change', draw);
   new ResizeObserver(draw).observe(chart);
 })();

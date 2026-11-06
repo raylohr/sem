@@ -6,6 +6,8 @@
 <p class="small text-muted">Y-as: organisch verkeer (Ahrefs). Filter: contenttype HTML, SF als voorkeursbron en Ahrefs als fallback. Elk punt is één URL. De nieuwste beschikbare veldmetingen worden gebruikt; meetdatums kunnen verschillen.</p>
 <p class="small text-muted">{{ performance_points|length }} van {{ performance_html_count }} HTML-URLs weergegeven · {{ performance_missing_count }} zonder bruikbare X- of Y-waarde. Nulwaarden worden meegenomen. Log gebruikt log(1 + waarde); aslabels en tooltips tonen de oorspronkelijke waarden.</p>
 {% if performance_points %}
+<div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="performance-trend" checked><label class="form-check-label" for="performance-trend">Niet-lineaire trendlijn tonen</label></div>
+<p class="small text-muted" id="performance-trend-status" aria-live="polite"></p>
 <div class="performance-chart" data-performance-chart data-x-label="{{ performance_x.label }}" data-detail-url="{% url 'ui:url-detail' project.id %}"><canvas aria-label="Scatterplot van organisch verkeer tegenover {{ performance_x.label }}. Kies hieronder een pagina om de waarden te bekijken." role="img"></canvas><div class="performance-tooltip" role="status" hidden></div></div>
 <div class="row g-3 mt-2 align-items-end"><div class="col-md-8"><label class="form-label" for="performance-page">Pagina bekijken</label><select class="form-select" id="performance-page"><option value="">Kies een pagina of wijs een punt aan</option></select></div><div class="col-md-4"><a class="btn btn-light d-none" id="performance-details">URL-details</a></div></div>
 <p class="small mt-3 mb-0" id="performance-selection" aria-live="polite"></p>
@@ -13,4 +15,4 @@
 {% else %}<p class="text-muted mb-0">Geen HTML-URLs met beide meetwaarden beschikbaar. Importeer Ahrefs Site Audit-data met organisch verkeer en backlinks, of kies een ander numeriek veld voor de X-as.</p>{% endif %}
 </div></section>
 {% endblock %}
-{% block scripts %}<script src="{% static 'sem/performance.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'sem/performance_trend.js' %}" defer></script><script src="{% static 'sem/performance.js' %}" defer></script>{% endblock %}
