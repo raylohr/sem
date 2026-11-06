@@ -61,6 +61,8 @@ def export_urls(request, project_id):
     save_progress(key, message='Export wordt gestart…')
     try:
         options = {'absolute_url': request.build_absolute_uri}
+        if request.GET.get('scope') == 'filtered':
+            options['filter_params'] = request.GET
         if key:
             options['progress'] = lambda **data: save_progress(key, **data)
         output = build_inventory_workbook(project, request.user, **options)

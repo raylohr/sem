@@ -42,7 +42,7 @@ def project_home(request, project_id):
     from django.urls import reverse
     from sources.url_inventory import project_inventory
     from sources.column_fields import field_catalog
-    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params,build_dataset_table
+    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params,build_dataset_table,inventory_metrics
     from sources.models import InventoryPreference
     source_columns, rows = project_inventory(project, include_fields=True)
     catalog = field_catalog(rows)
@@ -65,6 +65,7 @@ def project_home(request, project_id):
     params = legacy_params(request.GET, columns, rows)
     rows, controls = build_dataset_table(rows, columns, params, catalog)
     context.update(controls)
+    context['inventory_metrics'] = inventory_metrics(rows)
     context.update(url_columns=source_columns, url_total=total, column_form=form,
                    field_catalog_json=list(catalog.values()),
                    inventory_page=Paginator(rows,100).get_page(request.GET.get('url_page')))

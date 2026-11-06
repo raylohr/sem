@@ -243,3 +243,21 @@ def build_dataset_table(rows, columns, params, catalog):
         chosen=next((column for column in active if column['id']==params.get('edit_filter')),None)
     controls.update(dataset_filters=active,filter_editor=chosen,filter_catalog=sorted(catalog.values(),key=lambda f:(f['source_label'],f['report_label'],f['label'])))
     return result,controls
+
+
+def inventory_metrics(rows):
+    """Count URLs, using explicit Ahrefs keyword counts and crawler HTTP status."""
+    def latest(row,source,path):
+        observations=[item for item in row.get('field_values',{}).values() if item['field']['source']==source and item['field']['path']==[path]]
+        return number(max(observations,key=lambda item:item['rank'])['value']) if observations else None
+    result={}
+    for limit in (3,10):
+        values=[latest(row,'ahrefs',f'No. of keywords with Top {limit} position') for row in rows]
+        result[f'top{limit}']=sum(value>0 for value in values if value is not None) if any(value is not None for value in values) else None
+    statuses=[]
+    for row in rows:
+        status=latest(row,'sf','Status Code')
+        if status is None:status=latest(row,'ahrefs','HTTP status code')
+        statuses.append(status)
+    result['not_found']=sum(status==404 for status in statuses) if any(status is not None for status in statuses) else None
+    return result

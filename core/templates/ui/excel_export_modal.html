@@ -2,6 +2,7 @@
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
     <div class="modal-header"><h2 class="modal-title fs-5" id="excelExportTitle">Exporteren naar Excel</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button></div>
     <div class="modal-body">
+      <div id="excelExportOptions" class="mb-3"><label class="form-label" for="excelExportScope">Welke rijen wil je exporteren?</label><select class="form-select mb-3" id="excelExportScope"><option value="all">Alle URLs</option><option value="filtered">Alleen URLs binnen de huidige zoek- en filterselectie (alle pagina’s)</option></select><button type="button" class="btn btn-primary" id="excelExportStart">Export starten</button></div>
       <p id="excelExportMessage" role="status" aria-live="polite">Export wordt gestart…</p>
       <div class="progress mb-3" role="progressbar" aria-label="Voortgang Excel-export" aria-valuemin="0" aria-valuemax="100" id="excelExportProgress"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div></div>
       <p class="small text-muted mb-1" id="excelExportElapsed"></p>

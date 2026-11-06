@@ -146,3 +146,23 @@ class ExcelInventoryTests(TestCase):
         with patch('sources.export_ui.cache.set', side_effect=RuntimeError('Cache unavailable')):
             book = self.download(export_token=str(uuid4()))
             book.close()
+
+    def test_filtered_export_scopes_every_sheet_and_ignores_pagination(self):
+        from .url_inventory import project_inventory
+        from .column_fields import field_catalog
+        for path,status in [('a','404'),('b','200'),('c','404')]:
+            self.record('sf',{'Address':'https://example.com/'+path,'Status Code':status})
+        _,rows=project_inventory(self.project,include_fields=True)
+        field=next(f for f in field_catalog(rows).values() if f['path']==['Status Code'])
+        key='field_'+field['id']
+        from .column_fields import value_key
+        params={'scope':'filtered','a_'+key:'1','v_'+key:value_key(404,'number'),'url_page':'99'}
+        book=self.download(**params)
+        expected={'https://example.com/a','https://example.com/c'}
+        for name in ('01 - URL INVENTARIS','02 - URL ACTIEPLAN','03 - BRONWAARNEMINGEN'):
+            self.assertEqual({row[0] for row in book[name].iter_rows(min_row=2,values_only=True)},expected)
+        book.close()
+        book=self.download(scope='filtered',url_q='no-matches')
+        self.assertEqual(book['01 - URL INVENTARIS'].max_row,1)
+        self.assertEqual(book['03 - BRONWAARNEMINGEN'].max_row,1)
+        book.close()

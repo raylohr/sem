@@ -59,3 +59,7 @@
 .inventory-filters{display:flex;flex:1;gap:.5rem;align-items:center;flex-wrap:wrap}
 .configurable-inventory .inventory-column-control{cursor:default}
 @media(max-width:767px){.inventory-search{width:100%;min-width:0;padding-right:0}.inventory-filters{flex-basis:100%}}
+
+.configurable-inventory thead .inventory-url-column{text-align:left}
+.configurable-inventory thead th{position:relative;padding-bottom:2.3rem}
+.configurable-inventory thead .column-meta{position:absolute;bottom:.65rem;left:.75rem;right:.75rem}

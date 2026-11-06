@@ -60,9 +60,23 @@ document.querySelectorAll('[data-excel-export]').forEach((button) => {
   let running = false;
   let objectUrl = null;
   let generation = 0;
-  button.addEventListener('click', async (event) => {
+  const options = document.getElementById('excelExportOptions');
+  const startButton = document.getElementById('excelExportStart');
+  button.addEventListener('click', event => {
     event.preventDefault();
-    if (running) { modal.show(); return; }
+    if (!running) {
+      options.hidden = false;
+      message.textContent = 'Kies het bereik en start de export.';
+      progress.classList.add('d-none');
+      elapsed.textContent = '';
+      download.classList.add('d-none');
+    }
+    modal.show();
+  });
+  startButton.addEventListener('click', async (event) => {
+    event.preventDefault();
+    if (running) return;
+    options.hidden = true;
     running = true;
     const currentGeneration = ++generation;
     button.setAttribute('aria-disabled', 'true');
@@ -80,6 +94,11 @@ document.querySelectorAll('[data-excel-export]').forEach((button) => {
     const started = Date.now();
     const token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
     const exportUrl = new URL(button.href, window.location.href);
+    if (document.getElementById('excelExportScope').value === 'filtered') {
+      const filters = new URLSearchParams(button.dataset.filterQuery || '');
+      filters.forEach((value, key) => exportUrl.searchParams.append(key, value));
+      exportUrl.searchParams.set('scope', 'filtered');
+    }
     const statusUrl = new URL(button.dataset.progressUrl, window.location.href);
     if (token) { exportUrl.searchParams.set('export_token', token); statusUrl.searchParams.set('export_token', token); }
     let pollTimer;
