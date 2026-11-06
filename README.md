@@ -4,6 +4,9 @@ Django-werkplek voor projecten, Google Search Console en URL-imports uit Screami
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
 Via Data → Import worden Screaming Frog Internal → All CSV-/XLS-/XLSX-exports en originele
 GSC Page indexing CSV-ZIP-exports automatisch herkend.
+Ahrefs Site Audit CSV-exports van Pages en ontbrekende/lege title-tags worden
+ook herkend, inclusief optionele backlink- en zoekwoordkolommen. De preview laat
+een crawl-/waarnemingsdatum bevestigen; de bestandsdatum is alleen een suggestie.
 Een voorbeeld toont domeinen, URL-aantallen, crawl-tijden en de huidige gebruiker.
 Na bevestiging verschijnt een doorzoekbare URL-lijst met HTML- en resourcefilters.
 Elke import bewaart alle oorspronkelijke kolommen als afzonderlijke projectsnapshot;

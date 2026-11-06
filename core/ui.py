@@ -75,9 +75,10 @@ def batch(request, project_id, batch_id):
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
     if item.method == 'file' and item.status == 'complete':
         rows = item.records.order_by('id')
-        resource = request.GET.get('resource', 'html') if item.source == 'sf' else 'all'
+        resource = request.GET.get('resource', 'html' if item.source == 'sf' else 'all') if item.source in ('sf', 'ahrefs') else 'all'
         if resource != 'all':
-            rows = rows.filter(Q(**{'data__Content Type__istartswith': 'text/html'}) | Q(**{'data__Content Type__istartswith': 'application/xhtml+xml'}))
+            field = 'Content Type' if item.source == 'sf' else 'Content type'
+            rows = rows.filter(Q(**{f'data__{field}__istartswith': 'text/html'}) | Q(**{f'data__{field}__istartswith': 'application/xhtml+xml'}))
         query = request.GET.get('q', '').strip()[:500]
         if query:
             rows = rows.filter(**{('data__Address__icontains' if item.source == 'sf' else 'data__URL__icontains'): query})
@@ -85,9 +86,11 @@ def batch(request, project_id, batch_id):
         for record in page.object_list:
             record.url_address = record.data.get('Address') or record.data.get('URL')
             record.last_crawled = record.data.get('Last crawled', '')
-            record.sf_status = record.data.get('Status Code', '')
-            record.sf_indexability = record.data.get('Indexability', '')
-            record.sf_title = record.data.get('Title 1', '')
+            record.sf_status = record.data.get('Status Code', record.data.get('HTTP status code', ''))
+            record.sf_indexability = record.data.get('Indexability', {'true': 'Indexable', 'false': 'Non-Indexable'}.get(record.data.get('Is indexable page'), ''))
+            record.sf_title = record.data.get('Title 1', record.data.get('Title', ''))
+            record.page_rating = record.data.get('PR', '')
+            record.organic_traffic = record.data.get('Organic traffic', '')
         context.update(url_page=page, resource=resource, query=query)
     context.update(batch=item, records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [])
     return render(request,'ui/batch.html',context)

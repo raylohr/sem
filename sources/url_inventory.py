@@ -13,7 +13,7 @@ URL_FIELDS = ('url', 'Address', 'URL', 'Target URL', 'Page URL')
 
 def as_date(value):
     if isinstance(value, datetime):
-        return value.date()
+        return timezone.localtime(value).date() if timezone.is_aware(value) else value.date()
     if isinstance(value, date):
         return value
     if isinstance(value, str):
@@ -40,7 +40,7 @@ def project_inventory(project):
     batches = {batch.pk: batch for batch in project.import_batches.filter(
         status__in=('complete', 'incomplete')).only(
             'id', 'source', 'measured_at', 'period_end', 'imported_at')}
-    columns = dict(DEFAULT_SOURCES)
+    columns = {}
     rows = {}
     records = SourceRecord.objects.filter(batch_id__in=batches).order_by('id').values_list('id', 'batch_id', 'data')
     for record_id, batch_id, data in records.iterator(chunk_size=1000):
@@ -49,7 +49,7 @@ def project_inventory(project):
             continue
         batch = batches[batch_id]
         source = batch.source
-        columns.setdefault(source, source.replace('_', ' ').capitalize())
+        columns.setdefault(source, DEFAULT_SOURCES.get(source, source.replace('_', ' ').capitalize()))
         stamp, fallback = observation_date(data, batch)
         if url not in rows:
             parts = urlsplit(url)
@@ -63,7 +63,9 @@ def project_inventory(project):
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
                 'record_id': record_id, 'rank': rank}
-    ordered_columns = [{'key': key, 'label': label} for key, label in columns.items()]
+    source_order = {key: index for index, key in enumerate(DEFAULT_SOURCES)}
+    ordered_columns = [{'key': key, 'label': columns[key]} for key in sorted(
+        columns, key=lambda key: (source_order.get(key, len(source_order)), key))]
     ordered_rows = sorted(rows.values(), key=lambda row: (row['path'], row['url']))
     for row in ordered_rows:
         row['cells'] = [row['observations'].get(column['key']) for column in ordered_columns]

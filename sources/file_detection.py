@@ -3,6 +3,7 @@ import zipfile
 from .excel_export import parse_excel, XLS_SIGNATURE
 from .screamingfrog import parse_export, MAX_BYTES
 from .gsc_export import parse_gsc_zip
+from .ahrefs import parse_ahrefs
 
 
 def detect_export(upload):
@@ -20,5 +21,8 @@ def detect_export(upload):
         if is_excel:
             return parse_excel(raw)
         return parse_gsc_zip(raw, upload.name)
+    ahrefs = parse_ahrefs(raw, upload.name)
+    if ahrefs is not None:
+        return ahrefs
     result = parse_export(io.BytesIO(raw))
     return dict(result, source='sf', label='Screaming Frog · Internal URLs', parser_version='sf-internal-all-v1')

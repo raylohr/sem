@@ -49,7 +49,8 @@ class URLInventoryTests(TestCase):
         self.add('gsc', {'url': 'https://elsewhere.test/foreign'})
         other = Project.objects.create(name='Other', website='https://example.com', created_by=self.user)
         self.add('gsc', {'url': 'https://example.com/other-project'}, project=other)
-        _, rows = project_inventory(self.project)
+        columns, rows = project_inventory(self.project)
+        self.assertEqual([column['key'] for column in columns], ['gsc'])
         self.assertEqual([r['path'] for r in rows], ['/complete'])
         self.project.include_subdomains = True
         _, rows = project_inventory(self.project)
@@ -60,7 +61,7 @@ class URLInventoryTests(TestCase):
         for url in ['https://example.com/a', 'https://example.com/a?x=1', 'https://www.example.com/a']:
             self.add('future_source', {'url': url}, imported_at=stamp)
         columns, rows = project_inventory(self.project)
-        self.assertIn('future_source', [c['key'] for c in columns])
+        self.assertEqual([c['key'] for c in columns], ['future_source'])
         self.assertEqual(len(rows), 3)
         observation = rows[0]['observations']['future_source']
         self.assertTrue(observation['fallback'])

@@ -8,6 +8,7 @@ class ImportBatch(models.Model):
     class Source(models.TextChoices):
         GSC = "gsc", "Google Search Console"
         SF = "sf", "Screaming Frog"
+        AHREFS = "ahrefs", "Ahrefs"
     class Method(models.TextChoices):
         API = "api", "API"
         FILE = "file", "Bestand"

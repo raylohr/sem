@@ -1,4 +1,6 @@
 from urllib.parse import urlsplit
+from datetime import datetime, time
+from django.utils import timezone
 
 from django import forms
 from django.contrib import messages
@@ -52,8 +54,8 @@ def upload(request, project_id):
                         return render(request, 'ui/import_upload.html', context)
                     summary.update(excluded_rows=excluded, host_rules=project.host_rules,
                                    hosts=dict(Counter(urlsplit(row.get('Address') or row.get('URL')).hostname for row in rows)))
-                    if parsed['source'] == 'sf':
-                        summary['html_count'] = sum(row['Content Type'].lower().startswith(('text/html', 'application/xhtml+xml')) for row in rows)
+                    if parsed['source'] in ('sf', 'ahrefs'):
+                        summary['html_count'] = sum((row.get('Content Type') or row.get('Content type', '')).lower().startswith(('text/html', 'application/xhtml+xml')) for row in rows)
                     warnings = ['URLs buiten de toegestane projecthosts worden overgeslagen; ontbrekende URLs worden niet verwijderd.']
                     if parsed['source'] == 'gsc':
                         warnings.append('GSC levert voorbeelden, geen volledige URL-lijst. De export kan maximaal 1.000 URL-voorbeelden bevatten.')
@@ -84,6 +86,7 @@ def preview(request, project_id, batch_id):
     context = project_context(request, project_id, 'sources')
     if not context['can_edit']:
         raise PermissionDenied
+    observation_form = None
     with transaction.atomic():
         project = Project.objects.select_for_update().get(pk=project_id)
         if not can_edit(request.user, project):
@@ -95,11 +98,24 @@ def preview(request, project_id, batch_id):
         if batch.status != 'pending':
             raise PermissionDenied
         filter_staged_batch(batch, project)
+        if batch.source == 'ahrefs':
+            observation_form = ObservationDateForm(
+                request.POST if request.method == 'POST' else None,
+                initial={'observed_on': batch.request_metadata.get('suggested_date')})
         if request.method == 'POST':
             if request.POST.get('action') == 'cancel':
                 batch.delete()
                 return redirect('ui:sources', project_id=project_id)
             if request.POST.get('action') == 'confirm' and batch.record_count:
+                if observation_form is not None:
+                    if not observation_form.is_valid():
+                        context.update(batch=batch, summary=batch.request_metadata,
+                                       sample=batch.records.order_by('id')[:10], observation_form=observation_form)
+                        return render(request, 'ui/import_preview.html', context)
+                    observed_on = observation_form.cleaned_data['observed_on']
+                    batch.measured_at = timezone.make_aware(datetime.combine(observed_on, time.min)) if observed_on else None
+                    batch.request_metadata['observed_on'] = observed_on.isoformat() if observed_on else None
+                    batch.request_metadata['date_basis'] = 'user_confirmed' if observed_on else 'import_time'
                 if batch.source == 'gsc':
                     category = request.POST.get('report_status', '')
                     if category not in ('indexed', 'not_indexed', 'unknown'):
@@ -108,9 +124,15 @@ def preview(request, project_id, batch_id):
                     batch.request_metadata['report_status'] = category
                     batch.request_metadata['indexing_reason'] = request.POST.get('indexing_reason', '').strip()[:255]
                 batch.status = 'complete'
-                batch.save(update_fields=['status', 'request_metadata'])
+                batch.save(update_fields=['status', 'request_metadata', 'measured_at'])
                 messages.success(request, f'{batch.record_count} URLs geïmporteerd.')
                 return redirect('ui:batch', project_id=project_id, batch_id=batch.pk)
     context.update(batch=batch, summary=batch.request_metadata,
-                   sample=batch.records.order_by('id')[:10])
+                   sample=batch.records.order_by('id')[:10], observation_form=observation_form)
     return render(request, 'ui/import_preview.html', context)
+
+
+class ObservationDateForm(forms.Form):
+    observed_on = forms.DateField(required=False, label='Waarnemingsdatum / crawldatum (optioneel)',
+        input_formats=['%Y-%m-%d'], widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+        help_text='Een datum uit de bestandsnaam is slechts een suggestie. Bevestig de crawl- of peildatum. Laat leeg om de importdatum te gebruiken.')

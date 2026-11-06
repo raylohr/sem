@@ -21,9 +21,9 @@ def zip_export(urls=None, filename='site-Coverage-Valid-2026-11-06.zip'):
     writer.writerow(['URL', 'Last crawled'])
     writer.writerows((url, '2026-11-01') for url in urls)
     with zipfile.ZipFile(stream, 'w') as archive:
-        archive.writestr('Table.csv', table.getvalue())
-        archive.writestr('Chart.csv', 'Date,Affected pages\n2026-11-01,4660\n')
-        archive.writestr('Metadata.csv', 'Property,Value\nSitemap,All known pages\n')
+        archive.writestr(zipfile.ZipInfo('Table.csv', date_time=(2026, 11, 6, 12, 0, 0)), table.getvalue())
+        archive.writestr(zipfile.ZipInfo('Chart.csv', date_time=(2026, 11, 6, 12, 0, 0)), 'Date,Affected pages\n2026-11-01,4660\n')
+        archive.writestr(zipfile.ZipInfo('Metadata.csv', date_time=(2026, 11, 6, 12, 0, 0)), 'Property,Value\nSitemap,All known pages\n')
     return SimpleUploadedFile(filename, stream.getvalue())
 
 
