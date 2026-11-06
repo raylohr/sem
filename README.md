@@ -2,7 +2,7 @@
 
 Django-werkplek voor projecten, Google Search Console en URL-imports uit Screaming Frog en GSC.
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
-Via Data → Import worden Screaming Frog Internal → All CSV-exports en originele
+Via Data → Import worden Screaming Frog Internal → All CSV-/XLS-/XLSX-exports en originele
 GSC Page indexing CSV-ZIP-exports automatisch herkend.
 Een voorbeeld toont domeinen, URL-aantallen, crawl-tijden en de huidige gebruiker.
 Na bevestiging verschijnt een doorzoekbare URL-lijst met HTML- en resourcefilters.

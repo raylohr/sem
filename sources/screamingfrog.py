@@ -28,7 +28,7 @@ def parse_export(upload):
     try:
         headers = reader.fieldnames or []
         if len(headers) != len(set(headers)) or not REQUIRED.issubset(headers):
-            raise ValueError('Bestand niet herkend. Exporteer in Screaming Frog: Internal → All → Export → CSV.')
+            raise ValueError('Bestand niet herkend. Exporteer in Screaming Frog: Internal → All → Export (CSV, XLS of XLSX).')
         rows, urls, hosts, timestamps = [], set(), Counter(), []
         html_count = 0
         for line, row in enumerate(reader, 2):

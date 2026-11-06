@@ -20,7 +20,7 @@ from collections import Counter
 
 class UploadForm(forms.Form):
     file = forms.FileField(label='Bestand', widget=forms.ClearableFileInput(attrs={
-        'class': 'form-control', 'accept': '.csv,.zip,text/csv,application/zip'}))
+        'class': 'form-control', 'accept': '.csv,.xls,.xlsx,.zip,text/csv,application/zip,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))
 
 
 @never_cache

@@ -5,7 +5,7 @@
 <h2 class="h4 mt-3">Import</h2>
 <p>Upload een bestand. We herkennen de bron en het type automatisch en tonen eerst een voorbeeld.</p>
 <div class="card"><div class="card-body">
-<p class="text-muted">Ondersteund: Screaming Frog → Internal → All → Export als CSV (UTF-8), of Google Search Console → Page indexing → URL-detailrapport als originele CSV-ZIP. Maximaal 20 MB en 100.000 URLs.</p>
+<p class="text-muted">Ondersteund: Screaming Frog → Internal → All → Export als CSV (UTF-8), XLS of XLSX, of Google Search Console → Page indexing → URL-detailrapport als originele CSV-ZIP. Maximaal 20 MB en 100.000 URLs.</p>
 <form method="post" enctype="multipart/form-data">{% csrf_token %}
 {{ form.as_p }}
 <p class="small text-muted">Project: {{ project.name }} · Toegevoegd door: {{ user.get_username }}</p>
