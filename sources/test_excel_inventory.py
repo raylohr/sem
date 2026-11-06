@@ -97,3 +97,52 @@ class ExcelInventoryTests(TestCase):
         self.assertEqual(self.client.get(self.url).status_code,404)
         self.client.logout()
         self.assertEqual(self.client.get(self.url).status_code,302)
+
+    def test_progress_is_real_and_private_to_exporting_user(self):
+        from uuid import uuid4
+        from django.core.cache import cache
+        token = str(uuid4())
+        status_url = reverse('ui:export-progress', args=[self.project.pk])
+        self.record('sf', {'Address':'https://example.com/a', 'Crawl Timestamp':'2026-11-01'})
+        book = self.download(export_token=token)
+        book.close()
+        result = self.client.get(status_url, {'export_token':token})
+        self.assertEqual(result.json()['state'], 'ready')
+        self.assertEqual(result.json()['percent'], 100)
+        self.assertIn('no-store', result['Cache-Control'])
+        other = get_user_model().objects.create_user('other-exporter')
+        Membership.objects.create(project=self.project, user=other, role='viewer')
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(status_url, {'export_token':token}).json()['state'], 'waiting')
+        Membership.objects.filter(project=self.project, user=other).delete()
+        self.assertEqual(self.client.get(status_url, {'export_token':token}).status_code, 404)
+
+    def test_failed_export_reports_failure_and_invalid_token_is_rejected(self):
+        from uuid import uuid4
+        from unittest.mock import patch
+        token = str(uuid4())
+        status_url = reverse('ui:export-progress', args=[self.project.pk])
+        with patch('sources.export_ui.build_inventory_workbook', side_effect=ValueError('Te veel rijen.')):
+            response = self.client.get(self.url, {'export_token':token})
+        self.assertEqual(response.status_code, 400)
+        state = self.client.get(status_url, {'export_token':token}).json()
+        self.assertEqual(state['state'], 'failed')
+        self.assertEqual(state['message'], 'Te veel rijen.')
+        self.assertEqual(self.client.get(status_url, {'export_token':'invalid'}).status_code, 400)
+        self.assertEqual(self.client.get(self.url, {'export_token':'invalid'}).status_code, 400)
+
+    def test_builder_reports_work_phases_and_cache_outage_does_not_break_download(self):
+        from unittest.mock import patch
+        from sources.excel_inventory import build_inventory_workbook
+        self.record('sf', {'Address':'https://example.com/a', 'Crawl Timestamp':'2026-11-01'})
+        updates = []
+        result = build_inventory_workbook(self.project, self.user,
+            absolute_url=lambda path: 'https://example.com'+path, progress=lambda **data: updates.append(data))
+        result.close()
+        self.assertEqual([item['percent'] for item in updates], sorted(item['percent'] for item in updates))
+        self.assertTrue(any('Bronwaarnemingen verwerken:' in item['message'] for item in updates))
+        self.assertEqual(updates[-1]['state'], 'ready')
+        from uuid import uuid4
+        with patch('sources.export_ui.cache.set', side_effect=RuntimeError('Cache unavailable')):
+            book = self.download(export_token=str(uuid4()))
+            book.close()

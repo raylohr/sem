@@ -20,3 +20,7 @@
 
 
 .status-incomplete{background:#fff3cd;color:#664d03}
+
+.content-type-html{background:#edf0f2;color:#53616b}
+.content-type-other{background:#fff2d4;color:#825d10}
+.content-type-error{background:#fae7e7;color:#a43535}

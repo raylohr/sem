@@ -36,8 +36,7 @@ def dashboard(request):
 def project_home(request, project_id):
     context=project_context(request,project_id,'overview')
     project=context['project']
-    context.update(stats=project.import_batches.aggregate(total=Count('id'),records=Sum('record_count'),
-        running=Count('id',filter=Q(status__in=['pending','processing']))),
+    context.update(stats=project.import_batches.aggregate(records=Sum('record_count')),
         recent=project.import_batches.select_related('created_by')[:8])
     from sources.url_inventory import project_inventory
     columns, rows = project_inventory(project)

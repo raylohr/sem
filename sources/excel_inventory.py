@@ -118,8 +118,11 @@ def source_signals(source, observation, indexing):
     return signals
 
 
-def build_inventory_workbook(project, user, *, absolute_url):
+def build_inventory_workbook(project, user, *, absolute_url, progress=None):
+    report = progress or (lambda **kwargs: None)
+    report(percent=5, message='URLs verzamelen…')
     columns, rows = project_inventory(project, include_data=True)
+    report(percent=20, message=f'{len(rows)} unieke URLs verzameld.')
     sources = [column['key'] for column in columns]
     book = Workbook(write_only=True)
     overview = Sheet(book, '00 - HOOFDOVERZICHT', ['Onderdeel', 'Waarde'])
@@ -135,7 +138,12 @@ def build_inventory_workbook(project, user, *, absolute_url):
     batches = {batch.pk: batch for batch in project.import_batches.filter(status__in=('complete', 'incomplete')).select_related('created_by')}
     latest_indexing = {}
     observations = SourceRecord.objects.filter(batch_id__in=batches).order_by('id').values_list('id', 'batch_id', 'data')
-    for record_id, batch_id, data in observations.iterator(chunk_size=1000):
+    total_records = observations.count()
+    report(percent=25, message=f'Bronwaarnemingen verwerken: 0 van {total_records}…')
+    for processed, (record_id, batch_id, data) in enumerate(observations.iterator(chunk_size=1000), 1):
+        if processed % 250 == 0 or processed == total_records:
+            report(percent=25 + int(35 * processed / max(total_records, 1)),
+                   message=f'Bronwaarnemingen verwerken: {processed} van {total_records}…')
         url = next((data.get(key) for key in URL_FIELDS if data.get(key)), None)
         if not isinstance(url, str) or not allows_url(project, url):
             continue
@@ -153,7 +161,11 @@ def build_inventory_workbook(project, user, *, absolute_url):
             status, reason, crawl_date, data.get('Status Code', data.get('HTTP status code', '')),
             data.get('Indexability', data.get('Is indexable page', '')), data.get('Title 1', data.get('Title', '')),
             data.get('Canonical Link Element 1', ''), data.get('Redirect URL', ''), data.get('PR', ''), data.get('Organic traffic', '')], links={0: url, 10: link})
-    for row in rows:
+    report(percent=65, message=f'URL-inventaris en actieplan vullen: 0 van {len(rows)}…')
+    for processed, row in enumerate(rows, 1):
+        if processed % 250 == 0 or processed == len(rows):
+            report(percent=65 + int(25 * processed / max(len(rows), 1)),
+                   message=f'URL-inventaris en actieplan vullen: {processed} van {len(rows)}…')
         values = [row['url'], row['host'], row['display_path']]
         values += [row['observations'].get(source, {}).get('date') for source in sources]
         values += [', '.join(column['label'] for column in columns if row['observations'].get(column['key'], {}).get('fallback'))]
@@ -182,10 +194,12 @@ def build_inventory_workbook(project, user, *, absolute_url):
         readme.append(pair)
     for sheet in (overview, inventory, actions, evidence_sheet, readme):
         sheet.finish(work_fields=sheet in (inventory, actions))
+    report(percent=95, message='Excelbestand opslaan…')
     output = SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode='w+b')
     try:
         book.save(output)
         output.seek(0)
+        report(percent=100, message='Excelbestand gereed.', state='ready')
         return output
     except Exception:
         output.close()

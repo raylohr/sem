@@ -1,11 +1,13 @@
 """Read-only URL inventory across published imports, with per-source observations."""
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
 
 from django.utils import timezone
 from integrations.url_validation import normalize_url
 from projects.hosts import allows_url
 from .models import SourceRecord
+from .content_types import content_badge
 
 DEFAULT_SOURCES = {'ahrefs': 'Ahrefs', 'gsc': 'GSC', 'sf': 'SF'}
 URL_FIELDS = ('url', 'Address', 'URL', 'Target URL', 'Page URL')
@@ -65,6 +67,17 @@ def project_inventory(project, *, include_data=False):
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
                 'record_id': record_id, 'rank': rank}
+            if source == 'sf':
+                rows[url]['observations'][source]['badge'] = content_badge(data, source)
+            if source == 'ahrefs':
+                traffic = None
+                try:
+                    value = Decimal(str(data.get('Organic traffic', '')))
+                    if value.is_finite() and value >= 0:
+                        traffic = value
+                except InvalidOperation:
+                    pass
+                rows[url]['observations'][source].update(is_ahrefs=True, traffic=traffic)
             if include_data:
                 rows[url]['observations'][source].update(data=data, metadata=batch.request_metadata)
     source_order = {key: index for index, key in enumerate(DEFAULT_SOURCES)}

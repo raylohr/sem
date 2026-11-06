@@ -88,3 +88,24 @@ class URLInventoryTests(TestCase):
         self.assertContains(self.client.get(url, {'url_q': 'absent'}), 'Geen URLs gevonden voor deze zoekterm.')
         self.client.force_login(get_user_model().objects.create_user('inventory-outsider'))
         self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_sf_badges_keep_date_provenance_and_ahrefs_traffic(self):
+        for index, data in enumerate([
+            {'Content Type':'text/html; charset=UTF-8','Status Code':'200'},
+            {'Content Type':'image/png','Status Code':'200'},
+            {'Content Type':'text/html','Status Code':'404'},
+        ]):
+            self.add('sf', {'Address':f'https://example.com/{index}', 'Crawl Timestamp':'2026-11-02 12:00:00', **data})
+        self.add('ahrefs', {'URL':'https://example.com/0','last_seen':'2026-11-03','Organic traffic':'1152'})
+        self.add('ahrefs', {'URL':'https://example.com/0','last_seen':'2026-10-01','Organic traffic':'9000'})
+        self.add('ahrefs', {'URL':'https://example.com/1','last_seen':'2026-11-03','Organic traffic':'0'})
+        self.add('ahrefs', {'URL':'https://example.com/2','last_seen':'2026-11-03'})
+        response=self.client.get(reverse('ui:project',args=[self.project.pk]))
+        for expected in ('content-type-html','content-type-other','content-type-error','HTTP 404','Afbeelding','03.11.2026','02.11.2026','1.152','>0</a>','Onbekend'):
+            self.assertContains(response,expected)
+        columns,rows=project_inventory(self.project)
+        self.assertEqual(rows[0]['observations']['sf']['badge']['label'],'HTML')
+        self.assertNotIn('badge',rows[0]['observations']['ahrefs'])
+        self.assertEqual(rows[0]['observations']['ahrefs']['traffic'],1152)
+        self.assertEqual(rows[1]['observations']['ahrefs']['traffic'],0)
+        self.assertIsNone(rows[2]['observations']['ahrefs']['traffic'])

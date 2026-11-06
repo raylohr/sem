@@ -46,3 +46,8 @@ bevat alle gepubliceerde URLs binnen de hostregels, los van zoekfilter/paginerin
 Bronmetingen blijven gescheiden; GSC-indexeringsgegevens worden apart van
 zoekprestaties geselecteerd. Beoordeling en actievelden zijn leeg en hebben
 keuzelijsten voor prioriteit en controlestatus. Excel-bewerkingen worden niet teruggeschreven.
+
+Bij Excel-export opent direct een voortgangsvenster met werkfasen, verwerkte
+aantallen en verstreken tijd. Na ontvangst start de download; het venster biedt
+ook een downloadlink en foutfeedback. Voortgang is alleen zichtbaar voor de
+exporterende gebruiker binnen het project.
