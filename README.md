@@ -3,7 +3,12 @@
 Django-werkplek voor projecten, Google Search Console en URL-imports uit Screaming Frog en GSC.
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
 Via Data → Import worden Screaming Frog Internal → All CSV-/XLS-/XLSX-exports en originele
-GSC Page indexing CSV-ZIP-exports automatisch herkend.
+GSC Page indexing-detailrapporten als losse CSV-URL-tabel, CSV-ZIP, XLS of XLSX automatisch herkend
+(Nederlands en Engels). De indexeringsreden komt uit Metadata en blijft bij
+de import en elk URL-record bewaard. 1970-01-01 geldt als onbekende crawl-datum;
+het algemene indexeringsoverzicht zonder URL-tabel is geen URL-import.
+Bij een losse GSC-CSV ontbreken metadata en grafiek; categorie en indexeringsreden
+kunnen in de preview worden opgegeven en blijven bij elk URL-record bewaard.
 Ahrefs Site Audit CSV-exports van Pages en ontbrekende/lege title-tags worden
 ook herkend, inclusief optionele backlink- en zoekwoordkolommen. De preview laat
 een crawl-/waarnemingsdatum bevestigen; de bestandsdatum is alleen een suggestie.

@@ -57,6 +57,12 @@ def upload(request, project_id):
                     if parsed['source'] in ('sf', 'ahrefs'):
                         summary['html_count'] = sum((row.get('Content Type') or row.get('Content type', '')).lower().startswith(('text/html', 'application/xhtml+xml')) for row in rows)
                     warnings = ['URLs buiten de toegestane projecthosts worden overgeslagen; ontbrekende URLs worden niet verwijderd.']
+                    if summary.get('missing_report_context'):
+                        warnings.append('Deze losse CSV bevat geen rapportmetadata of grafiek. Bevestig de categorie en vul eventueel de indexeringsreden in; het gerapporteerde totaal is onbekend.')
+                    if summary.get('invalid_url_rows'):
+                        warnings.append(f"{summary['invalid_url_rows']} ongeldige URL-rijen zijn door de hostcontrole uitgesloten.")
+                    if summary.get('unknown_crawl_dates'):
+                        warnings.append(f"{summary['unknown_crawl_dates']} crawl-datums met 1970-01-01 zijn als onbekend verwerkt.")
                     if parsed['source'] == 'gsc':
                         warnings.append('GSC levert voorbeelden, geen volledige URL-lijst. De export kan maximaal 1.000 URL-voorbeelden bevatten.')
                     batch = ImportBatch.objects.create(
@@ -117,12 +123,20 @@ def preview(request, project_id, batch_id):
                     batch.request_metadata['observed_on'] = observed_on.isoformat() if observed_on else None
                     batch.request_metadata['date_basis'] = 'user_confirmed' if observed_on else 'import_time'
                 if batch.source == 'gsc':
-                    category = request.POST.get('report_status', '')
+                    category = batch.request_metadata.get('report_status') if batch.request_metadata.get('reason_from_metadata') else request.POST.get('report_status', '')
                     if category not in ('indexed', 'not_indexed', 'unknown'):
                         messages.error(request, 'Kies de categorie van het GSC-rapport.')
                         return redirect('ui:import-preview', project_id=project_id, batch_id=batch.pk)
                     batch.request_metadata['report_status'] = category
-                    batch.request_metadata['indexing_reason'] = request.POST.get('indexing_reason', '').strip()[:255]
+                    if not batch.request_metadata.get('reason_from_metadata'):
+                        batch.request_metadata['indexing_reason'] = request.POST.get('indexing_reason', '').strip()[:255]
+                        from itertools import islice
+                        iterator = batch.records.order_by('id').iterator(chunk_size=500)
+                        while chunk := list(islice(iterator, 500)):
+                            for record in chunk:
+                                record.data.update(gsc_indexing_reason=batch.request_metadata['indexing_reason'],
+                                                   gsc_report_status=category)
+                            SourceRecord.objects.bulk_update(chunk, ['data'], batch_size=500)
                 batch.status = 'complete'
                 batch.save(update_fields=['status', 'request_metadata', 'measured_at'])
                 messages.success(request, f'{batch.record_count} URLs geïmporteerd.')

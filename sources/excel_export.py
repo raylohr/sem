@@ -5,6 +5,7 @@ import io
 from datetime import date, datetime, time
 import zipfile
 
+from .gsc_export import SHEET_NAMES, parse_gsc_tables
 from .screamingfrog import MAX_BYTES, MAX_ROWS, REQUIRED, parse_export
 
 XLS_SIGNATURE = b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'
@@ -22,7 +23,7 @@ def cell_text(value):
     return str(value)
 
 
-def parse_excel(raw, *, legacy=False):
+def parse_excel(raw, *, legacy=False, filename=""):
     workbook = None
     try:
         if legacy:
@@ -56,8 +57,29 @@ def parse_excel(raw, *, legacy=False):
                         raise ValueError('Excel-bestand overschrijdt de limiet van 100.000 rijen of 512 kolommen.')
                     yield sheet.title, ([cell_text(value) for value in row] for row in sheet.iter_rows(values_only=True))
         result = None
+        gsc_tables = {}
         for name, rows in sheets():
             headers = next(rows, [])
+            kind = SHEET_NAMES.get(name.strip().lower())
+            if kind and not REQUIRED.issubset(headers):
+                if kind in gsc_tables:
+                    raise ValueError('Meerdere gelijksoortige GSC-werkbladen gevonden.')
+                values = []
+                size = 0
+                for row in rows:
+                    if not any(row):
+                        continue
+                    if len(values) >= MAX_ROWS:
+                        raise ValueError('Maximaal 100.000 rijen per werkblad.')
+                    row = row + [''] * max(0, len(headers) - len(row))
+                    if len(row) > len(headers) and any(row[len(headers):]):
+                        raise ValueError('Excel-rij heeft gegevens buiten de kolomkoppen.')
+                    size += sum(len(value) for value in row)
+                    if size > MAX_BYTES:
+                        raise ValueError('Excel bevat te veel tabeldata (maximaal 20 MB).')
+                    values.append(dict(zip(headers, row)))
+                gsc_tables[kind] = (headers, values)
+                continue
             if not REQUIRED.issubset(headers):
                 continue
             if result is not None:
@@ -77,14 +99,19 @@ def parse_excel(raw, *, legacy=False):
                     raise ValueError('Excel bevat te veel tabeldata (maximaal 20 MB).')
             result = parse_export(io.BytesIO(stream.getvalue().encode('utf-8')))
             result['summary'].update(worksheet=name, file_format='xls' if legacy else 'xlsx')
+        if gsc_tables:
+            if result is not None:
+                raise ValueError('Bestand bevat zowel GSC- als Screaming Frog-rapporten. Upload één bron per bestand.')
+            return parse_gsc_tables(gsc_tables, checksum=hashlib.sha256(raw).hexdigest(),
+                                    filename=filename, file_format='xls' if legacy else 'xlsx')
         if result is None:
-            raise ValueError('Geen Screaming Frog Internal → All-werkblad herkend. Controleer de exportkolommen.')
+            raise ValueError('Geen ondersteunde GSC- of Screaming Frog-werkbladen herkend. Controleer de export.')
         result['checksum'] = hashlib.sha256(raw).hexdigest()
         return dict(result, source='sf', label='Screaming Frog · Internal URLs', parser_version='sf-excel-internal-all-v1')
     except ValueError:
         raise
     except Exception:
-        raise ValueError('Excel-bestand kan niet worden gelezen. Gebruik een onbeschermde Screaming Frog-export als XLS of XLSX.') from None
+        raise ValueError('Excel-bestand kan niet worden gelezen. Gebruik een onbeschermde GSC- of Screaming Frog-export als XLS of XLSX.') from None
     finally:
         if workbook is not None:
             if legacy:

@@ -2,7 +2,7 @@ import io
 import zipfile
 from .excel_export import parse_excel, XLS_SIGNATURE
 from .screamingfrog import parse_export, MAX_BYTES
-from .gsc_export import parse_gsc_zip
+from .gsc_export import parse_gsc_zip, parse_gsc_csv
 from .ahrefs import parse_ahrefs
 
 
@@ -11,7 +11,7 @@ def detect_export(upload):
     if len(raw) > MAX_BYTES:
         raise ValueError('Het bestand is te groot. Maximaal 20 MB.')
     if raw.startswith(XLS_SIGNATURE):
-        return parse_excel(raw, legacy=True)
+        return parse_excel(raw, legacy=True, filename=upload.name)
     if raw.startswith(b'PK'):
         try:
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -19,8 +19,11 @@ def detect_export(upload):
         except zipfile.BadZipFile:
             raise ValueError('ZIP- of Excel-bestand kan niet worden gelezen.') from None
         if is_excel:
-            return parse_excel(raw)
+            return parse_excel(raw, filename=upload.name)
         return parse_gsc_zip(raw, upload.name)
+    gsc = parse_gsc_csv(raw, upload.name)
+    if gsc is not None:
+        return gsc
     ahrefs = parse_ahrefs(raw, upload.name)
     if ahrefs is not None:
         return ahrefs

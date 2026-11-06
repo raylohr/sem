@@ -86,6 +86,7 @@ def batch(request, project_id, batch_id):
         for record in page.object_list:
             record.url_address = record.data.get('Address') or record.data.get('URL')
             record.last_crawled = record.data.get('Last crawled', '')
+            record.indexing_reason = record.data.get('gsc_indexing_reason') or item.request_metadata.get('indexing_reason', '')
             record.sf_status = record.data.get('Status Code', record.data.get('HTTP status code', ''))
             record.sf_indexability = record.data.get('Indexability', {'true': 'Indexable', 'false': 'Non-Indexable'}.get(record.data.get('Is indexable page'), ''))
             record.sf_title = record.data.get('Title 1', record.data.get('Title', ''))
