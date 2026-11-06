@@ -9,7 +9,6 @@ class ImportBatch(models.Model):
         GSC = "gsc", "Google Search Console"
         AHREFS = "ahrefs", "Ahrefs"
         SCREAMING_FROG = "screaming_frog", "Screaming Frog"
-        AUDIT = "audit", "Contentaudit"
     class Method(models.TextChoices):
         UPLOAD = "upload", "Upload"
         API = "api", "API"

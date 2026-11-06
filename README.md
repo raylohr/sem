@@ -1,7 +1,7 @@
 # Search Visibility Toolkit
 
 Django-werkplek voor projecten, bronimports en Google Search Console.
-Ondersteunt imports uit Search Console, Ahrefs, Screaming Frog en contentaudits,
+Ondersteunt imports uit Search Console, Ahrefs en Screaming Frog,
 met behoud van oorspronkelijke brongegevens en meetmomenten.
 
 De ingebouwde websitecrawler, sitemapscanner, browseronderzoeken en hun afgeleide

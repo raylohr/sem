@@ -114,8 +114,6 @@ def parse_file(content, filename):
                 source = source or "ahrefs"
             if title == "Metadata" and headers == ["Property", "Waarde"]:
                 source = "gsc"
-            if title == "00 - HOOFDOVERZICHT" or "GMW CONTENTAUDIT" in " ".join(headers):
-                source = "audit"
             summary = {"name": title, "columns": headers, "rows": 0}
             sheets.append(summary)
             signature.update(json.dumps([title, headers], ensure_ascii=False).encode())
@@ -147,7 +145,7 @@ def parse_file(content, filename):
     except Exception as exc:
         raise ImportFormatError("Het bestand kan niet veilig als tabel worden gelezen.") from exc
     if source is None:
-        raise ImportFormatError("Rapporttype niet herkend. Gebruik een GSC-, Ahrefs-, Screaming Frog- of auditexport.")
+        raise ImportFormatError("Rapporttype niet herkend. Gebruik een GSC-, Ahrefs- of Screaming Frog-export.")
     if not records:
         warnings.append("Lege export: nul records is geen bewijs dat de hele website probleemvrij is.")
     if has_epoch:
