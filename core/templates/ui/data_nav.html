@@ -1,0 +1,5 @@
+<nav class="nav nav-pills gap-2 mb-4" aria-label="Data & scans">
+  <a class="nav-link{% if active == 'sources' %} active{% endif %}"{% if active == 'sources' %} aria-current="page"{% endif %} href="{% url 'ui:sources' project.id %}">Bronnen &amp; imports</a>
+  <a class="nav-link{% if active == 'scans' %} active{% endif %}"{% if active == 'scans' %} aria-current="page"{% endif %} href="{% url 'ui:scans' project.id %}">Websitescans</a>
+  <a class="nav-link{% if active == 'connections' %} active{% endif %}"{% if active == 'connections' %} aria-current="page"{% endif %} href="{% url 'ui:connections' project.id %}">Koppelingen</a>
+</nav>
