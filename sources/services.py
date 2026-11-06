@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from projects.models import Project
 from projects.permissions import can_manage, can_edit
-from .models import ImportBatch, SourceRecord, BatchDeletionEvent, PendingFileDeletion
+from .models import ImportBatch, SourceRecord, BatchDeletionEvent
 
 
 @transaction.atomic
@@ -13,11 +13,7 @@ def delete_batch(*, batch_id, project, actor):
         raise PermissionDenied
     batch = ImportBatch.objects.select_for_update().get(pk=batch_id, project=project)
     BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk, batch_id=batch.id, actor=actor)
-    if batch.file:
-        PendingFileDeletion.objects.get_or_create(path=batch.file.name)
     batch.delete()
-    from .tasks import enqueue_cleanup
-    transaction.on_commit(enqueue_cleanup)
 
 
 @transaction.atomic

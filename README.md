@@ -1,8 +1,8 @@
 # Search Visibility Toolkit
 
-Django-werkplek voor projecten, bronimports en Google Search Console.
-Ondersteunt imports uit Search Console, Ahrefs en Screaming Frog,
-met behoud van oorspronkelijke brongegevens en meetmomenten.
+Django-werkplek voor projecten en Google Search Console.
+GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
+Bestandsuploads en imports uit CSV, TSV, XLS en XLSX zijn verwijderd.
 
 De ingebouwde websitecrawler, sitemapscanner, browseronderzoeken en hun afgeleide
 analyses, technologie-/privacyverrijking en onderzoeksdossiers zijn verwijderd.

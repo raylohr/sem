@@ -24,26 +24,13 @@ class BatchTests(TestCase):
         self.client.force_login(self.admin)
 
     def make_batch(self, label):
-        return ImportBatch.objects.create(project=self.project, source='gsc', method='upload', label=label, created_by=self.editor)
+        return ImportBatch.objects.create(project=self.project, source='gsc', method='api', label=label, created_by=self.editor)
 
     def remove_url(self, project=None):
         return reverse('projects:sources:remove', args=[(project or self.project).pk, self.batch.pk])
 
-    def test_provenance_cannot_be_spoofed(self):
-        self.client.force_login(self.editor)
-        body = {'source': 'gsc', 'method': 'api', 'label': 'GSC', 'created_by': self.other.pk, 'project': str(self.hidden.pk), 'status': 'complete'}
-        response = self.client.post(reverse('projects:sources:create', args=[self.project.pk]), json.dumps(body), content_type='application/json')
-        self.assertEqual(response.status_code, 201)
-        batch = ImportBatch.objects.get(pk=response.json()['id'])
-        self.assertEqual(batch.created_by, self.editor)
-        self.assertEqual(batch.project, self.project)
-        self.assertIsNotNone(batch.imported_at)
-        self.assertIsNone(batch.measured_at)
-        self.assertEqual(batch.status, 'pending')
-
-    def test_viewer_cannot_create_or_delete(self):
+    def test_viewer_cannot_delete(self):
         self.client.force_login(self.viewer)
-        self.assertEqual(self.client.post(reverse('projects:sources:create', args=[self.project.pk])).status_code, 403)
         self.assertEqual(self.client.post(self.remove_url()).status_code, 403)
 
     def test_editor_cannot_delete(self):
@@ -77,10 +64,6 @@ class BatchTests(TestCase):
         publish_records(batch_id=self.batch.pk, records=records)
         publish_records(batch_id=self.batch.pk, records=records)
         self.assertEqual(self.batch.records.count(), 1)
-
-    def test_invalid_period_rejected(self):
-        response = self.client.post(reverse('projects:sources:create', args=[self.project.pk]), json.dumps({'source': 'gsc', 'method': 'upload', 'label': 'Invalid', 'period_start': '2026-11-02', 'period_end': '2026-11-01'}), content_type='application/json')
-        self.assertEqual(response.status_code, 400)
 
     def test_outsider_cannot_list_sources(self):
         self.client.force_login(self.other)

@@ -15,7 +15,7 @@ class WorkspaceTests(TestCase):
         self.hidden=Project.objects.create(name='Hidden project',website='https://example.org/',created_by=self.other)
         Membership.objects.create(project=self.project,user=self.owner,role='admin')
         Membership.objects.create(project=self.project,user=self.viewer,role='viewer')
-        self.batch=ImportBatch.objects.create(project=self.project,created_by=self.owner,source='ahrefs',method='upload',label='<script>untrusted</script>')
+        self.batch=ImportBatch.objects.create(project=self.project,created_by=self.owner,source='gsc',method='api',label='<script>untrusted</script>')
         self.client.force_login(self.owner)
 
     def test_dashboard_is_html_and_scoped(self):

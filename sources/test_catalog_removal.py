@@ -16,7 +16,7 @@ class CatalogRemovalTests(TransactionTestCase):
             project = historical.get_model('projects', 'Project').objects.create(
                 name='Keep', website='https://example.com/', created_by_id=user.pk)
             batch = historical.get_model('sources', 'ImportBatch').objects.create(
-                project_id=project.pk, created_by_id=user.pk, source='ahrefs', method='upload', label='Keep')
+                project_id=project.pk, created_by_id=user.pk, source='gsc', method='api', label='Keep')
             record = historical.get_model('sources', 'SourceRecord').objects.create(
                 batch_id=batch.pk, locator='1', data={'URL':'https://example.com/'})
             url = historical.get_model('catalog', 'ProjectURL').objects.create(

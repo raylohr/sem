@@ -63,7 +63,7 @@ def remove(request, project_id):
         try:
             delete_project(actor=request.user, project_id=project.pk,
                            confirmation_name=form.cleaned_data['confirmation_name'])
-            messages.success(request, 'Project en bijbehorende gegevens verwijderd. Bronbestanden worden opgeruimd.')
+            messages.success(request, 'Project en bijbehorende gegevens verwijderd.')
             return redirect('ui:dashboard')
         except ValidationError as exc:
             form.add_error(None, ' '.join(exc.messages))

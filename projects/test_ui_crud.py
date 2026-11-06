@@ -1,18 +1,14 @@
-import tempfile
 from unittest.mock import patch
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from accounts.models import User, AuditEvent
-from sources.models import ImportBatch, SourceRecord, BatchDeletionEvent, PendingFileDeletion
+from sources.models import ImportBatch, SourceRecord, BatchDeletionEvent
 from sources.services import publish_records
-from sources.tasks import cleanup_files, process_upload
 from integrations.models import GSCConnection, APIResponsePage
 from .models import Project, Membership
 from .services import create_project, update_project, delete_project
@@ -91,7 +87,7 @@ class ProjectCRUDTests(TestCase):
         self.assertEqual(self.project.name, 'Voorbeeldproject')
 
     def test_delete_get_never_mutates_and_displays_counts(self):
-        ImportBatch.objects.create(project=self.project, created_by=self.root, source='ahrefs', method='upload', label='Batch')
+        ImportBatch.objects.create(project=self.project, created_by=self.root, source='gsc', method='api', label='Batch')
         response = self.client.get(self.url('delete'))
         self.assertContains(response, 'Project definitief verwijderen')
         self.assertContains(response, 'name="confirmation_name"')
@@ -109,26 +105,14 @@ class ProjectCRUDTests(TestCase):
         connection = GSCConnection.objects.create(project=self.project, owner=self.root, property_url='https://example.com', encrypted_refresh_token='not-a-real-token')
         previous = BatchDeletionEvent.objects.create(project=self.project, batch_id='11111111-1111-1111-1111-111111111111', actor=self.root)
         event = AuditEvent.objects.create(actor=self.root, project=self.project, action='project_access_set', details={'role':'admin'})
-        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
-            batch = ImportBatch.objects.create(project=self.project, created_by=self.root, source='ahrefs', method='upload', label='Delete', gsc_connection=connection)
-            batch.file.save('fixture.csv', ContentFile(b'url\nhttps://example.com/\n'))
-            path = batch.file.name
-            publish_records(batch_id=batch.pk, records=[{'locator':'row:2','data':{'URL':'https://example.com/'}}])
-            APIResponsePage.objects.create(batch=batch,page_index=0,requested_at=timezone.now(),request_body={},payload={})
-            with self.assertLogs('sources.tasks', level='ERROR'), \
-                    patch('sources.tasks.cleanup_files.delay', side_effect=ConnectionError('broker unavailable')), \
-                    self.captureOnCommitCallbacks(execute=True):
-                response = self.client.post(self.url('delete'), {'confirmation_name':self.project.name, 'password':PASSWORD})
-            self.assertRedirects(response, reverse('ui:dashboard'))
-            self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
-            self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
-            self.assertFalse(GSCConnection.objects.filter(pk=connection.pk).exists())
-            self.assertTrue(PendingFileDeletion.objects.filter(path=path).exists())
-            self.assertTrue(default_storage.exists(path))
-            cleanup_files()
-            self.assertFalse(default_storage.exists(path))
-            self.assertFalse(PendingFileDeletion.objects.filter(path=path).exists())
-            process_upload(str(batch.pk))  # Late queued upload must not recreate anything.
+        batch = ImportBatch.objects.create(project=self.project, created_by=self.root, source='gsc', method='api', label='Delete', gsc_connection=connection)
+        publish_records(batch_id=batch.pk, records=[{'locator':'api:1', 'data':{'url':'https://example.com/'}}])
+        APIResponsePage.objects.create(batch=batch,page_index=0,requested_at=timezone.now(),request_body={},payload={})
+        response = self.client.post(self.url('delete'), {'confirmation_name':self.project.name, 'password':PASSWORD})
+        self.assertRedirects(response, reverse('ui:dashboard'))
+        self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
+        self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
+        self.assertFalse(GSCConnection.objects.filter(pk=connection.pk).exists())
         previous.refresh_from_db();event.refresh_from_db()
         self.assertIsNone(previous.project_id)
         self.assertEqual(previous.project_identifier, self.project.pk)

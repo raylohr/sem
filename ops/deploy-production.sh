@@ -27,7 +27,6 @@ compose=(docker compose -f compose.yaml)
 "${compose[@]}" --profile tools run --rm migrate
 "${compose[@]}" up -d --no-build web gateway
 "${compose[@]}" up -d --no-build worker beat
-"${compose[@]}" exec -T web python manage.py shell -c 'from sources.tasks import cleanup_files; cleanup_files()'
 "${compose[@]}" exec -T web python manage.py remove_stale_contenttypes --noinput
 "${compose[@]}" exec -T web python manage.py check
 curl --fail --silent --retry 15 --retry-connrefused --retry-delay 2 http://127.0.0.1:8002/ready/

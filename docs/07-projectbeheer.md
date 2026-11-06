@@ -14,11 +14,8 @@ Alleen platformbeheerders kunnen verwijderen. De bevestigingspagina toont de
 actuele aantallen en vereist de exacte projectnaam plus het eigen wachtwoord.
 GET verwijdert nooit iets. Alle POST-formulieren vereisen CSRF en accountbeleid.
 
-Verwijdering wist imports, bronrecords, URL-observaties, scanresultaten, scandoelen,
-API-koppelingen en projectlidmaatschappen transactioneel. Bronbestanden krijgen een
-duurzame opruimopdracht. Bij Redis-uitval blijft die opdracht in PostgreSQL staan;
-`cleanup_import_files` kan deze later uitvoeren. Late taken kunnen verwijderde
-batches niet opnieuw aanmaken. Andere projecten en gebruikers blijven bestaan.
+Verwijdering wist GSC-resultaten, bronrecords, API-koppelingen en
+projectlidmaatschappen transactioneel. Andere projecten en gebruikers blijven bestaan.
 Google-tokens worden lokaal verwijderd; dit is geen intrekking bij Google van
 mogelijk elders gebruikte OAuth-toestemming.
 

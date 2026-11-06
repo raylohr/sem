@@ -79,20 +79,17 @@ def update_project(*, actor, project_id, name, website):
 @transaction.atomic
 def delete_project(*, actor, project_id, confirmation_name):
     from accounts.services import platform_actor
-    from sources.models import ImportBatch, BatchDeletionEvent, PendingFileDeletion
-    from sources.tasks import enqueue_cleanup
+    from sources.models import ImportBatch, BatchDeletionEvent
     from integrations.models import GSCConnection
     lock_access_changes()
     platform_actor(actor)
     project = Project.objects.select_for_update().get(pk=project_id)
     if confirmation_name != project.name:
         raise ValidationError('De projectnaam is gewijzigd. Controleer de bevestiging opnieuw.')
-    batches = list(ImportBatch.objects.filter(project=project).values_list('id', 'file'))
-    for batch_id, file_path in batches:
+    batches = list(ImportBatch.objects.filter(project=project).values_list('id', flat=True))
+    for batch_id in batches:
         BatchDeletionEvent.objects.create(project=project, project_identifier=project.pk,
                                            batch_id=batch_id, actor=actor)
-        if file_path:
-            PendingFileDeletion.objects.get_or_create(path=file_path)
     # Remove protected children in dependency order; late workers cannot recreate batches.
     ImportBatch.objects.filter(project=project).delete()
     GSCConnection.objects.filter(project=project).delete()
@@ -105,4 +102,3 @@ def delete_project(*, actor, project_id, confirmation_name):
         event.details = {**event.details, "project_id": str(project.pk)}
         event.save(update_fields=["details"])
     project.delete()
-    transaction.on_commit(enqueue_cleanup)

@@ -7,10 +7,7 @@ from projects.models import Project
 class ImportBatch(models.Model):
     class Source(models.TextChoices):
         GSC = "gsc", "Google Search Console"
-        AHREFS = "ahrefs", "Ahrefs"
-        SCREAMING_FROG = "screaming_frog", "Screaming Frog"
     class Method(models.TextChoices):
-        UPLOAD = "upload", "Upload"
         API = "api", "API"
     class Status(models.TextChoices):
         PENDING = "pending", "Wacht op verwerking"
@@ -25,7 +22,6 @@ class ImportBatch(models.Model):
     source = models.CharField(max_length=24, choices=Source.choices)
     method = models.CharField(max_length=10, choices=Method.choices)
     label = models.CharField(max_length=255)
-    original_filename = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     imported_at = models.DateTimeField(auto_now_add=True)
     measured_at = models.DateTimeField(null=True, blank=True)
@@ -34,12 +30,8 @@ class ImportBatch(models.Model):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     record_count = models.PositiveIntegerField(default=0)
     parser_version = models.CharField(max_length=64, blank=True)
-    checksum = models.CharField(max_length=64, blank=True)
     warnings = models.JSONField(default=list, blank=True)
 
-    file = models.FileField(upload_to="imports/%Y/%m/", blank=True, max_length=300)
-    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
-    sheet_summary = models.JSONField(default=list, blank=True)
     error = models.CharField(max_length=255, blank=True)
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
@@ -65,8 +57,3 @@ class BatchDeletionEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     deleted_at = models.DateTimeField(auto_now_add=True)
     # Deliberately no filenames, payloads or source content in deletion history.
-
-
-class PendingFileDeletion(models.Model):
-    path = models.CharField(max_length=300, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
