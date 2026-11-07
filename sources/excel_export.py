@@ -6,7 +6,7 @@ from datetime import date, datetime, time
 import zipfile
 
 from .gsc_export import SHEET_NAMES, parse_gsc_tables
-from .screamingfrog import MAX_BYTES, MAX_ROWS, REQUIRED, parse_export
+from .screamingfrog import MAX_BYTES, MAX_ROWS, REQUIRED, parse_export, canonical_headers
 
 XLS_SIGNATURE = b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'
 MAX_COLUMNS = 512
@@ -61,7 +61,7 @@ def parse_excel(raw, *, legacy=False, filename=""):
         for name, rows in sheets():
             headers = next(rows, [])
             kind = SHEET_NAMES.get(name.strip().lower())
-            if kind and not REQUIRED.issubset(headers):
+            if kind and not REQUIRED.issubset(canonical_headers(headers)):
                 if kind in gsc_tables:
                     raise ValueError('Meerdere gelijksoortige GSC-werkbladen gevonden.')
                 values = []
@@ -80,7 +80,7 @@ def parse_excel(raw, *, legacy=False, filename=""):
                     values.append(dict(zip(headers, row)))
                 gsc_tables[kind] = (headers, values)
                 continue
-            if not REQUIRED.issubset(headers):
+            if not REQUIRED.issubset(canonical_headers(headers)):
                 continue
             if result is not None:
                 raise ValueError('Meerdere Screaming Frog URL-werkbladen gevonden. Exporteer één Internal → All-werkblad per bestand.')

@@ -16,6 +16,7 @@ from projects.models import Project
 from projects.permissions import can_edit
 from .models import ImportBatch, SourceRecord
 from .file_detection import detect_export
+from .screamingfrog import content_checksum
 from .host_filter import filter_file_rows, filter_staged_batch
 from collections import Counter
 
@@ -43,11 +44,32 @@ def upload(request, project_id):
                 project = Project.objects.select_for_update().get(pk=context['project'].pk)
                 if not can_edit(request.user, project):
                     raise PermissionDenied
+                rows, excluded = filter_file_rows(project, parsed['rows'])
+                summary = parsed['summary']
                 batch = project.import_batches.filter(file_checksum=parsed['checksum']).first()
+                if parsed['source'] == 'sf':
+                    fingerprint = content_checksum(rows)
+                    summary['content_checksum'] = fingerprint
+                    if batch is None:
+                        candidates = project.import_batches.filter(source='sf', method='file')
+                        batch = candidates.filter(request_metadata__content_checksum=fingerprint).first()
+                        if batch is None:
+                            # Older imports have only a raw file checksum. Compare their stored rows.
+                            for candidate in candidates.iterator():
+                                if candidate.request_metadata.get('content_checksum'):
+                                    continue
+                                if candidate.record_count != len(rows):
+                                    continue
+                                old_rows = candidate.records.values_list('data', flat=True).iterator()
+                                try:
+                                    matches = content_checksum(old_rows) == fingerprint
+                                except (ValueError, TypeError):
+                                    matches = False
+                                if matches:
+                                    batch = candidate
+                                    break
                 if batch is None:
-                    summary = parsed['summary']
                     summary['input_rows'] = len(parsed['rows'])
-                    rows, excluded = filter_file_rows(project, parsed['rows'])
                     if not rows:
                         form.add_error('file', 'Geen URLs binnen de toegestane hosts van dit project. Kies het juiste project of pas de hostregels aan.')
                         context['form'] = form

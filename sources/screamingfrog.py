@@ -2,8 +2,9 @@
 import csv
 import hashlib
 import io
+import json
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from urllib.parse import urlsplit
 
 from django.utils import timezone
@@ -13,6 +14,81 @@ MAX_ROWS = 100000
 REQUIRED = {'Address', 'Content Type', 'Status Code', 'Indexability',
             'Indexability Status', 'Title 1', 'Canonical Link Element 1',
             'Crawl Depth', 'Inlinks', 'Outlinks', 'Crawl Timestamp'}
+
+
+# English export headers are the canonical storage schema. Unknown columns survive.
+DUTCH_HEADERS = {
+    'Adres': 'Address', 'Inhoudstype': 'Content Type', 'Statuscode': 'Status Code',
+    'Indexeerbaarheid': 'Indexability', 'Indexeerbaarheidsstatus': 'Indexability Status',
+    'Titel 1': 'Title 1', 'Lengte van titel 1': 'Title 1 Length',
+    'Pixelbreedte van titel 1': 'Title 1 Pixel Width',
+    'Lengte van meta description 1': 'Meta Description 1 Length',
+    'Pixelbreedte van meta description 1': 'Meta Description 1 Pixel Width',
+    'Meta description 1': 'Meta Description 1', 'Meta keywords 1': 'Meta Keywords 1',
+    'Lengte van meta keywords 1': 'Meta Keywords 1 Length',
+    'Lengte van H1-1': 'H1-1 Length', 'Lengte van H2-1': 'H2-1 Length',
+    'Lengte van H2-2': 'H2-2 Length', 'Meta robots 1': 'Meta Robots 1',
+    'Meta refresh 1': 'Meta Refresh 1', 'Canonical-linkelement 1': 'Canonical Link Element 1',
+    'amphtml-linkelement': 'amphtml Link Element', 'Grootte (bytes)': 'Size (bytes)',
+    'Overgedragen (bytes)': 'Transferred (bytes)',
+    'Totaal overgedragen (bytes)': 'Total Transferred (bytes)',
+    'CO2-beoordeling': 'CO2 Rating', 'Aantal woorden': 'Word Count',
+    'Aantal zinnen': 'Sentence Count', 'Gemiddeld aantal woorden per zin': 'Average Words Per Sentence',
+    'Flesch Reading Ease-score': 'Flesch Reading Ease Score', 'Leesbaarheid': 'Readability',
+    'Tekstverhouding': 'Text Ratio', 'Crawldiepte': 'Crawl Depth', 'Mapdiepte': 'Folder Depth',
+    'Unieke inlinks': 'Unique Inlinks', 'Unieke JS-inlinks': 'Unique JS Inlinks',
+    '% van totaal': '% of Total', 'Unieke outlinks': 'Unique Outlinks',
+    'Unieke JS-outlinks': 'Unique JS Outlinks', 'Externe outlinks': 'External Outlinks',
+    'Unieke externe outlinks': 'Unique External Outlinks',
+    'Unieke externe JS-outlinks': 'Unique External JS Outlinks',
+    'Dichtstbijzijnde bijna-duplicaat': 'Closest Near Duplicate Match',
+    'Aantal bijna-duplicaten': 'No. Near Duplicates', 'Spelfouten': 'Spelling Errors',
+    'Grammaticafouten': 'Grammar Errors', 'Reactietijd': 'Response Time',
+    'Omleidings-URL': 'Redirect URL', 'Type omleiding': 'Redirect Type',
+    'Taal': 'Language', 'HTTP-versie': 'HTTP Version',
+    'Alternatieve mobiele link': 'Mobile Alternate Link',
+    'Dichtstbijzijnde semantisch vergelijkbare adres': 'Closest Semantically Similar Address',
+    'Score voor semantische gelijkenis': 'Semantic Similarity Score',
+    'Aantal semantisch vergelijkbaar': 'No. Semantically Similar',
+    'Score voor semantische relevantie': 'Semantic Relevance Score',
+    'URL-gecodeerd adres': 'URL Encoded Address', 'Crawltijdstempel': 'Crawl Timestamp',
+}
+VALUE_ALIASES = {
+    'Indexability': {'Indexeerbaar': 'Indexable', 'Niet-indexeerbaar': 'Non-Indexable'},
+    'Indexability Status': {'Omgeleid': 'Redirected', 'Gecanonicaliseerd': 'Canonicalised',
+                           'Clientfout': 'Client Error', 'Serverfout': 'Server Error'},
+    'Redirect Type': {'HTTP-omleiding': 'HTTP Redirect',
+                      'JavaScript-omleiding': 'JavaScript Redirect'},
+}
+
+
+def canonical_headers(headers):
+    return [DUTCH_HEADERS.get(header, header) for header in headers]
+
+
+def canonical_row(row, *, normalize_time=False):
+    result = {}
+    for key, value in row.items():
+        key = DUTCH_HEADERS.get(key, key)
+        if key in result:
+            raise ValueError('Meerdere kolommen verwijzen naar dezelfde Engelse kolom.')
+        value = VALUE_ALIASES.get(key, {}).get(value, value)
+        if normalize_time and key == 'Crawl Timestamp' and value:
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt)
+            value = dt.astimezone(datetime_timezone.utc).isoformat()
+        result[key] = value
+    return result
+
+
+def content_checksum(rows):
+    """Versioned, order-independent fingerprint of all stored export values."""
+    encoded = sorted(json.dumps(canonical_row(row, normalize_time=True), sort_keys=True, ensure_ascii=False,
+                                separators=(',', ':')) for row in rows)
+    payload = json.dumps(['sf-internal-content-v1', encoded], ensure_ascii=False,
+                         separators=(',', ':')).encode('utf-8')
+    return hashlib.sha256(payload).hexdigest()
 
 
 def parse_export(upload):
@@ -26,7 +102,9 @@ def parse_export(upload):
     delimiter = ';' if content.partition('\n')[0].count(';') > content.partition('\n')[0].count(',') else ','
     reader = csv.DictReader(io.StringIO(content, newline=''), delimiter=delimiter, strict=True)
     try:
-        headers = reader.fieldnames or []
+        original_headers = reader.fieldnames or []
+        headers = canonical_headers(original_headers)
+        reader.fieldnames = headers
         if len(headers) != len(set(headers)) or not REQUIRED.issubset(headers):
             raise ValueError('Bestand niet herkend. Exporteer in Screaming Frog: Internal → All → Export (CSV, XLS of XLSX).')
         rows, urls, hosts, timestamps = [], set(), Counter(), []
@@ -59,14 +137,14 @@ def parse_export(upload):
                     timestamps.append(dt)
                 except ValueError:
                     raise ValueError(f'Regel {line}: ongeldige crawl-tijd.') from None
-            rows.append(row)
+            rows.append(canonical_row(row))
     except csv.Error:
         raise ValueError('Ongeldige CSV. Exporteer het bestand opnieuw vanuit Screaming Frog.') from None
     if not rows:
         raise ValueError('Het bestand bevat geen URLs.')
     return {'rows': rows, 'checksum': hashlib.sha256(raw).hexdigest(),
             'summary': {'type': 'internal_all', 'html_count': html_count,
-                        'hosts': dict(hosts), 'columns': headers,
+                        'hosts': dict(hosts), 'columns': headers, 'original_columns': original_headers,
                         'crawl_start': min(timestamps).isoformat() if timestamps else None,
                         'crawl_end': max(timestamps).isoformat() if timestamps else None,
                         'timezone': str(timezone.get_current_timezone())},

@@ -88,3 +88,14 @@ badges tot 24 en getallen tot 12 met compacte notatie. Tooltips en Excel behoude
 de volledige waarden. De URL-kolom blijft op desktop vaststaan bij horizontaal
 scrollen. Verwijderde bronvelden blijven als niet beschikbaar herkenbaar totdat
 de gebruiker de kolom vervangt of verwijdert.
+
+Screaming Frog Internal → All ondersteunt Engelse en Nederlandse kolommen. Nederlandse
+kolomnamen en bekende statuswaarden worden naar het Engelse interne schema vertaald;
+de originele kolomnamen blijven in de importmetadata bewaard. Onbekende extra kolommen
+blijven behouden. Naast de bestandschecksum vergelijkt de importer binnen hetzelfde
+project de volledige genormaliseerde inhoud na hostfiltering. Kolomvolgorde, rijvolgorde,
+scheidingsteken en CSV/XLS/XLSX-verpakking tellen daarbij niet mee. Crawltijdstempels
+tellen wel mee: een latere crawl blijft een aparte meting. Zonder crawltijdstempel
+kan identieke inhoud niet van een nieuwe meting worden onderscheiden. Ook bestaande
+SF-imports zonder inhoudshash worden op hun opgeslagen rijen gecontroleerd. Andere
+SF-rapporttypen en dbseospider-archieven vallen buiten deze ondersteuning.

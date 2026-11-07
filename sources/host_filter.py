@@ -27,6 +27,9 @@ def filter_staged_batch(batch, project):
         summary['hosts'] = dict(Counter(urlsplit(row.data.get('Address') or row.data.get('URL')).hostname for row in accepted))
         if batch.source in ('sf', 'ahrefs'):
             summary['html_count'] = sum((row.data.get('Content Type') or row.data.get('Content type', '')).lower().startswith(('text/html', 'application/xhtml+xml')) for row in accepted)
+        if batch.source == 'sf':
+            from .screamingfrog import content_checksum
+            summary['content_checksum'] = content_checksum(row.data for row in accepted)
         batch.request_metadata = summary
         batch.record_count = len(accepted)
         batch.save(update_fields=['record_count', 'request_metadata'])

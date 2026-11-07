@@ -93,3 +93,86 @@ class ImportFlowTests(TestCase):
         response = self.client.post(self.url, {'file': SimpleUploadedFile('internal_all.csv', b'not a crawl')})
         self.assertContains(response, 'Bestand niet herkend')
         self.assertFalse(ImportBatch.objects.exists())
+
+
+class LocalizedExportTests(SimpleTestCase):
+    def localized(self, upload):
+        from .screamingfrog import DUTCH_HEADERS
+        text = upload.read().decode('utf-8-sig')
+        reader = csv.DictReader(io.StringIO(text))
+        reverse_headers = {v: k for k, v in DUTCH_HEADERS.items()}
+        stream = io.StringIO(newline='')
+        writer = csv.writer(stream, delimiter=';')
+        columns = list(reversed(reader.fieldnames))
+        writer.writerow([reverse_headers.get(key, key) for key in columns])
+        for row in reversed(list(reader)):
+            writer.writerow(['Indexeerbaar' if key == 'Indexability' else row[key] for key in columns])
+        return SimpleUploadedFile('intern.csv', stream.getvalue().encode('utf-8-sig'))
+
+    def test_language_delimiter_and_order_do_not_change_content_hash(self):
+        from .screamingfrog import content_checksum
+        en = parse_export(export())
+        nl = parse_export(self.localized(export()))
+        self.assertEqual(en['rows'], nl['rows'])
+        self.assertEqual(content_checksum(en['rows']), content_checksum(nl['rows']))
+        self.assertIn('Adres', nl['summary']['original_columns'])
+        self.assertIn('Address', nl['summary']['columns'])
+        self.assertNotEqual(en['checksum'], nl['checksum'])
+
+    def test_changed_crawl_and_extra_data_are_distinct(self):
+        from .screamingfrog import content_checksum
+        rows = parse_export(export())['rows']
+        changed = [dict(rows[0], **{'Crawl Timestamp': '2026-11-07T10:00:00+01:00'})]
+        self.assertNotEqual(content_checksum(rows), content_checksum(changed))
+        changed = [dict(rows[0], **{'Extra Column': 'Changed'})]
+        self.assertNotEqual(content_checksum(rows), content_checksum(changed))
+        self.assertEqual(content_checksum(rows + changed), content_checksum(changed + rows))
+
+    def test_alias_collision_rejected(self):
+        text = export().read().decode('utf-8-sig').replace('Address,', 'Adres,Address,')
+        with self.assertRaises(ValueError):
+            parse_export(SimpleUploadedFile('ambiguous.csv', text.encode()))
+
+    def test_dutch_xlsx_uses_same_schema(self):
+        import openpyxl
+        from .file_detection import detect_export
+        from .screamingfrog import content_checksum
+        nl = self.localized(export()).read().decode('utf-8-sig')
+        book = openpyxl.Workbook()
+        for row in csv.reader(io.StringIO(nl), delimiter=';'):
+            book.active.append(row)
+        stream = io.BytesIO()
+        book.save(stream)
+        result = detect_export(SimpleUploadedFile('intern.xlsx', stream.getvalue()))
+        self.assertEqual(content_checksum(result['rows']), content_checksum(parse_export(export())['rows']))
+        self.assertIn('Adres', result['summary']['original_columns'])
+
+
+class LocalizedImportFlowTests(ImportFlowTests):
+    def test_localized_duplicate_reuses_existing_batch(self):
+        self.upload()
+        batch = ImportBatch.objects.get()
+        preview = reverse('ui:import-preview', args=[self.project.pk, batch.pk])
+        self.client.post(preview, {'action': 'confirm'})
+        response = self.client.post(self.url, {'file': LocalizedExportTests().localized(export())})
+        self.assertRedirects(response, reverse('ui:batch', args=[self.project.pk, batch.pk]))
+        self.assertEqual(ImportBatch.objects.count(), 1)
+
+    def test_legacy_import_without_content_hash_is_recognized(self):
+        self.upload()
+        batch = ImportBatch.objects.get()
+        batch.request_metadata.pop('content_checksum')
+        batch.save(update_fields=['request_metadata'])
+        response = self.client.post(self.url, {'file': LocalizedExportTests().localized(export())})
+        self.assertEqual(response.url, reverse('ui:import-preview', args=[self.project.pk, batch.pk]))
+        self.assertEqual(ImportBatch.objects.count(), 1)
+
+
+class TimestampFingerprintTests(SimpleTestCase):
+    def test_equivalent_instants_match_without_changing_stored_timestamp(self):
+        from .screamingfrog import content_checksum
+        rows = parse_export(export())['rows']
+        original = rows[0]['Crawl Timestamp']
+        utc_rows = [dict(rows[0], **{'Crawl Timestamp': '2026-11-06T09:00:00Z'})]
+        self.assertEqual(content_checksum(rows), content_checksum(utc_rows))
+        self.assertEqual(rows[0]['Crawl Timestamp'], original)
