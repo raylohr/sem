@@ -44,25 +44,32 @@ def upload(request, project_id):
                 project = Project.objects.select_for_update().get(pk=context['project'].pk)
                 if not can_edit(request.user, project):
                     raise PermissionDenied
-                rows, excluded = filter_file_rows(project, parsed['rows'])
+                rows, excluded = filter_file_rows(project, parsed['rows'], parsed['summary'])
                 summary = parsed['summary']
                 batch = project.import_batches.filter(file_checksum=parsed['checksum']).first()
                 if parsed['source'] == 'sf':
-                    fingerprint = content_checksum(rows)
+                    report = summary.get('type', 'internal_all')
+                    fingerprint = content_checksum(rows, report)
                     summary['content_checksum'] = fingerprint
+                    summary['content_checksum_version'] = 2
                     if batch is None:
                         candidates = project.import_batches.filter(source='sf', method='file')
+                        if report == 'internal_all':
+                            from django.db.models import Q
+                            candidates = candidates.filter(Q(request_metadata__type=report) | ~Q(request_metadata__has_key='type'))
+                        else:
+                            candidates = candidates.filter(request_metadata__type=report)
                         batch = candidates.filter(request_metadata__content_checksum=fingerprint).first()
                         if batch is None:
                             # Older imports have only a raw file checksum. Compare their stored rows.
                             for candidate in candidates.iterator():
-                                if candidate.request_metadata.get('content_checksum'):
+                                if candidate.request_metadata.get('content_checksum') and candidate.request_metadata.get('content_checksum_version') == 2:
                                     continue
                                 if candidate.record_count != len(rows):
                                     continue
                                 old_rows = candidate.records.values_list('data', flat=True).iterator()
                                 try:
-                                    matches = content_checksum(old_rows) == fingerprint
+                                    matches = content_checksum(old_rows, report) == fingerprint
                                 except (ValueError, TypeError):
                                     matches = False
                                 if matches:
@@ -70,15 +77,24 @@ def upload(request, project_id):
                                     break
                 if batch is None:
                     summary['input_rows'] = len(parsed['rows'])
-                    if not rows:
+                    summary['empty_report'] = not parsed['rows'] and summary.get('allow_empty', False)
+                    if not rows and not summary['empty_report']:
                         form.add_error('file', 'Geen URLs binnen de toegestane hosts van dit project. Kies het juiste project of pas de hostregels aan.')
                         context['form'] = form
                         return render(request, 'ui/import_upload.html', context)
                     summary.update(excluded_rows=excluded, host_rules=project.host_rules,
-                                   hosts=dict(Counter(urlsplit(row.get('Address') or row.get('URL')).hostname for row in rows)))
+                                   hosts=dict(Counter(urlsplit(row.get('Address') or row.get('URL')).hostname for row in rows if row.get('Address') or row.get('URL'))))
                     if parsed['source'] in ('sf', 'ahrefs'):
                         summary['html_count'] = sum((row.get('Content Type') or row.get('Content type', '')).lower().startswith(('text/html', 'application/xhtml+xml')) for row in rows)
                     warnings = ['URLs buiten de toegestane projecthosts worden overgeslagen; ontbrekende URLs worden niet verwijderd.']
+                    if summary.get('record_scope') == 'summary':
+                        warnings = ['Dit is een samenvattend rapport zonder individuele URLs. Controleer dat het bij dit project hoort; de tabel blijft bij deze import bewaard.']
+                    elif summary.get('record_scope') == 'external':
+                        warnings = ['Dit rapport bevat externe URLs. Controleer dat het uit een crawl van dit project komt. Externe URLs blijven in dit bronrapport en komen niet in de projectinventaris.']
+                    if summary.get('empty_report'):
+                        warnings.append('Dit rapport is leeg. De import bewaart het rapporttype en de kolommen; er worden geen URL-records toegevoegd.')
+                    if summary.get('archive_snapshot'):
+                        warnings.append('Uit het crawlarchief worden algemene URL-velden en crawltijden gelezen. Linktabellen, geserialiseerde gegevens, pagina-inhoud en configuratie worden niet geïmporteerd. Gebruik de losse rapporten voor hreflang, indexeerbaarheid en probleemdetails.')
                     if summary.get('missing_report_context'):
                         warnings.append('Deze losse CSV bevat geen rapportmetadata of grafiek. Bevestig de categorie en vul eventueel de indexeringsreden in; het gerapporteerde totaal is onbekend.')
                     if summary.get('invalid_url_rows'):
@@ -134,7 +150,7 @@ def preview(request, project_id, batch_id):
             if request.POST.get('action') == 'cancel':
                 batch.delete()
                 return redirect('ui:sources', project_id=project_id)
-            if request.POST.get('action') == 'confirm' and batch.record_count:
+            if request.POST.get('action') == 'confirm' and (batch.record_count or batch.request_metadata.get('empty_report')):
                 if observation_form is not None:
                     if not observation_form.is_valid():
                         context.update(batch=batch, summary=batch.request_metadata,
@@ -161,7 +177,7 @@ def preview(request, project_id, batch_id):
                             SourceRecord.objects.bulk_update(chunk, ['data'], batch_size=500)
                 batch.status = 'complete'
                 batch.save(update_fields=['status', 'request_metadata', 'measured_at'])
-                messages.success(request, f'{batch.record_count} URLs geïmporteerd.')
+                messages.success(request, f'{batch.record_count} records geïmporteerd.')
                 return redirect('ui:batch', project_id=project_id, batch_id=batch.pk)
     context.update(batch=batch, summary=batch.request_metadata,
                    sample=batch.records.order_by('id')[:10], observation_form=observation_form)

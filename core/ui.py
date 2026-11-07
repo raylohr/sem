@@ -106,13 +106,16 @@ def batch(request, project_id, batch_id):
     item=get_object_or_404(ImportBatch.objects.select_related('created_by'),pk=batch_id,project=context['project'])
     if item.method == 'file' and item.status == 'complete':
         rows = item.records.order_by('id')
-        resource = request.GET.get('resource', 'html' if item.source == 'sf' else 'all') if item.source in ('sf', 'ahrefs') else 'all'
+        resource = request.GET.get('resource', 'html' if item.source == 'sf' and item.request_metadata.get('type', 'internal_all') == 'internal_all' else 'all') if item.source in ('sf', 'ahrefs') else 'all'
         if resource != 'all':
             field = 'Content Type' if item.source == 'sf' else 'Content type'
             rows = rows.filter(Q(**{f'data__{field}__istartswith': 'text/html'}) | Q(**{f'data__{field}__istartswith': 'application/xhtml+xml'}))
         query = request.GET.get('q', '').strip()[:500]
         if query:
-            rows = rows.filter(**{('data__Address__icontains' if item.source == 'sf' else 'data__URL__icontains'): query})
+            if item.request_metadata.get('record_scope') == 'summary':
+                rows = rows.filter(data__icontains=query)
+            else:
+                rows = rows.filter(**{('data__Address__icontains' if item.source == 'sf' else 'data__URL__icontains'): query})
         page = Paginator(rows, 50).get_page(request.GET.get('page'))
         for record in page.object_list:
             record.url_address = record.data.get('Address') or record.data.get('URL')
@@ -124,6 +127,11 @@ def batch(request, project_id, batch_id):
             record.page_rating = record.data.get('PR', '')
             record.organic_traffic = record.data.get('Organic traffic', '')
         context.update(url_page=page, resource=resource, query=query)
+        if item.source == 'sf' and item.request_metadata.get('type', 'internal_all') != 'internal_all':
+            columns = item.request_metadata.get('columns', [])
+            for record in page.object_list:
+                record.table_values = [record.data.get(column, '') for column in columns]
+            context.update(report_table=True, report_columns=columns)
     context.update(batch=item, records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [])
     return render(request,'ui/batch.html',context)
 

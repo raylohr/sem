@@ -2,7 +2,8 @@
 
 Django-werkplek voor projecten, Google Search Console en URL-imports uit Screaming Frog en GSC.
 GSC-API-resultaten blijven met oorspronkelijke brongegevens en meetmomenten bewaard.
-Via Data → Import worden Screaming Frog Internal → All CSV-/XLS-/XLSX-exports en originele
+Via Data → Import worden Screaming Frog CSV-/XLS-/XLSX-rapporten, opgeslagen
+SQLite-crawlarchieven (.dbseospider.zip) en originele
 GSC Page indexing-detailrapporten als losse CSV-URL-tabel, CSV-ZIP, XLS of XLSX automatisch herkend
 (Nederlands en Engels). De indexeringsreden komt uit Metadata en blijft bij
 de import en elk URL-record bewaard. 1970-01-01 geldt als onbekende crawl-datum;
@@ -97,5 +98,30 @@ project de volledige genormaliseerde inhoud na hostfiltering. Kolomvolgorde, rij
 scheidingsteken en CSV/XLS/XLSX-verpakking tellen daarbij niet mee. Crawltijdstempels
 tellen wel mee: een latere crawl blijft een aparte meting. Zonder crawltijdstempel
 kan identieke inhoud niet van een nieuwe meting worden onderscheiden. Ook bestaande
-SF-imports zonder inhoudshash worden op hun opgeslagen rijen gecontroleerd. Andere
-SF-rapporttypen en dbseospider-archieven vallen buiten deze ondersteuning.
+SF-imports zonder actuele inhoudshash worden op hun opgeslagen rijen gecontroleerd.
+
+Ondersteunde SF-rapporten: Internal All, External All, Response Codes All, Page Titles
+All, Hreflang All, Indexability Summary, Issues Overview en URLs in Sitemap Inlinks.
+Herkenning gebeurt op kolommen, onafhankelijk van de bestandsnaam. Rapporttypen hebben
+een eigen inhoudshash, zodat een aanvullend rapport geen ander rapport vervangt.
+Externe URLs worden als afzonderlijk bronrapport bewaard en komen niet in de
+projectinventaris. Indexeerbaarheid per pad en probleemoverzichten blijven tabellen
+zonder individuele URL-records. Voor deze rapporten kan de projectherkomst niet uit
+URL-hostregels worden vastgesteld; controleer het project in de preview. Lege
+rapporten kunnen worden bevestigd zonder URL-records toe te voegen. Links naar dezelfde
+bestemming blijven afzonderlijke relaties. De oorspronkelijke tellingen van
+samenvattingen worden niet door hostfiltering aangepast.
+
+Een crawlarchief mag maximaal 20 MB gecomprimeerd, 128 MB uitgepakt en 2.000 bestanden
+bevatten. Alleen de SQLite-URL-tabel wordt alleen-lezen geopend in een tijdelijke map;
+algemene URL-velden, titels, H1/H2, status, contenttype, metrieken en crawltijden worden
+geïmporteerd, met de normale projecthostfiltering. Linktabellen, configuratie, originele
+paginabody's en geserialiseerde Java-objecten worden niet ingelezen. Het archief is
+hiermee een URL-snapshot, geen volledige reconstructie van een SEO Spider-project.
+Archieven met actieve WAL-data of een afwijkend databaseschema worden geweigerd.
+Gebruik de losse rapporten voor hreflang-, indexeerbaarheids- en probleemdetails.
+
+Engelse kolomnamen en bekende statuswaarden zijn het interne schema; vrije tekst
+zoals probleembeschrijvingen blijft in de oorspronkelijke taal behouden. Vertaalde
+vrije tekst is inhoudelijk verschillend voor de hash en wordt niet automatisch
+samengevoegd.

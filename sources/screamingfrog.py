@@ -62,6 +62,23 @@ VALUE_ALIASES = {
 }
 
 
+DUTCH_HEADERS.update({
+    'Voorkomens': 'Occurrences', 'Bron': 'Source', 'Bestemming': 'Destination',
+    'Padtype': 'Path Type', 'Linkpad': 'Link Path', 'Linkpositie': 'Link Position',
+    'Linkoorsprong': 'Link Origin', 'Pad 1': 'Path 1', 'Pad 2': 'Path 2', 'Pad 3': 'Path 3',
+    "URL's": 'URLs', 'Indexeerbaar': 'Indexable', 'Niet-indexeerbaar': 'Non-Indexable',
+    'Probleemnaam': 'Issue Name', 'Probleemtype': 'Issue Type',
+    'Probleemprioriteit': 'Issue Priority', 'Beschrijving': 'Description',
+    'Hoe op te lossen': 'How To Fix', 'Help-URL': 'Help URL',
+})
+VALUE_ALIASES.update({
+    'Issue Type': {'Waarschuwing': 'Warning', 'Fout': 'Issue', 'Kans': 'Opportunity'},
+    'Issue Priority': {'Laag': 'Low', 'Gemiddeld': 'Medium', 'Hoog': 'High'},
+    'Status': {'Geblokkeerd door robots.txt': 'Blocked by robots.txt'},
+})
+VALUE_ALIASES['Indexability Status']['Geblokkeerd door robots.txt'] = 'Blocked by robots.txt'
+
+
 def canonical_headers(headers):
     return [DUTCH_HEADERS.get(header, header) for header in headers]
 
@@ -82,11 +99,11 @@ def canonical_row(row, *, normalize_time=False):
     return result
 
 
-def content_checksum(rows):
+def content_checksum(rows, report_type="internal_all"):
     """Versioned, order-independent fingerprint of all stored export values."""
     encoded = sorted(json.dumps(canonical_row(row, normalize_time=True), sort_keys=True, ensure_ascii=False,
                                 separators=(',', ':')) for row in rows)
-    payload = json.dumps(['sf-internal-content-v1', encoded], ensure_ascii=False,
+    payload = json.dumps(['sf-internal-content-v1' if report_type == 'internal_all' else 'sf-report-content-v1:' + report_type, encoded], ensure_ascii=False,
                          separators=(',', ':')).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 

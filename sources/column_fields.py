@@ -7,7 +7,9 @@ from decimal import Decimal, InvalidOperation
 from .content_types import content_badge
 
 SOURCE_NAMES = {'sf':'SF', 'gsc':'GSC', 'ahrefs':'AHREFS'}
-REPORT_NAMES = {'internal_all':'Internal All', 'gsc_page_indexing':'Page indexing',
+from .sf_reports import REPORTS
+
+REPORT_NAMES = {key: label for key, (label, scope) in REPORTS.items()} | {'internal_all':'Internal All', 'gsc_page_indexing':'Page indexing',
                 'search_analytics':'Search performance', 'inspection':'URL Inspection',
                 'ahrefs_site_audit_pages':'Site Audit · Pages',
                 'ahrefs_site_audit_missing_titles':'Site Audit · Missing titles', '@response':'Response'}
@@ -60,7 +62,7 @@ def record_fields(source,metadata,data,cache):
             if key not in data:
                 value=metadata.get('report_status' if key=='gsc_report_status' else 'indexing_reason')
                 if value is not None:values.append(((key,),value))
-    if source=='sf':
+    if source=='sf' and ('Content Type' in data or 'Status Code' in data):
         badge=content_badge(data)
         values.append((('@contenttype',),badge['label']))
     for path,value in values:

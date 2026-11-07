@@ -3,9 +3,9 @@
 {% block content %}
 <h2 class="h4">Import controleren</h2>
 <div class="card mb-3"><div class="card-body"><dl>
-<dt>Bron</dt><dd>{{ batch.get_source_display }}</dd><dt>Type</dt><dd>{% if batch.source == 'sf' %}Interne URLs (internal_all){% elif batch.source == 'gsc' %}Page indexing · URL-voorbeelden{% else %}{{ summary.report_label }}{% endif %}</dd>
+<dt>Bron</dt><dd>{{ batch.get_source_display }}</dd><dt>Type</dt><dd>{% if batch.source == 'sf' %}{{ summary.report_label|default:'Interne URLs (internal_all)' }}{% elif batch.source == 'gsc' %}Page indexing · URL-voorbeelden{% else %}{{ summary.report_label }}{% endif %}</dd>
 <dt>Project</dt><dd>{{ project.name }}</dd><dt>Toegevoegd door</dt><dd>{{ batch.created_by.get_username }}</dd>
-<dt>Inhoud</dt><dd>{{ batch.record_count }} toegestane URLs van {{ summary.input_rows }} rijen{% if batch.source != 'gsc' %} · {{ summary.html_count }} HTML-items{% endif %}</dd>
+<dt>Inhoud</dt><dd>{% if summary.record_scope == 'summary' or summary.record_scope == 'external' %}{{ batch.record_count }} records{% else %}{{ batch.record_count }} toegestane URLs{% endif %} van {{ summary.input_rows }} rijen{% if batch.source != 'gsc' and summary.record_scope != 'summary' %} · {{ summary.html_count }} HTML-items{% endif %}</dd>
 <dt>Overgeslagen door hostregels</dt><dd>{{ summary.excluded_rows }}</dd>
 <dt>Toegestane hosts</dt><dd>{{ project.host_rules.domain }}, www.{{ project.host_rules.domain }}{% if project.include_subdomains %} en alle overige subdomeinen{% endif %}</dd>
 <dt>Domeinen in import</dt><dd>{% for host,count in summary.hosts.items %}{{ host }} ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}</dd>
@@ -13,11 +13,11 @@
 </dl>{% if batch.source == 'sf' %}<p class="small text-muted">Tijden zonder tijdzone worden gelezen als {{ summary.timezone }}.</p>{% endif %}
 <p class="small text-muted">Alle oorspronkelijke kolommen van toegestane rijen blijven bewaard. De import wordt aan jouw account gekoppeld.</p>
 {% for warning in batch.warnings %}<div class="alert alert-warning">{{ warning }}</div>{% endfor %}
-{% if not batch.record_count %}<div class="alert alert-danger">Geen URLs passen nog binnen de huidige hostregels. Annuleer deze import en upload opnieuw na het aanpassen van de projectinstellingen.</div>{% endif %}
+{% if not batch.record_count and not summary.empty_report %}<div class="alert alert-danger">Geen URLs passen nog binnen de huidige hostregels. Annuleer deze import en upload opnieuw na het aanpassen van de projectinstellingen.</div>{% endif %}
 </div></div>
-<div class="table-responsive mb-3"><table class="table"><thead><tr><th>URL (eerste 10)</th></tr></thead><tbody>{% for record in sample %}<tr><td class="text-break">{% firstof record.data.Address record.data.URL %}</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-responsive mb-3"><table class="table"><thead><tr><th>Voorbeeld (eerste 10)</th></tr></thead><tbody>{% for record in sample %}<tr><td class="text-break">{% if record.data.Address or record.data.URL %}{% firstof record.data.Address record.data.URL %}{% else %}<pre class="record-preview">{{ record.data|pprint }}</pre>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 <form method="post">{% csrf_token %}
 {% if observation_form %}{{ observation_form.as_p }}{% endif %}
 {% if batch.source == 'gsc' %}{% if summary.reason_from_metadata %}<div class="alert alert-info"><strong>Indexeringsreden uit GSC Metadata:</strong> {{ summary.indexing_reason }}<br>Deze reden geldt voor alle URLs in dit rapport en wordt bij de bronrecords bewaard.</div>{% else %}<div class="mb-3"><label for="report-status" class="form-label">Rapportcategorie bevestigen</label><select class="form-select" id="report-status" name="report_status"><option value="unknown" {% if summary.report_status == 'unknown' %}selected{% endif %}>Onbekend</option><option value="indexed" {% if summary.report_status == 'indexed' %}selected{% endif %}>Geïndexeerd</option><option value="not_indexed" {% if summary.report_status == 'not_indexed' %}selected{% endif %}>Niet geïndexeerd</option></select><p class="small text-muted">De CSV vermeldt de indexeringscategorie niet altijd. Een bestandsnaam is alleen een aanwijzing; controleer de categorie in GSC.</p><label class="form-label" for="indexing-reason">Indexeringsreden (optioneel)</label><input class="form-control" id="indexing-reason" name="indexing_reason" maxlength="255" value="{{ summary.indexing_reason }}"></div>{% endif %}{% endif %}
-<button class="btn btn-primary" name="action" value="confirm" {% if not batch.record_count %}disabled{% endif %}>Importeer {{ batch.record_count }} URLs</button> <button class="btn btn-light" name="action" value="cancel">Annuleren</button></form>
+<button class="btn btn-primary" name="action" value="confirm" {% if not batch.record_count and not summary.empty_report %}disabled{% endif %}>Importeer {{ batch.record_count }} records</button> <button class="btn btn-light" name="action" value="cancel">Annuleren</button></form>
 {% endblock %}

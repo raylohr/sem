@@ -42,7 +42,8 @@ def observation_date(data, batch):
 def project_inventory(project, *, include_data=False, target_url=None, include_fields=False):
     fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at', 'request_metadata']
     batches = {batch.pk: batch for batch in project.import_batches.filter(
-        status__in=('complete', 'incomplete')).only(*fields)}
+        status__in=('complete', 'incomplete')).only(*fields)
+        if batch.request_metadata.get('record_scope') not in ('summary', 'external')}
     columns = {}
     rows = {}
     field_cache = {}
@@ -88,12 +89,18 @@ def project_inventory(project, *, include_data=False, target_url=None, include_f
             if isinstance(status, str) and status.strip() and (rows[url].get('index_rank') is None or rank > rows[url]['index_rank']):
                 rows[url].update(index_status=status.strip(), index_rank=rank, index_date=stamp,
                                  index_reason=data.get('gsc_indexing_reason') or batch.request_metadata.get('indexing_reason', ''))
+        if source == 'sf' and ('Content Type' in data or 'Status Code' in data):
+            if rows[url].get('sf_response_rank') is None or rank > rows[url]['sf_response_rank']:
+                rows[url]['sf_response_rank'] = rank
+                rows[url]['sf_response_badge'] = content_badge(data, source)
+                if current is not None:
+                    current['badge'] = rows[url]['sf_response_badge']
         if current is None or rank > current['rank']:
             rows[url]['observations'][source] = {
                 'date': stamp, 'fallback': fallback, 'batch_id': batch_id,
                 'record_id': record_id, 'rank': rank}
             if source == 'sf':
-                rows[url]['observations'][source]['badge'] = content_badge(data, source)
+                rows[url]['observations'][source]['badge'] = rows[url].get('sf_response_badge', content_badge({}, source))
             if source == 'ahrefs':
                 traffic = None
                 try:

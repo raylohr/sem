@@ -1,12 +1,12 @@
 """Read Screaming Frog Excel exports as values, using the existing row validator."""
-import csv
 import hashlib
 import io
 from datetime import date, datetime, time
 import zipfile
 
+from .sf_reports import report_type, parse_table
 from .gsc_export import SHEET_NAMES, parse_gsc_tables
-from .screamingfrog import MAX_BYTES, MAX_ROWS, REQUIRED, parse_export, canonical_headers
+from .screamingfrog import MAX_BYTES, MAX_ROWS
 
 XLS_SIGNATURE = b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'
 MAX_COLUMNS = 512
@@ -61,7 +61,7 @@ def parse_excel(raw, *, legacy=False, filename=""):
         for name, rows in sheets():
             headers = next(rows, [])
             kind = SHEET_NAMES.get(name.strip().lower())
-            if kind and not REQUIRED.issubset(canonical_headers(headers)):
+            if kind and not report_type(headers):
                 if kind in gsc_tables:
                     raise ValueError('Meerdere gelijksoortige GSC-werkbladen gevonden.')
                 values = []
@@ -80,25 +80,12 @@ def parse_excel(raw, *, legacy=False, filename=""):
                     values.append(dict(zip(headers, row)))
                 gsc_tables[kind] = (headers, values)
                 continue
-            if not REQUIRED.issubset(canonical_headers(headers)):
+            if not report_type(headers):
                 continue
             if result is not None:
-                raise ValueError('Meerdere Screaming Frog URL-werkbladen gevonden. Exporteer één Internal → All-werkblad per bestand.')
-            stream = io.StringIO(newline='')
-            writer = csv.writer(stream)
-            writer.writerow(headers)
-            count = 0
-            for row in rows:
-                if not any(row):
-                    continue
-                count += 1
-                if count > MAX_ROWS:
-                    raise ValueError('Maximaal 100.000 URLs per import.')
-                writer.writerow(row)
-                if stream.tell() > MAX_BYTES:
-                    raise ValueError('Excel bevat te veel tabeldata (maximaal 20 MB).')
-            result = parse_export(io.BytesIO(stream.getvalue().encode('utf-8')))
-            result['summary'].update(worksheet=name, file_format='xls' if legacy else 'xlsx')
+                raise ValueError('Meerdere Screaming Frog-rapporten gevonden. Upload één rapport per bestand.')
+            result = parse_table(headers, rows, checksum=hashlib.sha256(raw).hexdigest(),
+                                 file_format='xls' if legacy else 'xlsx', worksheet=name)
         if gsc_tables:
             if result is not None:
                 raise ValueError('Bestand bevat zowel GSC- als Screaming Frog-rapporten. Upload één bron per bestand.')
@@ -106,8 +93,7 @@ def parse_excel(raw, *, legacy=False, filename=""):
                                     filename=filename, file_format='xls' if legacy else 'xlsx')
         if result is None:
             raise ValueError('Geen ondersteunde GSC- of Screaming Frog-werkbladen herkend. Controleer de export.')
-        result['checksum'] = hashlib.sha256(raw).hexdigest()
-        return dict(result, source='sf', label='Screaming Frog · Internal URLs', parser_version='sf-excel-internal-all-v1')
+        return result
     except ValueError:
         raise
     except Exception:

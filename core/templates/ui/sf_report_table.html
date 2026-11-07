@@ -1,0 +1,10 @@
+{% load l10n %}
+<section class="card mb-4"><div class="card-body">
+<h3 class="h5">{{ batch.request_metadata.report_label }}</h3>
+<form method="get" class="d-flex gap-2 mb-3"><label class="visually-hidden" for="report-search">Zoeken</label><input class="form-control" id="report-search" name="q" value="{{ query }}" placeholder="Zoek in rapport"><button class="btn btn-light">Filteren</button></form>
+<p>{{ url_page.paginator.count }} records</p>
+<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Bronrecord</th>{% for column in report_columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>
+{% for record in url_page %}<tr><td><a href="{% url 'ui:record' project.id batch.id record.id %}">{{ record.locator }}</a></td>{% for value in record.table_values %}<td class="text-break">{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td>Dit rapport bevat geen records.</td></tr>{% endfor %}
+</tbody></table></div>
+<nav aria-label="Rapportpagina’s">{% if url_page.has_previous %}<a class="btn btn-light" href="?q={{ query|urlencode }}&amp;page={{ url_page.previous_page_number|unlocalize }}">Vorige</a>{% endif %} <span>Pagina {{ url_page.number }} van {{ url_page.paginator.num_pages }}</span> {% if url_page.has_next %}<a class="btn btn-light" href="?q={{ query|urlencode }}&amp;page={{ url_page.next_page_number|unlocalize }}">Volgende</a>{% endif %}</nav>
+</div></section>

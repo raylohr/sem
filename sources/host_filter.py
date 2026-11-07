@@ -1,7 +1,9 @@
 from projects.hosts import filter_records
 
 
-def filter_file_rows(project, rows):
+def filter_file_rows(project, rows, metadata=None):
+    if (metadata or {}).get("record_scope") in ("summary", "external"):
+        return rows, 0
     items = [{'locator': str(i), 'data': row} for i, row in enumerate(rows, 1)]
     accepted, excluded = filter_records(project, items)
     return [item['data'] for item in accepted], excluded
@@ -10,6 +12,8 @@ def filter_file_rows(project, rows):
 def filter_staged_batch(batch, project):
     """Recheck current rules at preview/confirmation, in case project settings changed."""
     rows = list(batch.records.order_by('id'))
+    if batch.request_metadata.get('record_scope') in ('summary', 'external'):
+        return rows
     accepted, rejected = [], []
     from projects.hosts import allows_url
     for row in rows:
@@ -29,7 +33,8 @@ def filter_staged_batch(batch, project):
             summary['html_count'] = sum((row.data.get('Content Type') or row.data.get('Content type', '')).lower().startswith(('text/html', 'application/xhtml+xml')) for row in accepted)
         if batch.source == 'sf':
             from .screamingfrog import content_checksum
-            summary['content_checksum'] = content_checksum(row.data for row in accepted)
+            summary['content_checksum_version'] = 2
+            summary['content_checksum'] = content_checksum((row.data for row in accepted), batch.request_metadata.get('type', 'internal_all'))
         batch.request_metadata = summary
         batch.record_count = len(accepted)
         batch.save(update_fields=['record_count', 'request_metadata'])
