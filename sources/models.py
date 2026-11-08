@@ -4,7 +4,17 @@ from django.db import models
 from projects.models import Project
 
 
-class ImportBatch(models.Model):
+class AtomicInventorySource(models.Model):
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic(using=kwargs.get('using') or self._state.db):
+            return super().save(*args, **kwargs)
+
+
+class ImportBatch(AtomicInventorySource):
     class Source(models.TextChoices):
         GSC = "gsc", "Google Search Console"
         SF = "sf", "Screaming Frog"
@@ -45,10 +55,50 @@ class ImportBatch(models.Model):
         constraints = [models.UniqueConstraint(fields=["project", "file_checksum"], name="unique_project_file_import"), models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
 
 
-class SourceRecord(models.Model):
+class SourceRecordQuerySet(models.QuerySet):
+    def delete(self):
+        from django.db import transaction
+        from .inventory_index import invalidate
+        with transaction.atomic(using=self.db):
+            projects = list(self.filter(batch__status__in=('complete', 'incomplete')).values_list('batch__project_id', flat=True).distinct())
+            result = super().delete()
+            for project_id in projects: invalidate(project_id)
+            return result
+
+    def update(self, **kwargs):
+        from django.db import transaction
+        from .inventory_index import invalidate
+        with transaction.atomic(using=self.db):
+            projects = list(self.filter(batch__status__in=('complete', 'incomplete')).values_list('batch__project_id', flat=True).distinct())
+            count = super().update(**kwargs)
+            for project_id in projects: invalidate(project_id)
+            return count
+
+    def bulk_create(self, objs, **kwargs):
+        from django.db import transaction
+        from .inventory_index import invalidate
+        objs = list(objs)
+        with transaction.atomic(using=self.db):
+            result = super().bulk_create(objs, **kwargs)
+            for project_id in ImportBatch.objects.filter(pk__in={obj.batch_id for obj in objs}, status__in=('complete', 'incomplete')).values_list('project_id', flat=True).distinct():
+                invalidate(project_id)
+            return result
+
+
+class SourceRecord(AtomicInventorySource):
+    objects = SourceRecordQuerySet.as_manager()
     batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name="records")
     locator = models.CharField(max_length=255)
     data = models.JSONField()
+
+    def delete(self, *args, **kwargs):
+        from django.db import transaction
+        from .inventory_index import invalidate
+        with transaction.atomic():
+            project_id = self.batch.project_id
+            result = super().delete(*args, **kwargs)
+            if self.batch.status in ('complete', 'incomplete'): invalidate(project_id)
+            return result
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["batch", "locator"], name="unique_batch_locator")]
@@ -81,3 +131,72 @@ class ProjectViewPreference(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['user', 'project'], name='unique_user_project_view')]
+
+
+class InventoryState(models.Model):
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, primary_key=True)
+    revision = models.PositiveBigIntegerField(default=0)
+    built_revision = models.BigIntegerField(default=-1)
+    url_count = models.PositiveBigIntegerField(default=0)
+    metrics = models.JSONField(default=dict)
+    generation = models.UUIDField(null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class InventoryField(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    generation = models.UUIDField()
+    key = models.CharField(max_length=64)
+    definition = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'generation', 'key'], name='inventory_field_identity')]
+
+
+class InventoryURL(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    generation = models.UUIDField()
+    url = models.TextField()
+    path = models.TextField()
+    url_folded = models.TextField()
+    payload = models.JSONField()
+    top3 = models.BooleanField(null=True)
+    top10 = models.BooleanField(null=True)
+    not_found = models.BooleanField(null=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['project', 'generation'], name='inventory_project_version')]
+
+
+class InventoryValue(models.Model):
+    url = models.ForeignKey(InventoryURL, on_delete=models.CASCADE, related_name='values')
+    field_key = models.CharField(max_length=64)
+    observation = models.JSONField()
+    text = models.TextField(null=True)
+    folded = models.TextField(null=True)
+    number = models.DecimalField(max_digits=1000, decimal_places=512, null=True)
+    date = models.DateField(null=True)
+    choice_key = models.CharField(max_length=64, default='__missing__')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['url', 'field_key'], name='inventory_url_field')]
+        indexes = [
+            models.Index(fields=['field_key', 'number'], name='inventory_numeric'),
+            models.Index(fields=['field_key', 'date'], name='inventory_date'),
+            models.Index(fields=['field_key', 'choice_key'], name='inventory_choice'),
+        ]
+
+
+class InventoryExport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    token = models.UUIDField()
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    query = models.TextField(blank=True)
+    state = models.CharField(max_length=12, default='queued')
+    file = models.FileField(upload_to='private-exports', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'user', 'token'], name='inventory_export_token')]

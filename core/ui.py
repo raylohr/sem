@@ -8,6 +8,9 @@ from projects.models import Project
 from projects.permissions import can_edit, can_manage, role_for
 from sources.models import ImportBatch
 from integrations.gsc import configured
+from sources.inventory_query import snapshot
+from sources.inventory_index import Inventory, InventoryPending
+from sources.inventory_query import DatabaseRows, save_view_preference
 
 
 def project_context(request, project_id, active):
@@ -33,6 +36,7 @@ def dashboard(request):
 @never_cache
 @login_required
 @require_http_methods(["GET", "POST"])
+@snapshot
 def project_home(request, project_id):
     context=project_context(request,project_id,'overview')
     project=context['project']
@@ -40,12 +44,15 @@ def project_home(request, project_id):
         recent=project.import_batches.select_related('created_by')[:8])
     from django.http import QueryDict
     from django.urls import reverse
-    from sources.url_inventory import project_inventory
-    from sources.column_fields import field_catalog
-    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,build_table,legacy_params,build_dataset_table,inventory_metrics
+    from sources.configurable_inventory import selected_columns,ColumnConfigurationForm,legacy_params,build_dataset_table
     from sources.models import InventoryPreference
-    source_columns, rows = project_inventory(project, include_fields=True)
-    catalog = field_catalog(rows)
+    try:
+        inventory = Inventory(project)
+    except InventoryPending as error:
+        context['inventory_message'] = str(error)
+        return render(request, 'ui/inventory_pending.html', context, status=202)
+    source_columns, rows = inventory.source_columns(), DatabaseRows(inventory)
+    catalog = inventory.catalog
     columns = selected_columns(project, request.user, catalog, rows)
     form = ColumnConfigurationForm(request.POST if request.method == 'POST' else None, catalog=catalog, columns=columns)
     if request.method == 'POST':
@@ -72,11 +79,11 @@ def project_home(request, project_id):
     params = legacy_params(incoming, columns, rows)
     rows, controls = build_dataset_table(rows, columns, params, catalog)
     if preference is None or preference.inventory_query != controls['url_state_query']:
-        ProjectViewPreference.objects.update_or_create(project=project,user=request.user,defaults={'inventory_query':controls['url_state_query']})
+        save_view_preference(project, request.user, {'inventory_query': controls['url_state_query']})
     context.update(controls)
-    context['inventory_metrics'] = inventory_metrics(rows)
+    context['inventory_metrics'] = controls['inventory_metrics']
     context.update(url_columns=source_columns, url_total=total, column_form=form,
-                   field_catalog_json=list(catalog.values()),
+                   field_catalog_json=[{key: value for key, value in field.items() if key not in ('known_counts', 'choice_samples')} for field in catalog.values()],
                    inventory_page=Paginator(rows,100).get_page(request.GET.get('url_page')))
     return render(request,'ui/project.html',context)
 
@@ -170,24 +177,28 @@ def url_detail(request, project_id):
 @never_cache
 @login_required
 @require_GET
+@snapshot
 def performance(request, project_id):
-    from sources.url_inventory import project_inventory
-    from sources.performance import scatter_data
     context=project_context(request,project_id,'performance')
-    _,rows=project_inventory(context['project'],include_fields=True)
+    try:
+        inventory = Inventory(context['project'])
+    except InventoryPending as error:
+        context['inventory_message'] = str(error)
+        return render(request, 'ui/inventory_pending.html', context, status=202)
     from sources.models import ProjectViewPreference
     preference=ProjectViewPreference.objects.filter(project=context['project'],user=request.user).first()
     options=dict(preference.performance) if preference else {}
     for key in ('x','x_scale','y_scale','trend'):
         if key in request.GET:options[key]=request.GET[key]
-    context.update(scatter_data(rows,options.get('x','')))
+    from sources.performance import indexed_scatter
+    context.update(indexed_scatter(inventory, options.get('x', '')))
     for axis in ('x','y'):
         context[axis+'_scale'] = 'linear' if options.get(axis+'_scale') == 'linear' else 'log'
     context['performance_trend'] = options.get('trend','1') != '0'
     saved={'x':context['performance_x']['id'] if context['performance_x'] else '',
            'x_scale':context['x_scale'],'y_scale':context['y_scale'],'trend':'1' if context['performance_trend'] else '0'}
     if preference is None or preference.performance != saved:
-        ProjectViewPreference.objects.update_or_create(project=context['project'],user=request.user,defaults={'performance':saved})
+        save_view_preference(context['project'], request.user, {'performance': saved})
     return render(request,'ui/performance.html',context)
 
 

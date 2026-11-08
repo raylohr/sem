@@ -12,6 +12,8 @@ MAX_COLUMNS=5
 
 
 def choices_for(rows,field):
+    if hasattr(rows, 'choices_for'):
+        return rows.choices_for(field)
     choices={}
     for row in rows:
         value=row.get('field_values',{}).get(field['id'],{}).get('value')
@@ -112,6 +114,8 @@ def number_display(value):
 
 
 def build_table(rows,columns,params):
+    if hasattr(rows, 'table'):
+        return rows.table(columns, params)
     query=params.get('url_q','').strip()[:500]
     sort=params.get('sort','')
     valid_ids={column['id'] for column in columns}
@@ -215,7 +219,8 @@ def legacy_params(params,columns,rows):
         column=by_id.get(column_id)
         if column and params.get(flag)=='1' and 'a_'+column_id not in result:
             wanted=set(params.getlist(values_name));selected=[]
-            for row in rows:
+            candidates = ({'field_values': {column['field_id']: {'value': value}}} for _, value in rows.inventory.choices(column) + [('__missing__', None)]) if hasattr(rows, 'inventory') else rows
+            for row in candidates:
                 raw=row.get('field_values',{}).get(column['field_id'],{}).get('value')
                 label=slugify(str(raw)) if column_id=='sf' else str(raw)
                 if label in wanted or (raw is None and ('not-observed' in wanted or '__no_gsc__' in wanted)):
@@ -235,7 +240,10 @@ def build_dataset_table(rows, columns, params, catalog):
     result,controls=build_table(rows,columns+filters,params)
     controls['value_columns']=columns
     controls['table_width']=360+170*len(columns)
-    for row in result:row['value_cells']=row['value_cells'][:len(columns)]
+    if not hasattr(result, 'query'):
+        for row in result:row['value_cells']=row['value_cells'][:len(columns)]
+    else:
+        result.visible_count = len(columns)
     # Existing bookmarked column filters remain editable during the transition.
     active=[column for column in columns+filters if column['active']]
     chosen=next((column for column in filters if column['field_id']==requested),None)

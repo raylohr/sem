@@ -13,3 +13,6 @@ PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 CELERY_BROKER_URL = 'memory://'
 ALLOWED_HOSTS = ['testserver', 'localhost', '127.0.0.1', 'sem.lohr.nl']
+
+# Only the disposable test database builds synchronously.
+INVENTORY_BUILD_INLINE = True

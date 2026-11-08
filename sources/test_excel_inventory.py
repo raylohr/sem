@@ -160,7 +160,7 @@ class ExcelInventoryTests(TestCase):
         book=self.download(**params)
         expected={'https://example.com/a','https://example.com/c'}
         for name in ('01 - URL INVENTARIS','02 - URL ACTIEPLAN','03 - BRONWAARNEMINGEN'):
-            self.assertEqual({row[0] for row in book[name].iter_rows(min_row=2,values_only=True)},expected)
+            self.assertEqual({row[0] for row in book[name].iter_rows(min_row=2,values_only=True)},expected,name)
         book.close()
         book=self.download(scope='filtered',url_q='no-matches')
         self.assertEqual(book['01 - URL INVENTARIS'].max_row,1)

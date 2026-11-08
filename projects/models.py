@@ -38,6 +38,12 @@ class Project(models.Model):
         except ValidationError as exc:
             raise ValidationError({'domain': exc.messages}) from exc
 
+    def save(self, *args, **kwargs):
+        # Source visibility and its read-model revision commit together.
+        from django.db import transaction
+        with transaction.atomic(using=kwargs.get('using') or self._state.db):
+            return super().save(*args, **kwargs)
+
     @property
     def host_rules(self):
         from .hosts import host_rules

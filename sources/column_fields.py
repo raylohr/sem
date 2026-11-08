@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, Context
 from .content_types import content_badge
 
 SOURCE_NAMES = {'sf':'SF', 'gsc':'GSC', 'ahrefs':'AHREFS'}
@@ -22,6 +22,8 @@ def present(value):
 def number(value):
     if isinstance(value,bool) or not present(value):
         return None
+    if isinstance(value, Decimal):
+        return value.normalize(context=Context(prec=1000)) if value.is_finite() and abs(value.adjusted()) <= 308 else None
     try:
         text=str(value).strip()
         if len(text)>128:

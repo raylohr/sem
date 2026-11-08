@@ -39,9 +39,9 @@ def observation_date(data, batch):
     return timezone.localtime(batch.imported_at).date(), True
 
 
-def project_inventory(project, *, include_data=False, target_url=None, include_fields=False):
+def project_inventory(project, *, include_data=False, target_url=None, include_fields=False, _records=None, _batches=None):
     fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at', 'request_metadata']
-    batches = {batch.pk: batch for batch in project.import_batches.filter(
+    batches = _batches if _batches is not None else {batch.pk: batch for batch in project.import_batches.filter(
         status__in=('complete', 'incomplete')).only(*fields)
         if batch.request_metadata.get('record_scope') not in ('summary', 'external')}
     columns = {}
@@ -54,7 +54,7 @@ def project_inventory(project, *, include_data=False, target_url=None, include_f
             match |= Q(**{f'data__{key}': target_url})
         records = records.filter(match)
     records = records.order_by('id').values_list('id', 'batch_id', 'data')
-    for record_id, batch_id, data in records.iterator(chunk_size=1000):
+    for record_id, batch_id, data in (_records if _records is not None else records.iterator(chunk_size=1000)):
         url = next((data.get(key) for key in URL_FIELDS if data.get(key)), None)
         if (target_url is not None and url != target_url) or not isinstance(url, str) or not normalize_url(url) or not allows_url(project, url):
             continue

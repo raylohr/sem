@@ -125,3 +125,5 @@ Engelse kolomnamen en bekende statuswaarden zijn het interne schema; vrije tekst
 zoals probleembeschrijvingen blijft in de oorspronkelijke taal behouden. Vertaalde
 vrije tekst is inhoudelijk verschillend voor de hash en wordt niet automatisch
 samengevoegd.
+
+De URL-inventaris gebruikt databasepaginering en een achtergrondprojectie; zie [opbouw, exports en uitrol](docs/inventory-pagination.md).

@@ -122,7 +122,15 @@ document.querySelectorAll('[data-excel-export]').forEach((button) => {
     };
     if (token) pollTimer = setTimeout(poll, 500);
     try {
-      const response = await fetch(exportUrl, {credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
+      let nextUrl = exportUrl;
+      let response;
+      while (true) {
+        response = await fetch(nextUrl, {credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
+        if (response.status !== 202) break;
+        const queued = await response.json();
+        nextUrl = new URL(queued.poll_url, window.location.href);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
       const type = response.headers.get('content-type') || '';
       if (!response.ok) {
         const detail = type.includes('text/plain') ? (await response.text()).slice(0, 500) : '';

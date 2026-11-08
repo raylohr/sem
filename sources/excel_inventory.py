@@ -121,21 +121,26 @@ def source_signals(source, observation, indexing):
 def build_inventory_workbook(project, user, *, absolute_url, progress=None, filter_params=None):
     report = progress or (lambda **kwargs: None)
     report(percent=5, message='URLs verzamelen…')
-    columns, rows = project_inventory(project, include_data=True, include_fields=True)
-    report(percent=20, message=f'{len(rows)} unieke URLs verzameld.')
-    sources = [column['key'] for column in columns]
-    from .column_fields import field_catalog, typed_value
-    from .configurable_inventory import selected_columns
+    from .inventory_index import Inventory, InventoryRows, url_expression
+    from .inventory_query import DatabaseRows
+    from .configurable_inventory import selected_columns, build_dataset_table, legacy_params
     from .models import InventoryPreference
-    configured = selected_columns(project, user, field_catalog(rows), rows) if InventoryPreference.objects.filter(project=project, user=user).exists() else []
-    selected_urls=None
+    inventory_index = Inventory(project)
+    catalog = inventory_index.catalog
+    database_rows = DatabaseRows(inventory_index)
+    columns = inventory_index.source_columns()
+    sources = [column['key'] for column in columns]
+    configured = selected_columns(project, user, catalog, database_rows) if InventoryPreference.objects.filter(project=project, user=user).exists() else []
+    query = inventory_index.query
     if filter_params is not None:
-        from .configurable_inventory import build_dataset_table, legacy_params
-        catalog=field_catalog(rows)
-        visible=selected_columns(project,user,catalog,rows)
-        rows,controls=build_dataset_table(rows,visible,legacy_params(filter_params,visible,rows),catalog)
-        if controls['table_errors']:raise ValueError('; '.join(controls['table_errors']))
-        selected_urls={row['url'] for row in rows}
+        visible = selected_columns(project, user, catalog, database_rows)
+        filtered, controls = build_dataset_table(database_rows, visible, legacy_params(filter_params, visible, database_rows), catalog)
+        if controls['table_errors']: raise ValueError('; '.join(controls['table_errors']))
+        query = filtered.query
+    rows = InventoryRows(query, {column['field_id'] for column in configured}, include_data=True)
+    total_rows = rows.count()
+    report(percent=20, message=f'{total_rows} unieke URLs verzameld.')
+    from .column_fields import typed_value
     book = Workbook(write_only=True)
     overview = Sheet(book, '00 - HOOFDOVERZICHT', ['Onderdeel', 'Waarde'])
     headers = ['URL', 'Host', 'Pad'] + [f"{column['label']} laatste waarneming" for column in columns]
@@ -149,8 +154,9 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None, filt
     evidence_sheet = Sheet(book, '03 - BRONWAARNEMINGEN', ['URL', 'Bron', 'Rapporttype', 'Waarnemingsdatum', 'Datumgrondslag', 'Importtijd', 'Toegevoegd door', 'Import-ID', 'Importlabel', 'Record-ID', 'Bronrecord', 'GSC rapportcategorie', 'GSC indexeringsreden', 'GSC laatste crawl', 'HTTP-status', 'Indexeerbaarheid', 'Titel', 'Canonical', 'Redirectdoel', 'Ahrefs PR', 'Ahrefs organisch verkeer (schatting)'])
     readme = Sheet(book, 'LEESMIJ', ['Onderwerp', 'Toelichting'])
     batches = {batch.pk: batch for batch in project.import_batches.filter(status__in=('complete', 'incomplete')).select_related('created_by')}
-    latest_indexing = {}
-    observations = SourceRecord.objects.filter(batch_id__in=batches).order_by('id').values_list('id', 'batch_id', 'data')
+    from django.db.models import Subquery
+    observations = SourceRecord.objects.filter(batch_id__in=batches).annotate(inventory_address=url_expression()).filter(
+        inventory_address__in=Subquery(query.order_by().values('url'))).order_by('id').values_list('id', 'batch_id', 'data')
     total_records = observations.count()
     report(percent=25, message=f'Bronwaarnemingen verwerken: 0 van {total_records}…')
     for processed, (record_id, batch_id, data) in enumerate(observations.iterator(chunk_size=1000), 1):
@@ -158,42 +164,38 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None, filt
             report(percent=25 + int(35 * processed / max(total_records, 1)),
                    message=f'Bronwaarnemingen verwerken: {processed} van {total_records}…')
         url = next((data.get(key) for key in URL_FIELDS if data.get(key)), None)
-        if not isinstance(url, str) or not allows_url(project, url) or (selected_urls is not None and url not in selected_urls):
+        if not isinstance(url, str) or not allows_url(project, url):
             continue
         batch = batches[batch_id]
         stamp, fallback = observation_date(data, batch)
         metadata = batch.request_metadata
         status, reason, crawl_date = gsc_evidence(data, metadata) if batch.source == 'gsc' else ('', '', None)
-        if batch.source == 'gsc' and (status or reason):
-            rank = (stamp, not fallback, batch.imported_at, record_id)
-            if url not in latest_indexing or rank > latest_indexing[url]['rank']:
-                latest_indexing[url] = {'date': stamp, 'rank': rank, 'data': data, 'metadata': metadata}
         link = absolute_url(reverse('ui:record', args=[project.pk, batch_id, record_id]))
         evidence_sheet.append([url, DEFAULT_SOURCES.get(batch.source, batch.get_source_display()), metadata.get('type') or metadata.get('kind', 'search_analytics' if batch.source == 'gsc' else ''), stamp,
             'Importdatum; brondatum ontbreekt' if fallback else 'Brondatum', batch.imported_at, batch.created_by.get_username(), str(batch_id), batch.label, record_id, link,
             status, reason, crawl_date, data.get('Status Code', data.get('HTTP status code', '')),
             data.get('Indexability', data.get('Is indexable page', '')), data.get('Title 1', data.get('Title', '')),
             data.get('Canonical Link Element 1', ''), data.get('Redirect URL', ''), data.get('PR', ''), data.get('Organic traffic', '')], links={0: url, 10: link})
-    report(percent=65, message=f'URL-inventaris en actieplan vullen: 0 van {len(rows)}…')
+    report(percent=65, message=f'URL-inventaris en actieplan vullen: 0 van {total_rows}…')
     for processed, row in enumerate(rows, 1):
-        if processed % 250 == 0 or processed == len(rows):
-            report(percent=65 + int(25 * processed / max(len(rows), 1)),
-                   message=f'URL-inventaris en actieplan vullen: {processed} van {len(rows)}…')
+        if processed % 250 == 0 or processed == total_rows:
+            report(percent=65 + int(25 * processed / max(total_rows, 1)),
+                   message=f'URL-inventaris en actieplan vullen: {processed} van {total_rows}…')
         values = [row['url'], row['host'], row['display_path']]
         values += [row['observations'].get(source, {}).get('date') for source in sources]
         values += [', '.join(column['label'] for column in columns if row['observations'].get(column['key'], {}).get('fallback'))]
         for source in ('gsc', 'sf', 'ahrefs'):
             if source in sources:
-                values += source_values(source, row['observations'].get(source), latest_indexing.get(row['url']))
+                values += source_values(source, row['observations'].get(source), row.get('_indexing'))
         values += [typed_value(row.get('field_values', {}).get(column['field_id'], {}).get('value'), column['type']) for column in configured]
         inventory.append(values + [''] * len(WORK_FIELDS), links={0: row['url']})
         signals = []
         for source in ('gsc', 'sf', 'ahrefs'):
-            signals.extend(source_signals(source, row['observations'].get(source), latest_indexing.get(row['url'])))
+            signals.extend(source_signals(source, row['observations'].get(source), row.get('_indexing')))
         if signals:
             actions.append([row['url'], row['host'], row['display_path'], '\n'.join(signals), *([''] * len(WORK_FIELDS))], links={0: row['url']})
     exported_at = timezone.now()
-    for pair in [('Project', project.name), ('Website', project.website), ('Toegestane hosts', ', '.join(project.host_rules['allowed_hosts'])), ('Overige subdomeinen toegestaan', 'Ja' if project.include_subdomains else 'Nee'), ('Exporttijd (Europe/Amsterdam)', exported_at), ('Geëxporteerd door', user.get_username()), ('Unieke URLs', len(rows)), ('Bronnen', ', '.join(column['label'] for column in columns)), ('Bronwaarnemingen', evidence_sheet.count - 1), ('URLs met bronsignalen', actions.count - 1), ('Bereik', 'Huidige zoek- en filterselectie, over alle tabelpagina’s.' if filter_params is not None else 'Alle gepubliceerde URL-records binnen de huidige projecthosts; onafhankelijk van zoekfilter en paginering.')]:
+    for pair in [('Project', project.name), ('Website', project.website), ('Toegestane hosts', ', '.join(project.host_rules['allowed_hosts'])), ('Overige subdomeinen toegestaan', 'Ja' if project.include_subdomains else 'Nee'), ('Exporttijd (Europe/Amsterdam)', exported_at), ('Geëxporteerd door', user.get_username()), ('Unieke URLs', total_rows), ('Bronnen', ', '.join(column['label'] for column in columns)), ('Bronwaarnemingen', evidence_sheet.count - 1), ('URLs met bronsignalen', actions.count - 1), ('Bereik', 'Huidige zoek- en filterselectie, over alle tabelpagina’s.' if filter_params is not None else 'Alle gepubliceerde URL-records binnen de huidige projecthosts; onafhankelijk van zoekfilter en paginering.')]:
         overview.append(pair)
     for pair in [
         ('Inventaris', 'Eén rij per volledige URL, gesorteerd op pad. Hosts, protocollen en querystrings blijven onderscheiden. Alleen bronnen met data krijgen kolommen.'),
