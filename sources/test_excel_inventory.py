@@ -38,7 +38,7 @@ class ExcelInventoryTests(TestCase):
         self.record('ahrefs', {'URL':url,'HTTP status code':'200','Content type':'text/html','Title':'','PR':'60','Organic traffic':'10'}, metadata={'type':'ahrefs_site_audit_missing_titles'})
         self.record('sf', {'Address':'https://example.com/z','Crawl Timestamp':'2026-11-01','Status Code':'404'})
         book=self.download(url_q='not-matching',url_page=99)
-        self.assertEqual(book.sheetnames,['00 - HOOFDOVERZICHT','01 - URL INVENTARIS','02 - URL ACTIEPLAN','03 - BRONWAARNEMINGEN','LEESMIJ'])
+        self.assertEqual(book.sheetnames,['00 - HOOFDOVERZICHT','01 - URL INVENTARIS','02 - URL ACTIEPLAN','03 - BRONWAARNEMINGEN','Ahrefs','Google Search Console','LEESMIJ','Screaming Frog','Import Summary'])
         sheet=book['01 - URL INVENTARIS']
         headers=[cell.value for cell in sheet[1]]
         values=dict(zip(headers,[cell.value for cell in sheet[2]]))
@@ -161,8 +161,43 @@ class ExcelInventoryTests(TestCase):
         expected={'https://example.com/a','https://example.com/c'}
         for name in ('01 - URL INVENTARIS','02 - URL ACTIEPLAN','03 - BRONWAARNEMINGEN'):
             self.assertEqual({row[0] for row in book[name].iter_rows(min_row=2,values_only=True)},expected,name)
+        self.assertEqual({row[0] for row in book['Screaming Frog'].iter_rows(min_row=4, values_only=True)}, expected)
+        self.assertEqual(sum(row[4] for row in book['Import Summary'].iter_rows(min_row=2, values_only=True)), 2)
         book.close()
         book=self.download(scope='filtered',url_q='no-matches')
         self.assertEqual(book['01 - URL INVENTARIS'].max_row,1)
         self.assertEqual(book['03 - BRONWAARNEMINGEN'].max_row,1)
+        book.close()
+
+    def test_full_source_fields_file_groups_counters_and_import_summary(self):
+        url = 'https://example.com/a'
+        first = self.record('sf', {'Address': url, 'Extra': '=unsafe', 'Zero': 0, 'Flag': False,
+            'Nested': {'value': 'kept'}, 'List': ['a', 'b']})
+        self.record('sf', {'Address': url, 'Another field': 'second file'})
+        self.record('sf', {'Extra': 'missing URL'})
+        self.record('ahrefs', {'URL': url, 'Custom': 'all fields'})
+        book = self.download()
+        self.assertEqual(book.sheetnames[-1], 'Import Summary')
+        self.assertEqual(book.sheetnames[1:-1], sorted(book.sheetnames[1:-1], key=str.casefold))
+        sheet = book['Screaming Frog']
+        self.assertEqual(sheet.freeze_panes, 'B4')
+        self.assertEqual(sheet['A2'].value, 'URL')
+        self.assertEqual(sheet['A3'].value, 1)
+        self.assertEqual(sheet.max_row, 6)
+        headers = [c.value for c in sheet[2]]
+        for name in ['Extra', 'Zero', 'Flag', 'Nested → value', 'List', 'Another field']:
+            self.assertIn(name, headers)
+        for name in ['Zero', 'Flag']:
+            self.assertEqual(sheet.cell(3, headers.index(name) + 1).value, 1)
+        cell = sheet.cell(4, headers.index('Extra') + 1)
+        self.assertEqual(cell.value, '=unsafe')
+        self.assertEqual(cell.data_type, 's')
+        groups = [d for d in sheet.column_dimensions.values() if d.outlineLevel == 1]
+        self.assertEqual(len(groups), 3)
+        self.assertTrue(all(d.min > 1 for d in groups))
+        summary = list(book['Import Summary'].iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(summary), 4)
+        self.assertEqual(sum(row[4] for row in summary), 4)
+        self.assertEqual(sum(row[7] for row in summary), 1)
+        self.assertEqual(sum(row[10] for row in summary), 4)
         book.close()

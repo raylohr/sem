@@ -1,4 +1,6 @@
 """Export project URL evidence and empty editorial work fields as a workbook."""
+import json
+from collections import defaultdict
 from datetime import datetime
 from tempfile import SpooledTemporaryFile
 
@@ -23,13 +25,19 @@ HEADER_FILL = PatternFill('solid', fgColor='0B2D4D')
 
 
 class Sheet:
-    def __init__(self, book, name, headers):
+    def __init__(self, book, name, headers, *, groups=None):
         self.ws = book.create_sheet(name)
         self.headers = headers
         self.count = 0
-        self.ws.freeze_panes = 'D2' if 'URL' in headers else 'A2'
+        self.ws.freeze_panes = ('B4' if groups else 'D2') if 'URL' in headers else 'A2'
+        self.header_row = 2 if groups else 1
         for index, header in enumerate(headers, 1):
             self.ws.column_dimensions[get_column_letter(index)].width = 64 if header == 'URL' else (42 if any(word in header.lower() for word in ('reden', 'titel', 'actie', 'notitie', 'bevinding', 'signaal', 'canonical', 'redirect')) else 24)
+        if groups:
+            self.ws.sheet_properties.outlinePr.summaryRight = False
+            for start, end in groups['ranges']:
+                self.ws.column_dimensions.group(get_column_letter(start), get_column_letter(end), outline_level=1, hidden=False)
+            self.append(groups['labels'], header=True)
         self.append(headers, header=True)
 
     def append(self, values, *, header=False, links=None):
@@ -62,7 +70,7 @@ class Sheet:
         self.count += 1
 
     def finish(self, *, work_fields=False):
-        self.ws.auto_filter.ref = f'A1:{get_column_letter(len(self.headers))}{self.count}'
+        self.ws.auto_filter.ref = f'A{self.header_row}:{get_column_letter(len(self.headers))}{self.count}'
         if work_fields:
             for header, choices in [('Prioriteit', 'Hoog,Middel,Laag'), ('Controlestatus', 'Nog te beoordelen,In onderzoek,Gecontroleerd,Afgerond')]:
                 column = get_column_letter(self.headers.index(header) + 1)
@@ -71,6 +79,72 @@ class Sheet:
                 validation.showErrorMessage = True
                 validation.add(f'{column}2:{column}{min(1048576, max(self.count + 100, 1000))}')
                 self.ws.data_validations.append(validation)
+
+
+def add_import_sheets(book, project, *, selected_urls=None):
+    """Preserve every stored record and field, with independent file column groups."""
+    from .column_fields import scalar_fields, present
+    from .inventory_index import url_expression
+    from django.db.models import Count, Subquery
+
+    batches = list(project.import_batches.annotate(imported_rows=Count("records")).order_by('source', 'imported_at', 'id'))
+    published = {batch.pk: batch for batch in batches if batch.status in ('complete', 'incomplete')}
+    records = SourceRecord.objects.filter(batch_id__in=published).order_by('id')
+    if selected_urls is not None:
+        records = records.annotate(export_url=url_expression()).filter(
+            export_url__in=Subquery(selected_urls.order_by().values('url')))
+    fields = defaultdict(dict)
+    counts = defaultdict(lambda: defaultdict(int))
+    stats = defaultdict(lambda: {'rows': 0, 'urls': set(), 'missing': 0})
+    for batch_id, data in records.values_list('batch_id', 'data').iterator(chunk_size=1000):
+        url = next((data.get(key) for key in URL_FIELDS if data.get(key)), None)
+        stat = stats[batch_id]
+        stat['rows'] += 1
+        if isinstance(url, str) and url.strip():
+            stat['urls'].add(url)
+        else:
+            stat['missing'] += 1
+        for path, value in scalar_fields(data):
+            fields[batch_id].setdefault(path, len(fields[batch_id]))
+            if present(value):
+                counts[batch_id][path] += 1
+
+    for source in sorted({batch.source for batch in published.values()}):
+        imports = [batch for batch in batches if batch.pk in published and batch.source == source]
+        headers, groups, counters = ['URL'], ['Importbestand'], [len(set().union(*(stats[b.pk]['urls'] for b in imports)))]
+        offsets = {}
+        for batch in imports:
+            paths = fields[batch.pk]
+            if not paths:
+                continue
+            offsets[batch.pk] = len(headers)
+            headers.extend(' → '.join(path) for path in paths)
+            groups.extend([f'{batch.label} [{batch.pk}]'] + [''] * (len(paths) - 1))
+            counters.extend(counts[batch.pk][path] for path in paths)
+        if len(headers) > 16384:
+            raise ValueError('Een brontab overschrijdt de Excel-limiet van 16.384 kolommen.')
+        label = {'sf': 'Screaming Frog', 'gsc': 'Google Search Console', 'ahrefs': 'Ahrefs'}.get(source, source)
+        ranges = [(offsets[b.pk] + 1, offsets[b.pk] + len(fields[b.pk])) for b in imports if b.pk in offsets]
+        sheet = Sheet(book, label, headers, groups={'labels': groups, 'ranges': ranges})
+        sheet.append(counters)
+        for batch_id, data in records.filter(batch__source=source).values_list('batch_id', 'data').iterator(chunk_size=1000):
+            url = next((data.get(key) for key in URL_FIELDS if data.get(key)), '')
+            values = [''] * len(headers)
+            values[0] = url if isinstance(url, str) else ''
+            for path, value in scalar_fields(data):
+                values[offsets[batch_id] + fields[batch_id][path]] = value
+            sheet.append(values)
+        sheet.finish()
+
+    summary = Sheet(book, 'Import Summary', ['Bron', 'Bestand / importlabel', 'Import-ID', 'Importdatum',
+        'Rijen in export', 'Velden', 'Unieke URLs', 'Ontbrekende URLs', 'Status', 'Waarschuwingen', 'Geïmporteerde rijen'])
+    for batch in batches:
+        stat = stats[batch.pk]
+        summary.append([batch.get_source_display(), batch.label, str(batch.pk), batch.imported_at,
+            stat['rows'], len(fields[batch.pk]), len(stat['urls']), stat['missing'], batch.get_status_display(),
+            json.dumps(batch.warnings, ensure_ascii=False) if batch.warnings else batch.error, batch.imported_rows])
+    summary.finish()
+    return summary.ws
 
 
 def gsc_evidence(data, metadata):
@@ -204,12 +278,17 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None, filt
         ('Datums', 'Echte Excel-datums met dd.mm.jjjj. Brondagen behouden hun brondatum. Importtijden worden weergegeven in Europe/Amsterdam. Ontbrekende brondatums vallen terug op de importdatum; dit staat expliciet vermeld.'),
         ('Actieplan', 'Bevat signalen uit de laatste bronwaarnemingen: HTTP-fouten, ontbrekende HTML-titels en GSC-indexeringsredenen. Een signaal is geen bewezen probleem of automatisch advies; redirects en alternatieve canonicals kunnen correct zijn.'),
         ('Werkvelden', 'Expertise, paginatype, bevinding, actie, prioriteit, controlestatus en notitie zijn leeg voor menselijke beoordeling. Excel-bewerkingen worden niet teruggeschreven naar TrafficStack.'),
+        ('Brontabs', 'Elke bron heeft een eigen tab met alle opgeslagen importvelden, inclusief geneste velden. Elke import heeft een inklapbare kolomgroep; afzonderlijke records blijven afzonderlijke rijen. Rij 3 telt gevulde waarden (ook 0 en false); de URL-teller telt unieke URLs. Bij een volledige export bevatten deze tabs ook records zonder URL of buiten de huidige projecthosts.'),
+        ('Import Summary', 'De laatste tab toont alle imports en hun status. Rijen, velden en URL-tellingen beschrijven de exportselectie; geïmporteerde rijen telt alle opgeslagen records per import. Bij een gefilterde export bevatten brontabs alleen records met een geselecteerde URL.'),
         ('Volledigheid', 'Dit is een verzameling aangetroffen URLs, geen bewijs van alle URLs op de website of in Google. GSC-rapporten kunnen voorbeeldlijsten zijn.'),
         ('Herleidbaarheid', 'Tab 03 vermeldt per record de import, gebruiker, datums en een link naar het oorspronkelijke bronrecord. Bronnen kunnen elkaar op verschillende meetmomenten tegenspreken.'),
     ]:
         readme.append(pair)
     for sheet in (overview, inventory, actions, evidence_sheet, readme):
         sheet.finish(work_fields=sheet in (inventory, actions))
+    summary = add_import_sheets(book, project, selected_urls=query if filter_params is not None else None)
+    first = overview.ws
+    book._sheets = [first] + sorted([ws for ws in book.worksheets if ws not in (first, summary)], key=lambda ws: ws.title.casefold()) + [summary]
     report(percent=95, message='Excelbestand opslaan…')
     output = SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode='w+b')
     try:
