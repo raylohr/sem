@@ -24,6 +24,6 @@ urlpatterns=[
     path('projects/<uuid:project_id>/',ui.project_home,name='project'),
     path('projects/<uuid:project_id>/sources/',ui.sources,name='sources'),
     path('projects/<uuid:project_id>/sources/<uuid:batch_id>/',ui.batch,name='batch'),
-    path('projects/<uuid:project_id>/sources/<uuid:batch_id>/activate/',import_ui.activate_snapshot,name='batch-activate'),
+    path('projects/<uuid:project_id>/sources/<uuid:batch_id>/resolve/',import_ui.resolve_snapshot,name='batch-resolve'),
     path('projects/<uuid:project_id>/connections/',ui.connections,name='connections'),
 ]

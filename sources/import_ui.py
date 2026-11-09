@@ -191,18 +191,20 @@ def preview(request, project_id, batch_id):
 
 @login_required
 @require_http_methods(['POST'])
-def activate_snapshot(request, project_id, batch_id):
+def resolve_snapshot(request, project_id, batch_id):
     context = project_context(request, project_id, 'sources')
     if not context['can_edit']:
         raise PermissionDenied
     batch = get_object_or_404(ImportBatch, pk=batch_id, project=context['project'])
-    from .snapshots import activate
+    from .snapshots import resolve_conflict
+    choice = request.POST.get('choice', '')
     try:
-        activate(batch, request.user)
+        resolve_conflict(batch, request.user, choice)
     except ValueError as exc:
         messages.error(request, str(exc))
     else:
-        messages.success(request, 'Deze import is nu de actieve snapshot. De analyses worden bijgewerkt.')
+        messages.success(request, 'Deze import is nu de actieve snapshot. De analyses worden bijgewerkt.' if choice == 'active'
+                         else 'Deze import telt nu mee als aanvulling. De analyses worden bijgewerkt.')
     return redirect('ui:batch', project_id=project_id, batch_id=batch_id)
 
 

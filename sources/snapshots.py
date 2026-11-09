@@ -157,13 +157,40 @@ class Comparison:
     other_extra_columns: list
     conflicts: int
     examples: list
+    differing_columns: dict = field(default_factory=dict)   # column -> conflicting URLs
+    example_values: list = field(default_factory=list)      # (url, column, other value, new value)
+
+
+DIFF_LIMIT = 1000
+
+
+def explain_conflicts(new, other, keys, columns):
+    """Third pass over conflicting URLs only: which columns differ, with sample values."""
+    rows = {}
+    for side, batch in (('new', new), ('other', other)):
+        for data in records(batch):
+            key = row_key(data)
+            if key in keys:
+                rows.setdefault(key, {}).setdefault(side, data)
+    counts, samples = {}, []
+    for key in sorted(rows):
+        pair = rows[key]
+        if 'new' not in pair or 'other' not in pair:
+            continue
+        for column in columns:
+            before, after = normalized(pair['other'].get(column)), normalized(pair['new'].get(column))
+            if before != after:
+                counts[column] = counts.get(column, 0) + 1
+                if len(samples) < SAMPLE_LIMIT:
+                    samples.append((key, column, before[:80], after[:80]))
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0]))), samples
 
 
 def compare(new, other, cache):
     new_profile, other_profile = profile(new, cache), profile(other, cache)
     shared = sorted((new_profile.columns & other_profile.columns) - VOLATILE_COLUMNS)
     theirs = fingerprints(other, shared)
-    conflicts, examples, new_only, seen = 0, [], 0, set()
+    conflicts, examples, new_only, seen, conflicting = 0, [], 0, set(), set()
     for key, digest in fingerprints(new, shared).items():
         if key not in theirs:
             new_only += 1
@@ -171,9 +198,12 @@ def compare(new, other, cache):
         seen.add(key)
         if digest != theirs[key]:
             conflicts += 1
+            if len(conflicting) < DIFF_LIMIT:
+                conflicting.add(key)
             if len(examples) < SAMPLE_LIMIT:
                 examples.append(key)
-    return Comparison(
+    differing, samples = explain_conflicts(new, other, conflicting, shared) if conflicting else ({}, [])
+    return Comparison(differing_columns=differing, example_values=samples,
         new_only=new_only, other_only=len(theirs.keys() - seen),
         new_extra_columns=sorted(new_profile.columns - other_profile.columns - VOLATILE_COLUMNS),
         other_extra_columns=sorted(other_profile.columns - new_profile.columns - VOLATILE_COLUMNS),
@@ -240,6 +270,9 @@ def decide(new, active, supplements, cache):
     Returns decisions for `new` and for any import whose status changes because of it.
     """
     if not is_snapshot(new):
+        if (new.request_metadata or {}).get('record_scope') in ('summary', 'external'):
+            return [Decision(new, S.INDEPENDENT, 'Samenvattend of extern rapport: blijft bewaard bij deze import, staat buiten '
+                             'de URL-inventaris en wordt niet als momentopname vergeleken.')]
         return [Decision(new, S.INDEPENDENT, 'Dit rapporttype is een tijdreeks, steekproef of samenvatting en geen '
                          'volledige momentopname; de import telt zelfstandig mee.')]
     if active is None:
@@ -255,8 +288,13 @@ def decide(new, active, supplements, cache):
                 Decision(new, S.ACTIVE, reason)]
     result = compare(new, active, cache)
     if result.conflicts:
+        columns = ', '.join(f'{column} ({count}×)' for column, count in list(result.differing_columns.items())[:5])
+        samples = '; '.join(f'{url} · {column}: "{before}" → "{after}"' for url, column, before, after in result.example_values)
+        extra = (f' Deze import heeft ook extra kolommen: {columns_text(result.new_extra_columns)}; '
+                 'kies dan eventueel "als aanvulling laten meetellen".') if result.new_extra_columns else ''
         return [Decision(new, S.CONFLICT, f'Zelfde meetmoment als de actieve import {describe(active)}, maar {result.conflicts} '
-                         f'gedeelde URLs hebben afwijkende waarden (bijv. {", ".join(result.examples)}). Kies handmatig welke import actief is.')]
+                         f'gedeelde URLs hebben afwijkende waarden in: {columns or "onbekend"}. Voorbeelden (actief → deze import): '
+                         f'{samples or ", ".join(result.examples)}.{extra} Kies handmatig hoe deze import meetelt.')]
     if not result.new_only and not result.new_extra_columns:
         return [Decision(new, S.REDUNDANT, f'Alle URLs en kolommen zitten met dezelfde waarden al in de actieve import {describe(active)}.')]
     if not result.new_only:
@@ -353,14 +391,20 @@ def apply_plan(project, outcome):
 
 
 @transaction.atomic
-def activate(batch, actor):
-    """Human decision for a conflict: make `batch` the active snapshot of its dataset."""
+def resolve_conflict(batch, actor, choice):
+    """Human decision for a conflict: make `batch` active, or let it count as a supplement."""
     from projects.models import Project
     Project.objects.select_for_update().get(pk=batch.project_id)
     batch = ImportBatch.objects.select_for_update().get(pk=batch.pk)
     if batch.snapshot_status != S.CONFLICT:
-        raise ValueError('Alleen een import met een conflict kan handmatig actief worden gemaakt.')
+        raise ValueError('Alleen een import met een conflict kan handmatig worden beoordeeld.')
     stamp = f'{actor.get_username()} op {timezone.localtime():%d-%m-%Y %H:%M}'
+    if choice == 'supplement':
+        write([Decision(batch, S.SUPPLEMENT, f'Handmatig als aanvulling geaccepteerd door {stamp}; bij afwijkende waarden '
+                        f'geldt per URL de laatst geïmporteerde waarneming. Eerder: {batch.snapshot_reason}')])
+        return batch
+    if choice != 'active':
+        raise ValueError('Onbekende keuze.')
     decisions = [Decision(batch, S.ACTIVE, f'Handmatig actief gemaakt door {stamp}. Eerder: {batch.snapshot_reason}')]
     current = ImportBatch.objects.filter(project_id=batch.project_id, dataset_key=batch.dataset_key,
                                          snapshot_status=S.ACTIVE).exclude(pk=batch.pk).first()
