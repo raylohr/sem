@@ -42,6 +42,4 @@ def publish_records(*, batch_id, records):
     batch.record_count = count
     batch.status = ImportBatch.Status.COMPLETE
     batch.save(update_fields=["record_count", "status", "warnings", "request_metadata"])
-    from .snapshots import classify
-    classify(batch)
     return batch.record_count

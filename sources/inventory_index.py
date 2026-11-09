@@ -73,6 +73,10 @@ def url_expression():
     return Coalesce(*expressions, output_field=TextField())
 
 
+def source_records(project):
+    return SourceRecord.objects.filter(batch__project=project, batch__status__in=('complete', 'incomplete'))
+
+
 def rebuild(project_id):
     """Serialize builders; publish atomically only if inputs did not change.
 
@@ -88,7 +92,8 @@ def rebuild(project_id):
         state, _ = InventoryState.objects.get_or_create(project=project)
         revision = state.revision
         generation = uuid4()
-        batches = {batch.pk: batch for batch in project.import_batches.analysable()}
+        batches = {batch.pk: batch for batch in project.import_batches.filter(status__in=('complete', 'incomplete'))
+                   if batch.request_metadata.get('record_scope') not in ('summary', 'external')}
         records = SourceRecord.objects.filter(batch_id__in=batches).annotate(
             inventory_address=url_expression()).order_by('inventory_address', 'id').values_list(
                 'inventory_address', 'id', 'batch_id', 'data')

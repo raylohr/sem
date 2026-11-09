@@ -101,9 +101,6 @@ def upload(request, project_id):
                         warnings.append(f"{summary['invalid_url_rows']} ongeldige URL-rijen zijn door de hostcontrole uitgesloten.")
                     if summary.get('unknown_crawl_dates'):
                         warnings.append(f"{summary['unknown_crawl_dates']} crawl-datums met 1970-01-01 zijn als onbekend verwerkt.")
-                    if summary.get('missing_expected_columns'):
-                        warnings.append('Verwachte kolommen ontbreken in deze export: ' + ', '.join(summary['missing_expected_columns'])
-                                        + '. Analyses die deze velden gebruiken (zoals de Performance-grafiek) tonen dan minder URLs. Voeg de kolommen toe in de kolomselectie van Ahrefs en exporteer opnieuw.')
                     if parsed['source'] == 'gsc':
                         warnings.append('GSC levert voorbeelden, geen volledige URL-lijst. De export kan maximaal 1.000 URL-voorbeelden bevatten.')
                     batch = ImportBatch.objects.create(
@@ -180,46 +177,11 @@ def preview(request, project_id, batch_id):
                             SourceRecord.objects.bulk_update(chunk, ['data'], batch_size=500)
                 batch.status = 'complete'
                 batch.save(update_fields=['status', 'request_metadata', 'measured_at'])
-                from .snapshots import classify
-                batch = classify(batch)
-                announce_snapshot(request, batch)
+                messages.success(request, f'{batch.record_count} records geïmporteerd.')
                 return redirect('ui:batch', project_id=project_id, batch_id=batch.pk)
     context.update(batch=batch, summary=batch.request_metadata,
                    sample=batch.records.order_by('id')[:10], observation_form=observation_form)
     return render(request, 'ui/import_preview.html', context)
-
-
-@login_required
-@require_http_methods(['POST'])
-def resolve_snapshot(request, project_id, batch_id):
-    context = project_context(request, project_id, 'sources')
-    if not context['can_edit']:
-        raise PermissionDenied
-    batch = get_object_or_404(ImportBatch, pk=batch_id, project=context['project'])
-    from .snapshots import resolve_conflict
-    choice = request.POST.get('choice', '')
-    try:
-        resolve_conflict(batch, request.user, choice)
-    except ValueError as exc:
-        messages.error(request, str(exc))
-    else:
-        messages.success(request, 'Deze import is nu de actieve snapshot. De analyses worden bijgewerkt.' if choice == 'active'
-                         else 'Deze import telt nu mee als aanvulling. De analyses worden bijgewerkt.')
-    return redirect('ui:batch', project_id=project_id, batch_id=batch_id)
-
-
-def announce_snapshot(request, batch):
-    S = ImportBatch.Snapshot
-    text = f'{batch.record_count} records geïmporteerd · {batch.get_snapshot_status_display()}: {batch.snapshot_reason}'
-    if batch.snapshot_status in (S.REDUNDANT, S.CONFLICT, S.HISTORICAL):
-        suffix = {S.REDUNDANT: ' Deze import telt niet mee in de analyses.',
-                  S.CONFLICT: ' Deze import telt niet mee tot je op de importpagina kiest welke snapshot actief is.',
-                  S.HISTORICAL: ' Deze import telt niet mee in de actuele analyses.'}[batch.snapshot_status]
-        messages.warning(request, text + suffix)
-    else:
-        messages.success(request, text)
-    for warning in batch.quality_warnings:
-        messages.warning(request, 'Kwaliteitscontrole: ' + warning['message'])
 
 
 class ObservationDateForm(forms.Form):

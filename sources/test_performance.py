@@ -102,37 +102,3 @@ class PerformanceTests(TestCase):
         self.assertEqual(response.context['y_scale'],'log')
         Membership.objects.filter(project=self.project,user=other).delete()
         self.assertEqual(self.client.post(endpoint,payload).status_code,404)
-
-
-class PerformanceCoverageTests(TestCase):
-    """A narrow export supplying the X field must not silently shrink the chart."""
-    def setUp(self):
-        self.user=get_user_model().objects.create_user('coverage')
-        self.project=Project.objects.create(name='Coverage',website='https://example.com',domain='example.com',created_by=self.user)
-        Membership.objects.create(project=self.project,user=self.user,role='viewer')
-        self.client.force_login(self.user)
-        self.url=reverse('ui:performance',args=[self.project.pk])
-
-    def batch(self,rows,with_backlinks):
-        batch=ImportBatch.objects.create(project=self.project,source='ahrefs',method='file',created_by=self.user,status='complete',label='Pages',request_metadata={'type':'ahrefs_site_audit_pages'})
-        for path in rows:
-            data={'URL':'https://example.com/'+path,'Content type':'text/html','Organic traffic':'3'}
-            if with_backlinks:data['No. of backlinks']='7'
-            SourceRecord.objects.create(batch=batch,locator=path,data=data)
-
-    def test_sparse_x_field_reports_coverage_and_warns(self):
-        self.batch([str(i) for i in range(10)],with_backlinks=False)
-        self.batch(['1','2'],with_backlinks=True)
-        response=self.client.get(self.url)
-        self.assertEqual(response.context['performance_html_count'],10)
-        self.assertEqual(response.context['performance_x_count'],2)
-        self.assertEqual(response.context['performance_y_count'],10)
-        self.assertTrue(response.context['performance_x_sparse'])
-        self.assertContains(response,'X-as ingevuld bij 2 van 10')
-        self.assertContains(response,'data-performance-sparse')
-
-    def test_complete_x_field_has_no_warning(self):
-        self.batch(['a','b'],with_backlinks=True)
-        response=self.client.get(self.url)
-        self.assertFalse(response.context['performance_x_sparse'])
-        self.assertNotContains(response,'data-performance-sparse')

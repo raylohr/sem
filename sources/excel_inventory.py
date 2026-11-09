@@ -137,16 +137,12 @@ def add_import_sheets(book, project, *, selected_urls=None):
         sheet.finish()
 
     summary = Sheet(book, 'Import Summary', ['Bron', 'Bestand / importlabel', 'Import-ID', 'Importdatum',
-        'Rijen in export', 'Velden', 'Unieke URLs', 'Ontbrekende URLs', 'Status', 'Waarschuwingen', 'Geïmporteerde rijen',
-        'Snapshotstatus', 'Telt mee in analyses', 'Reden snapshotstatus', 'Kwaliteitswaarschuwingen'])
+        'Rijen in export', 'Velden', 'Unieke URLs', 'Ontbrekende URLs', 'Status', 'Waarschuwingen', 'Geïmporteerde rijen'])
     for batch in batches:
         stat = stats[batch.pk]
         summary.append([batch.get_source_display(), batch.label, str(batch.pk), batch.imported_at,
             stat['rows'], len(fields[batch.pk]), len(stat['urls']), stat['missing'], batch.get_status_display(),
-            json.dumps(batch.warnings, ensure_ascii=False) if batch.warnings else batch.error, batch.imported_rows,
-            batch.get_snapshot_status_display() if batch.snapshot_status else 'Niet geclassificeerd',
-            'ja' if batch.counts_in_analyses else 'nee', batch.snapshot_reason,
-            '\n'.join(item['message'] for item in batch.quality_warnings)])
+            json.dumps(batch.warnings, ensure_ascii=False) if batch.warnings else batch.error, batch.imported_rows])
     summary.finish()
     return summary.ws
 
@@ -231,7 +227,7 @@ def build_inventory_workbook(project, user, *, absolute_url, progress=None, filt
     actions = Sheet(book, '02 - URL ACTIEPLAN', ['URL', 'Host', 'Pad', 'Bronsignalen', *WORK_FIELDS])
     evidence_sheet = Sheet(book, '03 - BRONWAARNEMINGEN', ['URL', 'Bron', 'Rapporttype', 'Waarnemingsdatum', 'Datumgrondslag', 'Importtijd', 'Toegevoegd door', 'Import-ID', 'Importlabel', 'Record-ID', 'Bronrecord', 'GSC rapportcategorie', 'GSC indexeringsreden', 'GSC laatste crawl', 'HTTP-status', 'Indexeerbaarheid', 'Titel', 'Canonical', 'Redirectdoel', 'Ahrefs PR', 'Ahrefs organisch verkeer (schatting)'])
     readme = Sheet(book, 'LEESMIJ', ['Onderwerp', 'Toelichting'])
-    batches = {batch.pk: batch for batch in project.import_batches.counted().select_related('created_by')}
+    batches = {batch.pk: batch for batch in project.import_batches.filter(status__in=('complete', 'incomplete')).select_related('created_by')}
     from django.db.models import Subquery
     observations = SourceRecord.objects.filter(batch_id__in=batches).annotate(inventory_address=url_expression()).filter(
         inventory_address__in=Subquery(query.order_by().values('url'))).order_by('id').values_list('id', 'batch_id', 'data')

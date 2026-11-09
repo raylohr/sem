@@ -100,11 +100,8 @@ def sources(request, project_id):
         batches=batches.filter(source=source)
     if status in ImportBatch.Status.values:
         batches=batches.filter(status=status)
-    snapshot=request.GET.get('snapshot','')
-    if snapshot in ImportBatch.Snapshot.values:
-        batches=batches.filter(snapshot_status=snapshot)
-    context.update(page=Paginator(batches,25).get_page(request.GET.get('page')),source=source,status=status,snapshot=snapshot,
-        source_choices=ImportBatch.Source.choices,status_choices=ImportBatch.Status.choices,snapshot_choices=ImportBatch.Snapshot.choices)
+    context.update(page=Paginator(batches,25).get_page(request.GET.get('page')),source=source,status=status,
+        source_choices=ImportBatch.Source.choices,status_choices=ImportBatch.Status.choices)
     return render(request,'ui/sources.html',context)
 
 

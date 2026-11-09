@@ -38,7 +38,9 @@ def url_context(project, url):
     for key in URL_FIELDS:
         match |= Q(**{f'data__{key}': url})
     # Fetch batch context once: chart/metadata can be large and should not be repeated by a join.
-    batches = {batch.pk: batch for batch in project.import_batches.analysable().select_related('created_by')}
+    batches = {batch.pk: batch for batch in project.import_batches.filter(
+        status__in=('complete', 'incomplete')).select_related('created_by')
+        if batch.request_metadata.get('record_scope') not in ('summary', 'external')}
     records = SourceRecord.objects.filter(match, batch_id__in=batches).order_by('id')
     groups = defaultdict(list)
     for record in records:
