@@ -53,6 +53,8 @@ def process_seranking(batch_id):
             batch.warnings = warnings + ([f'{excluded} URL-rijen buiten de projecthosts overgeslagen.'] if excluded else [])
             batch.status = 'complete'
             batch.save(update_fields=['record_count', 'status', 'request_metadata', 'warnings'])
+            from sources.snapshots import classify
+            classify(batch)
     except ImportBatch.DoesNotExist:
         return
     except PermissionDenied:

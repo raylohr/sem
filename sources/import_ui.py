@@ -180,11 +180,44 @@ def preview(request, project_id, batch_id):
                             SourceRecord.objects.bulk_update(chunk, ['data'], batch_size=500)
                 batch.status = 'complete'
                 batch.save(update_fields=['status', 'request_metadata', 'measured_at'])
-                messages.success(request, f'{batch.record_count} records geïmporteerd.')
+                from .snapshots import classify
+                batch = classify(batch)
+                announce_snapshot(request, batch)
                 return redirect('ui:batch', project_id=project_id, batch_id=batch.pk)
     context.update(batch=batch, summary=batch.request_metadata,
                    sample=batch.records.order_by('id')[:10], observation_form=observation_form)
     return render(request, 'ui/import_preview.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def activate_snapshot(request, project_id, batch_id):
+    context = project_context(request, project_id, 'sources')
+    if not context['can_edit']:
+        raise PermissionDenied
+    batch = get_object_or_404(ImportBatch, pk=batch_id, project=context['project'])
+    from .snapshots import activate
+    try:
+        activate(batch, request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, 'Deze import is nu de actieve snapshot. De analyses worden bijgewerkt.')
+    return redirect('ui:batch', project_id=project_id, batch_id=batch_id)
+
+
+def announce_snapshot(request, batch):
+    S = ImportBatch.Snapshot
+    text = f'{batch.record_count} records geïmporteerd · {batch.get_snapshot_status_display()}: {batch.snapshot_reason}'
+    if batch.snapshot_status in (S.REDUNDANT, S.CONFLICT, S.HISTORICAL):
+        suffix = {S.REDUNDANT: ' Deze import telt niet mee in de analyses.',
+                  S.CONFLICT: ' Deze import telt niet mee tot je op de importpagina kiest welke snapshot actief is.',
+                  S.HISTORICAL: ' Deze import telt niet mee in de actuele analyses.'}[batch.snapshot_status]
+        messages.warning(request, text + suffix)
+    else:
+        messages.success(request, text)
+    for warning in batch.quality_warnings:
+        messages.warning(request, 'Kwaliteitscontrole: ' + warning['message'])
 
 
 class ObservationDateForm(forms.Form):

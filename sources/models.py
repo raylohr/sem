@@ -14,7 +14,38 @@ class AtomicInventorySource(models.Model):
             return super().save(*args, **kwargs)
 
 
+# Snapshot statuses whose records count in analyses. An unclassified (NULL)
+# import also counts, so data stays visible until classify_snapshots --apply.
+COUNTED_SNAPSHOTS = ('active', 'supplement', 'independent')
+
+
+class ImportBatchQuerySet(models.QuerySet):
+    def published(self):
+        return self.filter(status__in=('complete', 'incomplete'))
+
+    def counted(self):
+        """The single rule for which imports feed analyses and exports."""
+        return self.published().filter(models.Q(snapshot_status__isnull=True) | models.Q(snapshot_status__in=COUNTED_SNAPSHOTS))
+
+    def analysable(self):
+        """Counted imports with per-URL records (summary and external reports stay out of the inventory)."""
+        # Explicit has_key branch: a NOT IN on a missing JSON key is NULL in SQL.
+        return self.counted().filter(~models.Q(request_metadata__has_key='record_scope')
+            | ~models.Q(request_metadata__record_scope__in=('summary', 'external')))
+
+
 class ImportBatch(AtomicInventorySource):
+    objects = ImportBatchQuerySet.as_manager()
+
+    class Snapshot(models.TextChoices):
+        ACTIVE = "active", "Actief"
+        SUPPLEMENT = "supplement", "Aanvullend"
+        SUPERSEDED = "superseded", "Vervangen"
+        REDUNDANT = "redundant", "Redundant"
+        HISTORICAL = "historical", "Historisch"
+        CONFLICT = "conflict", "Conflict"
+        INDEPENDENT = "independent", "Zelfstandig"
+
     class Source(models.TextChoices):
         GSC = "gsc", "Google Search Console"
         SF = "sf", "Screaming Frog"
@@ -51,10 +82,20 @@ class ImportBatch(AtomicInventorySource):
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
     seranking_connection = models.ForeignKey("integrations.SERankingConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
+    # Dataset = project + source + report type (+ segment, e.g. a GSC indexing category).
+    dataset_key = models.CharField(max_length=255, blank=True, default='')
+    snapshot_status = models.CharField(max_length=12, choices=Snapshot.choices, null=True, blank=True)
+    snapshot_reason = models.TextField(blank=True)
+    quality_warnings = models.JSONField(default=list, blank=True)
+    superseded_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    @property
+    def counts_in_analyses(self):
+        return self.status in ('complete', 'incomplete') and (self.snapshot_status is None or self.snapshot_status in COUNTED_SNAPSHOTS)
 
     class Meta:
         ordering = ["-imported_at", "-id"]
-        constraints = [models.UniqueConstraint(fields=["project", "file_checksum"], name="unique_project_file_import"), models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
+        constraints = [models.UniqueConstraint(fields=["project", "dataset_key"], condition=models.Q(snapshot_status="active"), name="one_active_snapshot_per_dataset"), models.UniqueConstraint(fields=["project", "file_checksum"], name="unique_project_file_import"), models.CheckConstraint(condition=(models.Q(period_start__isnull=True) | models.Q(period_end__isnull=True) | models.Q(period_end__gte=models.F("period_start"))), name="valid_import_period")]
 
 
 class SourceRecordQuerySet(models.QuerySet):

@@ -41,9 +41,7 @@ def observation_date(data, batch):
 
 def project_inventory(project, *, include_data=False, target_url=None, include_fields=False, _records=None, _batches=None):
     fields = ['id', 'source', 'measured_at', 'period_end', 'imported_at', 'request_metadata']
-    batches = _batches if _batches is not None else {batch.pk: batch for batch in project.import_batches.filter(
-        status__in=('complete', 'incomplete')).only(*fields)
-        if batch.request_metadata.get('record_scope') not in ('summary', 'external')}
+    batches = _batches if _batches is not None else {batch.pk: batch for batch in project.import_batches.analysable().only(*fields)}
     columns = {}
     rows = {}
     field_cache = {}

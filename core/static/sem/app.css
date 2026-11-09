@@ -91,3 +91,4 @@
 .performance-tooltip-values span{display:block;color:#647580;font-size:.68rem}
 .performance-tooltip-values strong{display:block;font-size:1rem;margin-top:.2rem}
 @media(max-width:767px){.performance-panel-heading{align-items:start;padding:1.15rem}.performance-scope{font-size:.65rem}.performance-legend{justify-content:flex-start}.performance-tooltip{width:270px}}
+.snapshot-active{background:#def2e9;color:#176c4b}.snapshot-supplement{background:#e2eefa;color:#285f95}.snapshot-independent{background:#edf0f2;color:#53616b}.snapshot-superseded,.snapshot-historical{background:#edf0f2;color:#647580}.snapshot-redundant{background:#fff2d4;color:#825d10}.snapshot-conflict{background:#fae7e7;color:#a43535}.snapshot-warning{background:#fff2d4;color:#825d10}
