@@ -139,6 +139,17 @@ def batch(request, project_id, batch_id):
             for record in page.object_list:
                 record.table_values = [record.data.get(column, '') for column in columns]
             context.update(report_table=True, report_columns=columns)
+    if item.source == 'seranking' and item.status in ('complete', 'incomplete'):
+        rows = item.records.order_by('id')
+        query = request.GET.get('q', '').strip()[:500]
+        if query:
+            rows = rows.filter(data__icontains=query)
+        page = Paginator(rows, 50).get_page(request.GET.get('page'))
+        from integrations.seranking import REPORT_COLUMNS
+        columns = REPORT_COLUMNS.get(item.request_metadata.get('type'), ())
+        for record in page.object_list:
+            record.table_values = [record.data.get(column, '') for column in columns]
+        context.update(url_page=page, query=query, report_table=True, report_columns=columns)
     context.update(batch=item, records=item.records.order_by('id')[:10] if item.status in ('complete','incomplete') else [])
     return render(request,'ui/batch.html',context)
 
@@ -148,7 +159,14 @@ def batch(request, project_id, batch_id):
 @require_GET
 def connections(request, project_id):
     context=project_context(request,project_id,'connections')
-    context.update(connections=context['project'].gsc_connections.defer('encrypted_refresh_token'),gsc_configured=configured())
+    from integrations.seranking import configured as seranking_configured, REPORTS
+    from datetime import timedelta
+    from django.utils import timezone
+    today = timezone.localdate()
+    context.update(connections=context['project'].gsc_connections.defer('encrypted_refresh_token'),gsc_configured=configured(),
+        seranking_configured=seranking_configured(), seranking_reports=REPORTS.items(),
+        seranking_connections=context['project'].seranking_connections.all(),
+        seranking_start=(today-timedelta(days=7)).isoformat(), seranking_end=today.isoformat())
     return render(request,'ui/connections.html',context)
 
 

@@ -69,7 +69,7 @@ def remove(request, project_id):
             form.add_error(None, ' '.join(exc.messages))
     context.update(form=form, deletion_counts={
         'batches': project.import_batches.count(),
-        'connections': project.gsc_connections.count(),
+        'connections': project.gsc_connections.count() + project.seranking_connections.count(),
         'members': project.memberships.count(),
     })
     return render(request, 'projects/delete.html', context)

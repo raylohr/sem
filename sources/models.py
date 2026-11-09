@@ -19,6 +19,7 @@ class ImportBatch(AtomicInventorySource):
         GSC = "gsc", "Google Search Console"
         SF = "sf", "Screaming Frog"
         AHREFS = "ahrefs", "Ahrefs"
+        SERANKING = "seranking", "SE Ranking"
     class Method(models.TextChoices):
         API = "api", "API"
         FILE = "file", "Bestand"
@@ -48,6 +49,7 @@ class ImportBatch(AtomicInventorySource):
 
     error = models.CharField(max_length=255, blank=True)
     gsc_connection = models.ForeignKey("integrations.GSCConnection", null=True, blank=True, on_delete=models.PROTECT)
+    seranking_connection = models.ForeignKey("integrations.SERankingConnection", null=True, blank=True, on_delete=models.PROTECT)
     request_metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:

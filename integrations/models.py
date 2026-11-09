@@ -40,3 +40,16 @@ class GSCOAuthSettings(models.Model):
 
     class Meta:
         constraints = [models.CheckConstraint(condition=models.Q(id=1), name="single_gsc_oauth_settings")]
+
+
+class SERankingConnection(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="seranking_connections")
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    site_id = models.PositiveBigIntegerField()
+    site_name = models.CharField(max_length=2048)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'site_id'], name='unique_project_seranking_site')]

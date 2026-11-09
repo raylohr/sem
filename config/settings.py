@@ -146,3 +146,6 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Tests must explicitly select the isolated test configuration.
 TEST_RUNNER = "config.test_runner.IsolatedDatabaseTestRunner"
+
+# SE Ranking is restricted by integrations.seranking to read-only Project endpoints.
+SERANKING_API_KEY = os.environ.get("SERANKING_API_KEY", "")

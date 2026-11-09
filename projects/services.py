@@ -81,7 +81,7 @@ def update_project(*, actor, project_id, name, website, domain="", include_subdo
 def delete_project(*, actor, project_id, confirmation_name):
     from accounts.services import platform_actor
     from sources.models import ImportBatch, BatchDeletionEvent
-    from integrations.models import GSCConnection
+    from integrations.models import GSCConnection, SERankingConnection
     lock_access_changes()
     platform_actor(actor)
     project = Project.objects.select_for_update().get(pk=project_id)
@@ -94,6 +94,7 @@ def delete_project(*, actor, project_id, confirmation_name):
     # Remove protected children in dependency order; late workers cannot recreate batches.
     ImportBatch.objects.filter(project=project).delete()
     GSCConnection.objects.filter(project=project).delete()
+    SERankingConnection.objects.filter(project=project).delete()
     AuditEvent.objects.create(actor=actor, action='project_deleted',
                               details={'project_id': str(project.pk), 'name': project.name,
                                        'batches': len(batches)})

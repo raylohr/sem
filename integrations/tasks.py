@@ -105,3 +105,6 @@ def schedule_daily_gsc():
             gsc_connection__daily_enabled=True, status__in=["pending", "failed"],
             request_metadata__has_key="scheduled_date").values_list("pk", flat=True):
         enqueue_gsc(batch_id)
+
+# Register Project API tasks with Celery autodiscovery.
+from .seranking_tasks import process_seranking  # noqa: F401,E402

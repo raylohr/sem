@@ -10,7 +10,7 @@ from projects.hosts import allows_url
 from .models import SourceRecord
 from .content_types import content_badge
 
-DEFAULT_SOURCES = {'ahrefs': 'Ahrefs', 'gsc': 'GSC', 'sf': 'SF'}
+DEFAULT_SOURCES = {'ahrefs': 'Ahrefs', 'gsc': 'GSC', 'sf': 'SF', 'seranking': 'SE Ranking'}
 URL_FIELDS = ('url', 'Address', 'URL', 'Target URL', 'Page URL')
 
 
@@ -78,8 +78,8 @@ def project_inventory(project, *, include_data=False, target_url=None, include_f
                 if previous is None or rank > previous['rank']:
                     values[field['id']] = {'field': field, 'value': value, 'date': stamp,
                         'fallback': fallback, 'rank': rank, 'batch_id': batch_id, 'record_id': record_id}
-        title = data.get('Title 1') if source == 'sf' else data.get('Title') if source == 'ahrefs' else None
-        title_rank = (2 if source == 'sf' else 1, *rank)
+        title = data.get('Title 1') if source == 'sf' else data.get('Title') if source == 'ahrefs' else data.get('title') if source == 'seranking' else None
+        title_rank = (2 if source == 'sf' else 1 if source == 'ahrefs' else 0, *rank)
         if isinstance(title, str) and title.strip() and (rows[url]['title_rank'] is None or title_rank > rows[url]['title_rank']):
             rows[url].update(title=title.strip(), title_rank=title_rank,
                              title_source=DEFAULT_SOURCES[source], title_date=stamp,

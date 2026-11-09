@@ -127,3 +127,31 @@ vrije tekst is inhoudelijk verschillend voor de hash en wordt niet automatisch
 samengevoegd.
 
 De URL-inventaris gebruikt databasepaginering en een achtergrondprojectie; zie [opbouw, exports en uitrol](docs/inventory-pagination.md).
+
+SE Ranking is beschikbaar via **Data → Koppelingen** met `SERANKING_API_KEY` in
+`.env` (Compose geeft de sleutel aan web en worker door). Zoek een SE Ranking-project
+binnen de projecthosts, koppel het en haal afzonderlijke rapportsnapshots op.
+Ondersteund: zoekwoordposities (maximaal 31 dagen per import), zoekwoorden en
+bedoelde doel-URL’s, projectoverzicht, zoekmachines/locaties, gevolgde concurrenten,
+gemonitorde backlinks, GSC-zoekopdrachten, SEO-potentieel en pagina’s uit bestaande
+voltooide audits. Rapporten zijn doorzoekbaar en gepagineerd; de oorspronkelijke
+bronrijen blijven onder `raw` bewaard. Mislukte/wachtende imports kunnen opnieuw
+worden gestart. Er is nog geen automatische dagelijkse SE Ranking-import.
+
+De connector is **Project API-only en alleen-lezen**: een vaste HTTPS-host en
+expliciete endpoint-/parameterallowlist blokkeren alle andere API-routes voordat
+netwerkverkeer plaatsvindt. Redirects zijn uitgeschakeld; de sleutel gaat alleen
+via de Authorization-header en wordt niet in verbindingen of imports opgeslagen.
+Er is geen algemene SE Ranking-proxy, instelbare API-basis-URL of Data API-fallback.
+Dit is een applicatiebeperking; het verandert de rechten van de sleutel bij
+SE Ranking zelf niet. AI-tracking, Local Marketing en de Data API zijn niet ontsloten.
+
+Alleen projectbeheerders kunnen koppelen/ontkoppelen; editors kunnen importeren.
+De worker controleert toegang opnieuw en publiceert een snapshot atomair. URL-rijen
+buiten de actuele hostregels worden overgeslagen. Posities zonder waargenomen
+landings-URL blijven als zoekwoordhistorie bewaard zonder URL-inventarisvermelding.
+Bedoelde doel-URL’s worden nooit als waargenomen landings-URL gebruikt.
+Project-/zoekwoordrapporten verschijnen uitsluitend als bronrapport; auditpagina’s,
+backlinkdoelen en daadwerkelijke landingspagina’s verrijken de URL-inventaris,
+URL-details en configureerbare bronvelden. Zoekvolume/CPC zijn zoekwoordmetrics,
+SEO-potentieel is een schatting, en GSC via SE Ranking bevat alleen querymetrics.
