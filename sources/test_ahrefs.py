@@ -117,3 +117,33 @@ class AhrefsImportTests(TestCase):
         self.assertFalse(ImportBatch.objects.exists())
         Membership.objects.filter(project=self.project, user=self.user).update(role='viewer')
         self.assertEqual(self.client.post(self.url, {'file': export()}).status_code, 403)
+
+
+class AhrefsExpectedColumnTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('ahrefs-columns')
+        self.project = Project.objects.create(name='Kolommen', website='https://example.com', domain='example.com', created_by=self.user)
+        Membership.objects.create(project=self.project, user=self.user, role='editor')
+        self.client.force_login(self.user)
+        self.url = reverse('ui:import', args=[self.project.pk])
+
+    def test_pages_export_without_link_columns_warns_but_imports(self):
+        from .ahrefs import EXPECTED_COLUMNS
+        parsed = detect_export(export())
+        self.assertEqual(parsed['summary']['missing_expected_columns'], list(EXPECTED_COLUMNS['ahrefs_site_audit_pages']))
+        response = self.client.post(self.url, {'file': export()})
+        batch = ImportBatch.objects.get()
+        self.assertTrue(any('No. of backlinks' in warning for warning in batch.warnings))
+        self.assertContains(self.client.get(response.url), 'Verwachte kolommen ontbreken')
+        self.client.post(response.url, {'action': 'confirm', 'observed_on': '2026-10-29'})
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'complete')
+
+    def test_partial_and_complete_column_selection(self):
+        partial = detect_export(export(enriched=True))['summary']['missing_expected_columns']
+        self.assertEqual(partial, ['No. of dofollow backlinks', 'No. of keywords with Top 10 position'])
+        from .ahrefs import EXPECTED_COLUMNS
+        headers = sorted(BASE_COLUMNS | {'No. of all inlinks', 'First found at'}) + list(EXPECTED_COLUMNS['ahrefs_site_audit_pages'])
+        raw = (','.join(headers) + '\n' + ','.join('https://example.com/' if h == 'URL' else '1' for h in headers) + '\n').encode()
+        self.assertEqual(detect_export(SimpleUploadedFile('full.csv', raw))['summary']['missing_expected_columns'], [])
+        self.assertEqual(detect_export(export(issue=True))['summary']['missing_expected_columns'], [])

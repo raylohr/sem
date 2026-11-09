@@ -11,6 +11,12 @@ from .screamingfrog import MAX_ROWS
 BASE_COLUMNS = {'PR', 'URL', 'Title', 'Content type', 'Is rendered page',
                 'HTTP status code', 'Organic traffic', 'Depth', 'Is indexable page'}
 TITLE_COLUMNS = {'Title length', 'No. of titles', 'Title patch', 'Title patch status'}
+# Optional in Ahrefs' column picker, but analyses (Performance X-axis, top-3/10
+# KPIs) depend on them. Missing columns warn; they never block an import.
+EXPECTED_COLUMNS = {
+    'ahrefs_site_audit_pages': ('No. of backlinks', 'No. of referring domains', 'No. of dofollow backlinks',
+                                'No. of keywords with Top 3 position', 'No. of keywords with Top 10 position'),
+}
 
 
 def parse_ahrefs(raw, filename=''):
@@ -61,4 +67,5 @@ def parse_ahrefs(raw, filename=''):
             'parser_version': 'ahrefs-site-audit-csv-v1', 'rows': rows,
             'checksum': hashlib.sha256(raw).hexdigest(), 'measured_at': None,
             'summary': {'type': kind, 'report_label': label, 'columns': headers,
-                        'suggested_date': suggested_date}}
+                        'suggested_date': suggested_date,
+                        'missing_expected_columns': [column for column in EXPECTED_COLUMNS.get(kind, ()) if column not in headers]}}

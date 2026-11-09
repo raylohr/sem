@@ -17,7 +17,7 @@ def scatter_data(rows, requested='', *, catalog=None):
     if default is None:
         default=next((field for field in fields if field['source']=='ahrefs' and field['path']==['No. of backlinks']),None)
     selected=next((field for field in fields if field['id']==requested),default)
-    points=[];html_count=0
+    points=[];html_count=0;x_count=0;y_count=0
     for row in rows:
         content=latest_value(row,'sf',['@contenttype'])
         if content is None:
@@ -27,12 +27,17 @@ def scatter_data(rows, requested='', *, catalog=None):
         html_count+=1
         x=number(row.get('field_values',{}).get(selected['id'],{}).get('value')) if selected else None
         y=number(latest_value(row,'ahrefs',['Organic traffic']))
+        x_count+=x is not None
+        y_count+=y is not None
         if x is None or y is None or x<0 or y<0:continue
         x,y=float(x),float(y)
         if not math.isfinite(x) or not math.isfinite(y):continue
         points.append({'url':row['url'],'title':row['title'] or '—','x':x,'y':y})
     return {'performance_fields':fields,'performance_x':selected,'performance_points':points,
-            'performance_html_count':html_count,'performance_missing_count':html_count-len(points)}
+            'performance_html_count':html_count,'performance_missing_count':html_count-len(points),
+            'performance_x_count':x_count,'performance_y_count':y_count,
+            # A field from a narrower export silently shrinks the chart; say so.
+            'performance_x_sparse':bool(selected) and html_count>0 and x_count<html_count/2}
 
 
 def indexed_scatter(inventory, requested=''):

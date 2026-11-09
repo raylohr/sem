@@ -101,6 +101,9 @@ def upload(request, project_id):
                         warnings.append(f"{summary['invalid_url_rows']} ongeldige URL-rijen zijn door de hostcontrole uitgesloten.")
                     if summary.get('unknown_crawl_dates'):
                         warnings.append(f"{summary['unknown_crawl_dates']} crawl-datums met 1970-01-01 zijn als onbekend verwerkt.")
+                    if summary.get('missing_expected_columns'):
+                        warnings.append('Verwachte kolommen ontbreken in deze export: ' + ', '.join(summary['missing_expected_columns'])
+                                        + '. Analyses die deze velden gebruiken (zoals de Performance-grafiek) tonen dan minder URLs. Voeg de kolommen toe in de kolomselectie van Ahrefs en exporteer opnieuw.')
                     if parsed['source'] == 'gsc':
                         warnings.append('GSC levert voorbeelden, geen volledige URL-lijst. De export kan maximaal 1.000 URL-voorbeelden bevatten.')
                     batch = ImportBatch.objects.create(
