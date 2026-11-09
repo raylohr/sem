@@ -15,6 +15,7 @@ ENDPOINTS = MappingProxyType({
     'engines': ('sites/search-engines', frozenset({'site_id'})),
     'keywords': ('keywords', frozenset({'site_id'})),
     'summary': ('sites/summary', frozenset({'site_id'})),
+    'checkpoints': ('sites/positions/checkpoints', frozenset({'site_id'})),
     'rankings': ('sites/positions', frozenset({'site_id', 'date_from', 'date_to', 'with_landing_pages', 'with_serp_features', 'with_content_score'})),
     'competitors': ('competitors', frozenset({'site_id'})),
     'backlinks': ('backlinks', frozenset({'site_id', 'limit', 'offset'})),

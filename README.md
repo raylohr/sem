@@ -172,3 +172,12 @@ oude worker een nieuwe poging publiceert of als mislukt markeert. Onderbroken
 imports worden na 35 minuten als mislukt gemarkeerd en kunnen handmatig opnieuw
 worden gestart. Dit maakt geen nieuwe rapporten aan en schakelt geen dagelijkse
 import in. Er zijn voor deze herbouw geen nieuwe databasevelden of migraties nodig.
+
+Alle ondersteunde SE Ranking-rapporten voor actieve gekoppelde projecten ophalen:
+`python manage.py import_seranking_projects` (optioneel `--project PROJECT_UUID`).
+Dit gebruikt uitsluitend de bestaande Project API-connector. De extra alleen-lezen
+`sites/positions/checkpoints`-methode bepaalt de eerste en laatste beschikbare
+rankingdatum; ontbrekende historie wordt in perioden van maximaal 31 dagen opgehaald.
+Bestaande volledige historie en ongewijzigde auditimports blijven behouden.
+Projectrapporten worden per dag hergebruikt; ontbrekende of geweigerde rapporten
+blijven als fout zichtbaar en verhinderen de overige imports niet.
