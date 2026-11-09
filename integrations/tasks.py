@@ -107,4 +107,4 @@ def schedule_daily_gsc():
         enqueue_gsc(batch_id)
 
 # Register Project API tasks with Celery autodiscovery.
-from .seranking_tasks import process_seranking  # noqa: F401,E402
+from .seranking_tasks import process_seranking, dispatch_seranking_imports  # noqa: F401,E402

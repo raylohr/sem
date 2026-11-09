@@ -120,6 +120,7 @@ FILE_UPLOAD_PERMISSIONS = 0o600
 GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
 GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
 CELERY_BEAT_SCHEDULE = {
+    "seranking-import-dispatch": {"task": "integrations.seranking_tasks.dispatch_seranking_imports", "schedule": 60.0},
     "inventory-export-dispatch": {"task": "sources.tasks.dispatch_inventory_exports", "schedule": 30.0},
     "inventory-export-cleanup": {"task": "sources.tasks.cleanup_inventory_exports", "schedule": 3600.0},
     "inventory-rebuild": {"task": "sources.tasks.rebuild_pending_inventories", "schedule": 30.0},

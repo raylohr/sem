@@ -224,3 +224,23 @@ document.querySelectorAll('[data-select-values]').forEach(button => {
 document.querySelectorAll('[data-open-modal]').forEach(element => {
   if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(element).show();
 });
+
+
+// Explain the selected report and request dates only for ranking history.
+document.querySelectorAll('[data-seranking-import]').forEach((form) => {
+  const select = form.querySelector('[name="report"]');
+  const description = form.querySelector('[data-seranking-description]');
+  const update = () => {
+    const rankings = select.value === 'rankings';
+    description.textContent = select.selectedOptions[0]?.dataset.description || '';
+    form.querySelectorAll('[data-seranking-dates]').forEach((group) => {
+      group.hidden = !rankings;
+      group.querySelectorAll('input').forEach((input) => {
+        input.disabled = !rankings;
+        input.required = rankings;
+      });
+    });
+  };
+  select.addEventListener('change', update);
+  update();
+});

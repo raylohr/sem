@@ -159,12 +159,12 @@ def batch(request, project_id, batch_id):
 @require_GET
 def connections(request, project_id):
     context=project_context(request,project_id,'connections')
-    from integrations.seranking import configured as seranking_configured, REPORTS
+    from integrations.seranking import configured as seranking_configured, report_options
     from datetime import timedelta
     from django.utils import timezone
     today = timezone.localdate()
     context.update(connections=context['project'].gsc_connections.defer('encrypted_refresh_token'),gsc_configured=configured(),
-        seranking_configured=seranking_configured(), seranking_reports=REPORTS.items(),
+        seranking_configured=seranking_configured(), seranking_reports=report_options(),
         seranking_connections=context['project'].seranking_connections.all(),
         seranking_start=(today-timedelta(days=7)).isoformat(), seranking_end=today.isoformat())
     return render(request,'ui/connections.html',context)

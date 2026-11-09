@@ -126,6 +126,61 @@ class ProjectClientTests(SimpleTestCase):
         self.assertEqual(client.pages.call_count, 1)
 
 
+    @patch('integrations.seranking.requests.Session')
+    def test_required_and_typed_parameters_fail_before_network(self, session):
+        cases = [ ('summary', {}), ('audit_pages', {'site_id': 1}),
+                  ('summary', {'site_id': True}), ('backlinks', {'site_id': 1, 'limit': 1001}),
+                  ('backlinks', {'site_id': 1, 'offset': -1}),
+                  ('rankings', {'site_id': 1}),
+                  ('rankings', {'site_id': 1, 'date_from': '2026-11-03', 'date_to': '2026-11-01'}),
+                  ('rankings', {'site_id': 1, 'date_from': '2026-10-01', 'date_to': '2026-11-10'}),
+                  ('rankings', {'site_id': 1, 'date_from': '20261101', 'date_to': '2026-11-01'}),
+                  ('rankings', {'site_id': 1, 'date_from': '2026-11-01', 'date_to': '2026-11-01', 'with_landing_pages': 2}) ]
+        for endpoint, params in cases:
+            with self.subTest(endpoint=endpoint, params=params), self.assertRaises(SERankingError):
+                ProjectClient().get(endpoint, **params)
+        session.assert_not_called()
+
+    def test_short_pages_use_actual_offset(self):
+        client = ProjectClient()
+        client.get = MagicMock(side_effect=[{'items': [{'id': 1}], 'total': 2},
+                                           {'items': [{'id': 2}], 'total': 2}])
+        self.assertEqual(len(client.pages('audit_pages', audit_id=1)), 2)
+        self.assertEqual(client.get.call_args_list[1].kwargs['offset'], 1)
+
+    def test_repeated_pages_and_changing_totals_are_rejected(self):
+        for pages in ([{'items': [{'id': 1}], 'total': 3}, {'items': [{'id': 1}], 'total': 3}],
+                      [{'items': [{'id': 1}], 'total': 3}, {'items': [{'id': 2}], 'total': 4}],
+                      [{'items': [], 'total': -1}], [{'items': [], 'total': '3'}]):
+            with self.subTest(pages=pages):
+                client = ProjectClient()
+                client.get = MagicMock(side_effect=pages)
+                with self.assertRaises(SERankingError):
+                    client.pages('audit_pages', audit_id=1)
+
+    @patch('integrations.seranking.verify_connection')
+    def test_every_snapshot_report_preserves_source_payload(self, verify):
+        for report in ('keywords', 'summary', 'engines', 'competitors', 'gsc_queries', 'seo_potential'):
+            with self.subTest(report=report):
+                client = MagicMock()
+                raw = {'example': 42}
+                client.get.return_value = raw if report == 'summary' else [raw]
+                batch = SimpleNamespace(seranking_connection=SimpleNamespace(site_id=123), request_metadata={'type': report})
+                records, _ = fetch_report(client, batch, lambda: None)
+                self.assertEqual(records[0]['data']['raw'], raw)
+                client.get.assert_called_once_with(report, site_id=123)
+
+    def test_audit_search_uses_domain_and_filters_project(self):
+        from .seranking import site_audits
+        client = MagicMock()
+        client.pages.return_value = [ {'id': 1, 'site_id': 123, 'status': 'finished'},
+                                      {'id': 2, 'site_id': 456, 'status': 'finished'},
+                                      {'id': 3, 'site_id': 123, 'status': 'processing'} ]
+        connection = SimpleNamespace(site_id=123, site_name='https://example.test/')
+        self.assertEqual([row['id'] for row in site_audits(client, connection)], [1])
+        self.assertEqual(client.pages.call_args.kwargs['search'], 'example.test')
+
+
 @override_settings(SERANKING_API_KEY='private-key')
 class ProjectIntegrationTests(TestCase):
     def setUp(self):
@@ -325,3 +380,84 @@ class ProjectIntegrationTests(TestCase):
         self.assertContains(response, 'name="audit_id" value="700138456"')
         self.assertTrue(response.context['can_edit'])
         self.assertEqual(response.context['role'], 'admin')
+
+
+    def test_nonranking_reports_ignore_irrelevant_invalid_dates(self):
+        from .seranking_views import ImportForm
+        form = ImportForm({'report': 'summary', 'start': 'not-a-date', 'end': 'also-invalid'})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data.get('start'))
+
+    @patch('integrations.seranking_tasks.enqueue_seranking')
+    def test_dispatch_recovers_pending_without_creating_new_batches(self, enqueue):
+        from .seranking_tasks import dispatch_seranking_imports
+        from django.utils import timezone
+        from datetime import timedelta
+        pending = self.batch()
+        expired = self.batch()
+        ImportBatch.objects.filter(pk=expired.pk).update(status='processing', request_metadata={
+            'type': 'rankings', 'worker_run': {'token': 'old', 'started_at': (timezone.now()-timedelta(minutes=36)).isoformat()}})
+        dispatch_seranking_imports()
+        enqueue.assert_called_once_with(pending.pk)
+        expired.refresh_from_db()
+        self.assertEqual(expired.status, 'failed')
+        self.assertEqual(ImportBatch.objects.count(), 2)
+
+    def test_obsolete_worker_cannot_fail_new_attempt(self):
+        from .seranking_tasks import fail_run, check_access
+        from django.core.exceptions import PermissionDenied
+        batch = self.batch()
+        ImportBatch.objects.filter(pk=batch.pk).update(status='processing', request_metadata={
+            'type': 'rankings', 'worker_run': {'token': 'new'}})
+        fail_run(batch.pk, 'old', 'old error')
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'processing')
+        self.assertEqual(batch.error, '')
+        with self.assertRaises(PermissionDenied):
+            check_access(batch.pk, 'old')
+
+    def test_report_options_explain_url_scope(self):
+        response = self.client.get(reverse('ui:connections', args=[self.project.pk]))
+        self.assertContains(response, 'data-seranking-import')
+        self.assertContains(response, 'data-description=')
+        self.assertContains(response, 'data-seranking-dates')
+        self.assertContains(response, 'Geen paginametrics.')
+
+    def test_wrong_source_task_cannot_change_other_import(self):
+        batch = ImportBatch.objects.create(project=self.project, created_by=self.owner, source='gsc', method='api', label='GSC')
+        process_seranking(str(batch.pk))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'pending')
+        self.assertFalse(batch.records.exists())
+
+    def test_dispatch_expires_legacy_processing_imports(self):
+        from .seranking_tasks import dispatch_seranking_imports
+        from django.utils import timezone
+        from datetime import timedelta
+        batch = self.batch()
+        ImportBatch.objects.filter(pk=batch.pk).update(status='processing', imported_at=timezone.now()-timedelta(hours=1))
+        with patch('integrations.seranking_tasks.enqueue_seranking') as enqueue:
+            dispatch_seranking_imports()
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'failed')
+        enqueue.assert_not_called()
+
+    @patch('integrations.seranking_tasks.fetch_report')
+    def test_revoked_import_does_not_publish_then_can_retry_after_reconnect(self, fetch):
+        batch = self.batch('summary')
+        self.connection.active = False
+        self.connection.save()
+        process_seranking(str(batch.pk))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'failed')
+        fetch.assert_not_called()
+        self.connection.active = True
+        self.connection.save()
+        fetch.return_value = ([{'locator': '1', 'data': {'visibility': 42}}], [])
+        with patch('integrations.seranking_tasks.enqueue_seranking'), self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('projects:sources:retry', args=[self.project.pk, batch.pk]))
+        self.assertEqual(response.status_code, 202)
+        process_seranking(str(batch.pk))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'complete')
+        self.assertEqual(batch.records.count(), 1)

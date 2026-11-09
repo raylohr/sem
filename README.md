@@ -155,3 +155,20 @@ Project-/zoekwoordrapporten verschijnen uitsluitend als bronrapport; auditpagina
 backlinkdoelen en daadwerkelijke landingspagina’s verrijken de URL-inventaris,
 URL-details en configureerbare bronvelden. Zoekvolume/CPC zijn zoekwoordmetrics,
 SEO-potentieel is een schatting, en GSC via SE Ranking bevat alleen querymetrics.
+
+
+De SE Ranking-herbouw na revert `f2dfbcf` behoudt bestaande verbindingen en imports;
+de ingetrokken snapshotclassificatie wordt niet teruggezet. Rapportkeuzes tonen
+uitleg en alleen positiehistorie vraagt datums. De client valideert verplichte
+identificaties, datums, opties en paginalimieten vóór ieder verzoek. Paginatie
+gebruikt het werkelijk ontvangen aantal en weigert herhaalde pagina’s, gewijzigde
+totalen en onvolledige antwoorden. Rankingrecords bewaren bronmetrics en de
+positie/landingspagina van de betreffende datum, zonder de volledige historie
+bij iedere datum te dupliceren.
+
+Beat probeert elke minuut reeds aangevraagde, wachtende SE Ranking-imports opnieuw
+te enqueuen na een brokerstoring. Een unieke uitvoeringscode voorkomt dat een
+oude worker een nieuwe poging publiceert of als mislukt markeert. Onderbroken
+imports worden na 35 minuten als mislukt gemarkeerd en kunnen handmatig opnieuw
+worden gestart. Dit maakt geen nieuwe rapporten aan en schakelt geen dagelijkse
+import in. Er zijn voor deze herbouw geen nieuwe databasevelden of migraties nodig.

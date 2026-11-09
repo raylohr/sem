@@ -15,7 +15,7 @@ from projects.permissions import can_edit, can_manage
 from sources.models import ImportBatch
 from sources.views import visible_project, batch_data
 from .models import SERankingConnection
-from .seranking import ProjectClient, REPORTS, SERankingError, configured, matching_projects, verify_connection
+from .seranking import ProjectClient, REPORTS, SERankingError, configured, matching_projects, verify_connection, site_audits
 from .seranking_tasks import enqueue_seranking
 
 
@@ -24,6 +24,13 @@ class ImportForm(forms.Form):
     start = forms.DateField(required=False)
     end = forms.DateField(required=False)
     audit_id = forms.IntegerField(min_value=1, required=False)
+
+    def __init__(self, data=None, *args, **kwargs):
+        if data is not None and data.get('report') != 'rankings':
+            data = data.copy()
+            data.pop('start', None)
+            data.pop('end', None)
+        super().__init__(data, *args, **kwargs)
 
     def clean(self):
         values = super().clean()
@@ -117,7 +124,7 @@ def audits(request, project_id, connection_id):
     try:
         client = ProjectClient()
         verify_connection(client, connection)
-        rows = client.pages('audits', search=connection.site_name)
+        rows = site_audits(client, connection)
     except SERankingError as exc:
         return JsonResponse({'error': str(exc)}, status=502)
     rows = [{'id': row.get('id'), 'title': row.get('title'), 'date': row.get('last_update')} for row in rows
@@ -148,7 +155,7 @@ def import_data(request, project_id, connection_id):
             label='SE Ranking · ' + label, created_by=request.user, seranking_connection=connection,
             period_start=values.get('start') if report == 'rankings' else None,
             period_end=values.get('end') if report == 'rankings' else None,
-            parser_version='seranking-project-v1', request_metadata={'type': report, 'record_scope': scope,
+            parser_version='seranking-project-v2', request_metadata={'type': report, 'record_scope': scope,
                 'site_id': connection.site_id, 'site_name': connection.site_name, 'report_label': label,
                 'audit_id': values.get('audit_id') if report == 'audit_pages' else None, 'api_scope': 'project-only'})
         transaction.on_commit(lambda: enqueue_seranking(batch.pk))
