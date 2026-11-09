@@ -59,7 +59,8 @@ def discover(request, project_id):
         sites = matching_projects(ProjectClient(), project)
     except SERankingError as exc:
         return JsonResponse({'error': str(exc)}, status=502)
-    return render(request, 'integrations/seranking_projects.html', {'project': project, 'sites': sites})
+    from core.ui import project_context
+    return render(request, 'integrations/seranking_projects.html', {**project_context(request, project.pk, 'connections'), 'sites': sites})
 
 
 @login_required
@@ -121,7 +122,8 @@ def audits(request, project_id, connection_id):
         return JsonResponse({'error': str(exc)}, status=502)
     rows = [{'id': row.get('id'), 'title': row.get('title'), 'date': row.get('last_update')} for row in rows
             if str(row.get('site_id')) == str(connection.site_id) and row.get('status') == 'finished']
-    return render(request, 'integrations/seranking_audits.html', {'project': project, 'connection': connection, 'audits': rows})
+    from core.ui import project_context
+    return render(request, 'integrations/seranking_audits.html', {**project_context(request, project.pk, 'connections'), 'connection': connection, 'audits': rows})
 
 
 @login_required

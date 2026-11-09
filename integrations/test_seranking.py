@@ -288,3 +288,40 @@ class ProjectIntegrationTests(TestCase):
         delete_project(actor=self.owner, project_id=self.project.pk, confirmation_name=self.project.name)
         self.assertFalse(SERankingConnection.objects.exists())
         self.assertFalse(ImportBatch.objects.exists())
+
+    @override_settings(LANGUAGE_CODE='nl', USE_THOUSAND_SEPARATOR=True)
+    @patch('integrations.seranking_views.matching_projects')
+    def test_localized_discovery_form_roundtrips_project_id(self, sites):
+        from html.parser import HTMLParser
+        from django.utils.translation import override
+        class Inputs(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.values = {}
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'input' and attrs.get('name'):
+                    self.values[attrs['name']] = attrs.get('value', '')
+        sites.return_value = [{'id': 13176785, 'name': 'example.test', 'title': 'Example'}]
+        with override('nl'):
+            response = self.client.post(self.url('discover', False))
+            parser = Inputs()
+            parser.feed(response.content.decode())
+            self.assertEqual(parser.values['site_id'], '13176785')
+            self.assertTrue(response.context['can_manage'])
+            self.assertEqual(response.context['role'], 'admin')
+            response = self.client.post(self.url('connect', False), parser.values)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(SERankingConnection.objects.filter(project=self.project, site_id=13176785, active=True).exists())
+
+    @override_settings(LANGUAGE_CODE='nl', USE_THOUSAND_SEPARATOR=True)
+    @patch('integrations.seranking_views.verify_connection')
+    @patch('integrations.seranking_views.ProjectClient')
+    def test_localized_audit_form_keeps_id_unformatted(self, client, verify):
+        from django.utils.translation import override
+        client.return_value.pages.return_value = [{'id': 700138456, 'site_id': 123, 'status': 'finished', 'title': 'Audit'}]
+        with override('nl'):
+            response = self.client.post(self.url('audits'))
+        self.assertContains(response, 'name="audit_id" value="700138456"')
+        self.assertTrue(response.context['can_edit'])
+        self.assertEqual(response.context['role'], 'admin')
