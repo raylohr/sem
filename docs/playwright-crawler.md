@@ -3,7 +3,7 @@
 De Playwright-bron heeft een configuratiescherm onder **Data → Koppelingen
 → Playwright → Crawlinstellingen** en een aparte Celery-uitvoeringsengine.
 Configuratie, uitvoering en HTML-archivering (stappen 1 t/m 3) zijn beschikbaar.
-Startbediening in de UI en periodieke planning volgen in stap 4.
+Ook startbediening, pauzes en periodieke planning (stap 4) zijn beschikbaar.
 Er worden geen screenshots gemaakt. De beschrijving van stap 1 hieronder legt
 ook vast welke onderdelen destijds uitsluitend werden voorbereid.
 
@@ -191,3 +191,67 @@ Dubbele en verouderde Celery-berichten kunnen geen extra archieven maken.
 
 De ketentest controleert nu ook de opgeslagen serverbody, JavaScript-DOM, tekst,
 vier gepubliceerde URL-waarnemingen en hun aanwezigheid in de URL-inventaris.
+
+# Stap 4 — bediening en herhaling
+
+Ga naar **Data → Koppelingen → Playwright → Crawl beheren**. Sla eerst de
+configuratie op. **Crawl starten** gebruikt uitsluitend de opgeslagen instellingen.
+Een bestaande crawl behoudt zijn startconfiguratie; wijzigingen gelden voor de
+volgende crawl. Er is per project maximaal één actieve of gepauzeerde crawl.
+
+De pagina toont de status, verwerkte/aangetroffen pagina’s en externe links,
+foutmeldingen, de laatste tien crawls en links naar gepubliceerde bronimports.
+Een apart statusfragment vernieuwt iedere tien seconden. Het instellingenformulier
+blijft intact, inclusief nog niet opgeslagen wijzigingen. Lezers/bewerkers kunnen
+status en resultaten bekijken; alleen projectbeheerders bedienen de crawler.
+Alle mutaties gebruiken POST, CSRF en een verse rechtencontrole. Start-, pauze-,
+hervat- en stopacties krijgen een auditgebeurtenis.
+
+**Crawl pauzeren** verhindert nieuwe starts. Reeds lopende requests kunnen nog
+afronden, maar hun resultaten worden niet meer aan die oude poging gekoppeld.
+Definitief afgeronde pagina’s blijven bewaard. Nog lopende URL’s worden bij
+hervatten opnieuw aangeboden zonder een retry te verbruiken. Tokens en leases
+maken oude taakberichten ongeldig. Voorbereiding hervat vanaf de startpunten;
+reeds ontdekte URL’s worden ontdubbeld. Voorbereiding en robots/sitemapverzoeken
+controleren ook hun uitvoeringsgeneratie. Pauzes tellen niet mee voor de maximale
+looptijd. Een pauze vóór de eerste uitvoering verlengt de latere runtime niet.
+
+**Crawl hervatten** gebruikt dezelfde URL-wachtrij en configuratiesnapshot.
+Rechten en projectgrenzen worden opnieuw gecontroleerd. **Stoppen en resultaten
+bewaren** rondt de batch als onvolledig af en publiceert de beschikbare waarnemingen.
+Bij ingetrokken toegang of gewijzigde projectgrenzen wordt de crawl geannuleerd
+en blijft de batch ongepubliceerd. Een gepauzeerde crawl wordt nooit automatisch
+hervat door de planning of herstelroutine.
+
+## Kalenderplanning
+
+**Automatisch herhalen** staat standaard uit, ook bij bestaande configuraties.
+Keuze: dagelijks of wekelijks, tijdstip (standaard 03:00) en bij wekelijks een
+weekdag (standaard maandag). De tijdzone is Europe/Amsterdam. Een niet-bestaand
+lokaal tijdstip bij de lenteovergang verschuift vooruit; een dubbel tijdstip in
+de herfst wordt slechts eenmaal ingepland. De volgende start is zichtbaar.
+Alleen de planning inschakelen start geen onmiddellijke crawl.
+
+De beheerder die een ingeschakelde planning opslaat, wordt de planner. Voor iedere
+start worden zijn actuele actieve account en projectbeheerrechten gecontroleerd.
+Bij ontbrekende rechten wordt herhaling uitgeschakeld met een zichtbare melding.
+Uitschakelen voorkomt toekomstige starts en laat een lopende crawl intact.
+
+Celery Beat biedt `integrations.crawl_schedule.schedule_playwright_crawls` iedere
+minuut aan de normale queue aan; het daadwerkelijke crawlwerk blijft in `crawler`.
+Planning en volgende start staan in PostgreSQL. Een transactie met toegangsslot
+en rijvergrendeling voorkomt dubbele starts. Iedere geplande crawl gebruikt de
+actuele opgeslagen configuratie en krijgt een nieuwe bronimport, inclusief
+`trigger=schedule` en het oorspronkelijke geplande tijdstip in de importmetadata.
+
+Is er al een actieve/gepauzeerde crawl, dan wordt de beurt overgeslagen en de
+volgende kalenderstart gepland. Na uitval start maximaal één verlate crawl;
+meerdere gemiste beurten leveren geen inhaalreeks op. Een brokerstoring verliest
+de start niet: de bestaande herstelroutine biedt de opgeslagen aanvraag opnieuw
+aan. De UI toont een korte melding over de laatste geplande beurt.
+
+Tests dekken onder meer UI-acties, CSRF/projectrechten, pauze tijdens rendering,
+oude taakberichten, behoud van ongepubliceerde resultaten, runtime na pauze,
+dag/weekplanning, beide DST-overgangen, herhaalde schedulerberichten, overlap,
+uitgeschakelde planning en ingetrokken rechten. De echte Celeryketentest start,
+pauzeert en hervat via de UI-routes vóór HTML-archivering en bronpublicatie.

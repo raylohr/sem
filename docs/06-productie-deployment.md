@@ -71,3 +71,10 @@ Het interne RPC-token staat als `CRAWLER_RENDER_TOKEN` in `.env`. De release bou
 ook `sem-browser:prod-COMMIT` en voert netwerkloze browsertests uit vóór productie
 wordt gestopt. Browser-binaries en systeembibliotheken worden hergebruikt zolang
 `ops/browser-requirements.txt` niet verandert.
+
+De crawlplanning gebruikt de bestaande Beat en normale worker: elke minuut draait
+`integrations.crawl_schedule.schedule_playwright_crawls`. Dag/weekplanning en pauzes
+staan duurzaam in PostgreSQL. Migratie 0009 breidt de actieve-crawlconstraint uit
+met gepauzeerde runs en laat herhaling standaard uit. Er zijn voor stap 4 geen
+nieuwe secrets of services nodig. De releasetest doorloopt nu ook UI-start,
+pauze en hervatten in de geïsoleerde Celery/browserketen.

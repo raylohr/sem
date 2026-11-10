@@ -1,7 +1,9 @@
 from django.urls import path
-from . import views, seranking_views
+from . import views, seranking_views, playwright_views
 app_name = "connections"
 urlpatterns = [
+    path("playwright/action/", playwright_views.crawl_action, name="playwright-action"),
+    path("playwright/status/", playwright_views.crawl_status, name="playwright-status"),
     path("seranking/<uuid:connection_id>/schedule/", seranking_views.schedule, name="seranking-schedule"),
     path("seranking/discover/", seranking_views.discover, name="seranking-discover"),
     path("seranking/connect/", seranking_views.connect, name="seranking-connect"),

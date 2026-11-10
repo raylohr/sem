@@ -26,7 +26,7 @@ def archive_page(crawl,row,data,documents):
 
 @transaction.atomic
 def finish_archive(crawl):
-    if not crawl.batch_id or crawl.status in ('pending','preparing','running'):
+    if not crawl.batch_id or crawl.status in ('pending','preparing','running','paused'):
         return
     batch=ImportBatch.objects.select_for_update().filter(pk=crawl.batch_id,status='processing').first()
     if not batch:

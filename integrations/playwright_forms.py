@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import time
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -42,6 +43,13 @@ class PlaywrightCrawlForm(forms.Form):
     max_retries = forms.IntegerField(required=False, min_value=0, max_value=3, initial=2, label='Retries bij tijdelijke fouten', help_text='Leeg: 2. Timeouts, 429 en tijdelijke serverfouten worden begrensd opnieuw geprobeerd.')
     scroll_for_lazy_content = forms.BooleanField(required=False, initial=False, label='Scrollen voor lazy loading', help_text='Optioneel, maximaal tien schermhoogtes binnen de paginatimeout.')
 
+    schedule_enabled = forms.BooleanField(required=False,initial=False,label='Automatisch herhalen',
+        help_text='Standaard uit. Uitschakelen stopt toekomstige starts; een lopende crawl kun je apart pauzeren of stoppen.')
+    schedule_frequency = forms.ChoiceField(required=False,choices=[('daily','Dagelijks'),('weekly','Wekelijks')],initial='daily',label='Herhaling')
+    schedule_time = forms.TimeField(required=False,initial=time(3,0),widget=forms.TimeInput(format='%H:%M',attrs={'type':'time'}),label='Starttijd (Nederlandse tijd)',
+        help_text='Europe/Amsterdam, inclusief zomer- en wintertijd. Standaard 03:00. Na uitval volgt maximaal één verlate start; geen reeks inhaal-crawls.')
+    schedule_weekday = forms.TypedChoiceField(required=False,coerce=int,choices=list(enumerate(['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag','Zondag'])),initial=0,label='Weekdag bij wekelijkse herhaling')
+
     def __init__(self, *args, project, instance=None, **kwargs):
         initial = kwargs.pop('initial', {})
         if instance:
@@ -60,6 +68,9 @@ class PlaywrightCrawlForm(forms.Form):
         for name, default in {'max_pages':10000,'max_depth':10,'max_duration_minutes':720,'render_timeout_seconds':30,'settle_seconds':2,'max_retries':2}.items():
             if name not in self.errors and data.get(name) is None:
                 data[name] = default
+        for name,default in {'schedule_frequency':'daily','schedule_time':time(3,0),'schedule_weekday':0}.items():
+            if name not in self.errors and data.get(name) in (None,''):
+                data[name]=default
         subdomains = data.get('include_subdomains', False)
         for field, cleaner in (
             ('start_urls', lambda values: clean_urls(values, self.project, include_subdomains=subdomains)),

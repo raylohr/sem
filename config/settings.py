@@ -120,6 +120,7 @@ FILE_UPLOAD_PERMISSIONS = 0o600
 GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
 GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
 CELERY_BEAT_SCHEDULE = {
+    "playwright-crawl-schedule": {"task":"integrations.crawl_schedule.schedule_playwright_crawls","schedule":60.0},
     "playwright-crawl-recovery": {"task": "integrations.crawl_tasks.recover_crawls", "schedule": 15.0},
     "seranking-daily-check": {"task": "integrations.seranking_tasks.schedule_daily_seranking", "schedule": 3600.0},
     "seranking-import-dispatch": {"task": "integrations.seranking_tasks.dispatch_seranking_imports", "schedule": 60.0},

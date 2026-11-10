@@ -25,7 +25,20 @@ def main():
     PlaywrightCrawlSettings.objects.create(project=project,desktop_profile='chrome_windows',
         parallel_agents=2,pages_per_second=2,max_pages=20,max_depth=2,max_duration_minutes=2,
         render_timeout_seconds=15,settle_seconds=1)
-    crawl=start_crawl(actor=user,project_id=project.pk)
+    from django.test import Client
+    from django.urls import reverse
+    client=Client()
+    client.force_login(user)
+    action=reverse('projects:connections:playwright-action',args=[project.pk])
+    assert client.post(action,{'action':'start'}).status_code==302
+    crawl=PlaywrightCrawl.objects.get(project=project)
+    assert client.post(action,{'action':'pause','crawl_id':crawl.pk}).status_code==302
+    crawl.refresh_from_db()
+    assert crawl.status=='paused'
+    crawl.batch.refresh_from_db()
+    assert crawl.batch.status=='processing'
+    time.sleep(2)
+    assert client.post(action,{'action':'resume','crawl_id':crawl.pk}).status_code==302
     print('Real Celery crawl queued:',crawl.pk,flush=True)
     deadline=time.monotonic()+110
     while time.monotonic()<deadline:
@@ -55,7 +68,7 @@ def main():
     from sources.url_inventory import project_inventory
     assert len(project_inventory(project)[1])==4
     assert PlaywrightCrawl.objects.count()==1
-    print('Celery → proxy → browser RPC → JavaScript + sitemap + subdomain + external HEAD → completion: OK',flush=True)
+    print('UI start/pause/resume → Celery → browser → HTML archive + inventory: OK',flush=True)
 
 
 if __name__=='__main__':

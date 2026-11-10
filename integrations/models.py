@@ -1,4 +1,5 @@
 import uuid
+from datetime import time
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 from .playwright_config import PROFILE_CHOICES
@@ -109,6 +110,14 @@ class PlaywrightCrawlSettings(models.Model):
     settle_seconds = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(1), MaxValueValidator(10)])
     max_retries = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(0), MaxValueValidator(3)])
     scroll_for_lazy_content = models.BooleanField(default=False)
+    schedule_enabled = models.BooleanField(default=False)
+    schedule_frequency = models.CharField(max_length=10, choices=[('daily','Dagelijks'),('weekly','Wekelijks')], default='daily')
+    schedule_time = models.TimeField(default=time(3,0))
+    schedule_weekday = models.PositiveSmallIntegerField(default=0, choices=list(enumerate(['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag','Zondag'])), validators=[MinValueValidator(0),MaxValueValidator(6)])
+    schedule_owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='playwright_schedules')
+    next_run_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_scheduled_at = models.DateTimeField(null=True, blank=True)
+    schedule_note = models.CharField(max_length=255, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -149,6 +158,7 @@ class PlaywrightCrawl(models.Model):
         PENDING = 'pending', 'Wacht op uitvoering'
         PREPARING = 'preparing', 'Start-URL’s verzamelen'
         RUNNING = 'running', 'Wordt gecrawld'
+        PAUSED = 'paused', 'Gepauzeerd'
         COMPLETE = 'complete', 'Voltooid'
         INCOMPLETE = 'incomplete', 'Onvolledig'
         FAILED = 'failed', 'Mislukt'
@@ -165,6 +175,9 @@ class PlaywrightCrawl(models.Model):
     profile = models.CharField(max_length=32)
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
+    paused_at = models.DateTimeField(null=True, blank=True)
+    paused_seconds = models.PositiveIntegerField(default=0)
+    resume_status = models.CharField(max_length=12, default='pending')
     finished_at = models.DateTimeField(null=True, blank=True)
     lease_until = models.DateTimeField(null=True, blank=True)
     run_token = models.UUIDField(null=True, blank=True)
@@ -175,7 +188,7 @@ class PlaywrightCrawl(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        constraints = [models.UniqueConstraint(fields=['project'], condition=models.Q(status__in=['pending','preparing','running']), name='one_active_playwright_crawl')]
+        constraints = [models.UniqueConstraint(fields=['project'], condition=models.Q(status__in=['pending','preparing','running','paused']), name='one_active_playwright_crawl')]
 
 
 class PlaywrightCrawlURL(models.Model):

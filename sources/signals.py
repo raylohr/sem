@@ -54,6 +54,6 @@ from integrations.models import PlaywrightCrawl
 
 @receiver(post_save, sender=PlaywrightCrawl)
 def crawl_archive_status(sender, instance, **kwargs):
-    if instance.status not in ('pending','preparing','running'):
+    if instance.status not in ('pending','preparing','running','paused'):
         from integrations.crawl_archive import finish_archive
         finish_archive(instance)

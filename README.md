@@ -208,7 +208,7 @@ uitsluitingen, desktopprofiel en de crawlbelasting opslaan. Standaard staan
 robots.txt-crawlregels uit, sitemaps en URL-ontdekking aan, en de belasting op
 1 paginastart/seconde met 1 agent (maximaal 20). De subdomeinkeuze wordt expliciet
 met de projecthostinstellingen gedeeld. Bekijken wijzigt niets.
-Configuratie, uitvoering en HTML-archivering zijn beschikbaar; UI-startbediening en herhaalplanning volgen in stap 4.
+Configuratie, uitvoering en HTML-archivering zijn beschikbaar; Bediening en optionele herhaalplanning zijn beschikbaar via **Data → Koppelingen → Playwright → Crawl beheren**.
 Er zijn geen screenshots voorzien. Zie [configuratie en afbakening](docs/playwright-crawler.md).
 
 
@@ -225,3 +225,12 @@ in PostgreSQL, met checksums en begrensde documentgrootte. Iedere crawl publicee
 herkenbaar onvolledig. Documenten zijn per waarneming te downloaden vanuit de
 URL-details of het bronrecord. Import verwijderen wist ook deze documenten.
 Geen screenshots.
+
+Playwright stap 4 biedt starten, pauzeren, hervatten en stoppen met behoud van
+beschikbare resultaten. De status vernieuwt iedere 10 seconden zonder het
+instellingenformulier te vervangen. Herhaling staat standaard uit. Met de switch
+**Automatisch herhalen** kan een projectbeheerder dagelijks of wekelijks plannen,
+met tijdstip en weekdag in Europe/Amsterdam. De bestaande Celery Beat/worker
+controleert de planning elke minuut; overlappende of gepauzeerde crawls worden
+niet vervangen. Na uitval volgt maximaal één verlate start. Een nieuwe crawl
+maakt een nieuwe bronimport. Alle vier implementatiestappen zijn beschikbaar.

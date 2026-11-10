@@ -19,12 +19,16 @@ from .models import PlaywrightCrawl, PlaywrightCrawlURL, PlaywrightCrawlSettings
 from .playwright_config import choose_desktop_profile, in_scope, is_excluded, project_domain
 from .crawl_http import safe_http_url
 
-ACTIVE = ('pending','preparing','running')
+ACTIVE = ('pending','preparing','running','paused')
 BUSY = ('queued','processing')
 SETTING_FIELDS = ('respect_robots','use_sitemaps','discover_urls','start_urls','sitemap_urls',
     'excluded_hosts','excluded_paths','desktop_profile','pages_per_second','parallel_agents',
     'slow_after_seconds','slow_pages_per_second','max_pages','max_depth','max_duration_minutes',
     'render_timeout_seconds','settle_seconds','max_retries','scroll_for_lazy_content')
+
+
+class CrawlPaused(Exception):
+    pass
 
 
 class CrawlExpired(Exception):
@@ -49,7 +53,9 @@ def access(crawl_id, *, token=None):
             or crawl.project.include_subdomains!=crawl.configuration['include_subdomains']
             or token is not None and crawl.run_token!=token):
         raise PermissionDenied
-    if crawl.started_at and timezone.now() >= crawl.started_at+timedelta(minutes=crawl.configuration['max_duration_minutes']):
+    if crawl.status=='paused':
+        raise CrawlPaused
+    if crawl.started_at and timezone.now() >= crawl.started_at+timedelta(minutes=crawl.configuration['max_duration_minutes'],seconds=crawl.paused_seconds):
         raise CrawlExpired
     return crawl
 
@@ -82,6 +88,9 @@ def start_crawl(*, actor, project_id, overrides=None):
     crawl.save(update_fields=['batch'])
     from .crawl_tasks import enqueue_bootstrap
     transaction.on_commit(lambda:enqueue_bootstrap(crawl.pk))
+    from accounts.models import AuditEvent
+    AuditEvent.objects.create(actor=actor,project=project,action=AuditEvent.Action.PROJECT_UPDATED,
+        details={'area':'playwright_crawl','crawl_id':str(crawl.pk),'action':'start'})
     return crawl
 
 
@@ -99,9 +108,9 @@ def stop_crawl(crawl_id, *, reason='Gestopt.', incomplete=False):
 
 
 @transaction.atomic
-def add_urls(crawl_id, values, *, depth=0, discovered_from='', provenance='inventory', kind='page'):
+def add_urls(crawl_id, values, *, run_token=None, depth=0, discovered_from='', provenance='inventory', kind='page'):
     crawl = PlaywrightCrawl.objects.select_for_update().get(pk=crawl_id)
-    access(crawl_id)
+    access(crawl_id,token=run_token)
     candidates = {}
     for value in values:
         try:
@@ -223,3 +232,51 @@ def report_health(crawl_id, *, slow=False, failed=False, retry_after=0):
             crawl.current_agents=min(crawl.configuration['parallel_agents'],crawl.current_agents+1)
             crawl.save(update_fields=['current_agents'])
     budget.save()
+
+
+@transaction.atomic
+def control_crawl(*,actor,project_id,crawl_id,action):
+    from django.db.models import F
+    from accounts.models import AuditEvent
+    lock_access_changes()
+    project=editable_project(actor,project_id)
+    crawl=PlaywrightCrawl.objects.select_for_update().get(pk=crawl_id,project=project)
+    if action=='stop':
+        stop_crawl(crawl.pk,reason='Gestopt door projectbeheerder; beschikbare resultaten bewaard.',incomplete=True)
+    elif action=='pause':
+        if crawl.status=='paused':
+            return crawl
+        if crawl.status not in ACTIVE:
+            raise ValidationError('Deze crawl is al afgerond.')
+        access(crawl.pk)
+        crawl.resume_status='running' if crawl.status=='running' else 'pending'
+        crawl.status='paused'
+        crawl.paused_at=timezone.now()
+        crawl.run_token=uuid4()
+        crawl.lease_until=None
+        crawl.urls.filter(status='processing',attempts__gt=0).update(attempts=F('attempts')-1)
+        crawl.urls.filter(status__in=BUSY).update(status='pending',task_token=None,lease_until=None,next_attempt_at=None)
+        crawl.save(update_fields=['status','paused_at','resume_status','run_token','lease_until'])
+    elif action=='resume':
+        if crawl.status!='paused':
+            raise ValidationError('Alleen een gepauzeerde crawl kan worden hervat.')
+        # Recheck the original crawl actor and scope before allowing more network work.
+        try:
+            access(crawl.pk)
+        except CrawlPaused:
+            pass
+        crawl.paused_seconds+=max(0,int((timezone.now()-crawl.paused_at).total_seconds())) if crawl.paused_at and crawl.started_at else 0
+        crawl.paused_at=None
+        crawl.status=crawl.resume_status
+        crawl.run_token=uuid4()
+        crawl.save(update_fields=['status','paused_seconds','paused_at','run_token'])
+        from .crawl_tasks import enqueue_bootstrap
+        if crawl.status=='pending':
+            transaction.on_commit(lambda:enqueue_bootstrap(crawl.pk))
+        else:
+            transaction.on_commit(lambda:dispatch_run(crawl.pk))
+    else:
+        raise ValidationError('Onbekende crawlactie.')
+    AuditEvent.objects.create(actor=actor,project=project,action=AuditEvent.Action.PROJECT_UPDATED,
+        details={'area':'playwright_crawl','crawl_id':str(crawl.pk),'action':action})
+    return crawl

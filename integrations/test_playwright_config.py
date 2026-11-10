@@ -162,7 +162,7 @@ class ConfigurationTests(TestCase):
         response=self.client.get(reverse('ui:connections',args=[self.project.pk]))
         self.assertContains(response,'Playwright')
         self.assertContains(response,self.url)
-        self.assertContains(response,'Crawlinstellingen')
+        self.assertContains(response,'Crawl beheren')
         self.assertFalse(ImportBatch.objects.exists())
 
     def test_direct_save_rechecks_access(self):

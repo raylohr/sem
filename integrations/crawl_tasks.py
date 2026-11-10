@@ -19,7 +19,7 @@ from sources.inventory_index import url_expression
 from .models import PlaywrightCrawl, PlaywrightCrawlURL, PlaywrightDomainBudget
 from .crawl_http import SafeHTTP, CrawlNetworkError, RobotsRules, sitemap_entries, MAX_ROBOTS, retry_after_seconds
 from .crawl_service import (ACTIVE, access, add_urls, acquire_slot, dispatch_run, stop_crawl, report_health,
-                            page_allowed, scope, CrawlExpired)
+                            page_allowed, scope, CrawlExpired, CrawlPaused)
 from .playwright_config import in_scope, DESKTOP_PROFILES
 from .crawl_renderer import desktop_user_agent, manifest_browser_version
 from .crawl_content import MAX_RENDER_RESPONSE, unpack_content
@@ -47,9 +47,9 @@ def enqueue_url(item_id,token):
         pass
 
 
-def metadata_pause(crawl_id):
+def metadata_pause(crawl_id,token=None):
     while True:
-        crawl=access(crawl_id)
+        crawl=access(crawl_id,token=token)
         with transaction.atomic():
             budget,_=PlaywrightDomainBudget.objects.get_or_create(domain=crawl.domain)
             budget=PlaywrightDomainBudget.objects.select_for_update().get(pk=crawl.domain)
@@ -65,8 +65,8 @@ def metadata_pause(crawl_id):
         time.sleep(min(1,wait))
 
 
-def robots_for(crawl_id,url):
-    crawl=access(crawl_id)
+def robots_for(crawl_id,url,token=None):
+    crawl=access(crawl_id,token=token)
     origin=urlsplit(url)
     key=origin.netloc
     cached=crawl.configuration.get('robots',{}).get(key)
@@ -74,8 +74,8 @@ def robots_for(crawl_id,url):
         retry_at=parse_datetime(cached.get('retry_at','')) if cached.get('retry_at') else None
         if not cached.get('unreachable') or retry_at and timezone.now()<retry_at:
             return cached
-    metadata_pause(crawl_id)
-    http=SafeHTTP(settings.CRAWLER_EGRESS_PROXY,desktop_user_agent(DESKTOP_PROFILES[crawl.profile],manifest_browser_version(DESKTOP_PROFILES[crawl.profile].engine)),lambda:access(crawl_id))
+    metadata_pause(crawl_id,token=token)
+    http=SafeHTTP(settings.CRAWLER_EGRESS_PROXY,desktop_user_agent(DESKTOP_PROFILES[crawl.profile],manifest_browser_version(DESKTOP_PROFILES[crawl.profile].engine)),lambda:access(crawl_id,token=token))
     try:
         result=http.fetch(f'{origin.scheme}://{origin.netloc}/robots.txt',maximum=MAX_ROBOTS,
                           allowed=lambda value:in_scope(scope(crawl),value))
@@ -89,6 +89,7 @@ def robots_for(crawl_id,url):
         robot['retry_at']=(timezone.now()+timedelta(seconds=60)).isoformat()
     with transaction.atomic():
         current=PlaywrightCrawl.objects.select_for_update().get(pk=crawl_id)
+        access(crawl_id,token=token)
         current.configuration={**current.configuration,'robots':{**current.configuration.get('robots',{}),key:robot}}
         current.save(update_fields=['configuration'])
     return robot
@@ -121,17 +122,17 @@ def bootstrap_crawl(crawl_id):
             crawl.lease_until=timezone.now()+timedelta(minutes=16)
             crawl.save(update_fields=['status','started_at','run_token','lease_until'])
         configuration=crawl.configuration
-        add_urls(crawl_id,[configuration['website']],provenance='website')
-        add_in_chunks(crawl_id,configuration['start_urls'],provenance='manual')
+        add_urls(crawl_id,[configuration['website']],provenance='website',run_token=token)
+        add_in_chunks(crawl_id,configuration['start_urls'],provenance='manual',run_token=token)
         batch_ids=[batch.pk for batch in crawl.project.import_batches.filter(status__in=('complete','incomplete'))
                    if batch.request_metadata.get('record_scope') not in ('summary','external')]
         seeds=SourceRecord.objects.filter(batch_id__in=batch_ids).annotate(seed_url=url_expression()).values_list('seed_url',flat=True).distinct()
-        add_in_chunks(crawl_id,seeds.iterator(chunk_size=500),provenance='inventory')
+        add_in_chunks(crawl_id,seeds.iterator(chunk_size=500),provenance='inventory',run_token=token)
         notes=[]
         successful_sitemaps=0
         if configuration['use_sitemaps']:
             origin=urlsplit(configuration['website'])
-            robot=robots_for(crawl_id,configuration['website'])
+            robot=robots_for(crawl_id,configuration['website'],token=token)
             rules=RobotsRules(robot.get('text',''))
             pending=list(dict.fromkeys([*configuration['sitemap_urls'],*rules.sitemaps,
                                        f'{origin.scheme}://{origin.netloc}/sitemap.xml']))
@@ -143,7 +144,7 @@ def bootstrap_crawl(crawl_id):
                     continue
                 seen.add(url)
                 try:
-                    metadata_pause(crawl_id)
+                    metadata_pause(crawl_id,token=token)
                     result=http.fetch(url,allowed=lambda value:page_allowed(crawl,value))
                     if result.status!=200:
                         notes.append({'type':'sitemap','url':url,'status':result.status})
@@ -153,7 +154,7 @@ def bootstrap_crawl(crawl_id):
                     if kind=='sitemapindex':
                         pending.extend(values[:100])
                     else:
-                        add_in_chunks(crawl_id,values,provenance='sitemap',discovered_from=url)
+                        add_in_chunks(crawl_id,values,provenance='sitemap',discovered_from=url,run_token=token)
                 except CrawlNetworkError:
                     notes.append({'type':'sitemap','url':url,'error':'niet_beschikbaar'})
             if not successful_sitemaps:
@@ -170,6 +171,8 @@ def bootstrap_crawl(crawl_id):
             current.save(update_fields=['status','notes','limit_reached','lease_until'])
         dispatch_run(crawl_id)
     except PlaywrightCrawl.DoesNotExist:
+        return
+    except CrawlPaused:
         return
     except PermissionDenied:
         if PlaywrightCrawl.objects.filter(pk=crawl_id,run_token=token,status__in=('pending','preparing')).exists():
@@ -310,12 +313,16 @@ def process_crawl_url(self,item_id,token):
         return
     except PlaywrightCrawl.DoesNotExist:
         return
+    except CrawlPaused:
+        return
     except PermissionDenied:
         if crawl_id:
             try:
                 access(crawl_id)
             except PermissionDenied:
                 stop_crawl(crawl_id,reason='Projecttoegang of domeingrenzen gewijzigd.')
+            except CrawlPaused:
+                pass
             except CrawlExpired:
                 stop_crawl(crawl_id,reason='Maximale looptijd bereikt.',incomplete=True)
     except CrawlExpired:
@@ -356,6 +363,8 @@ def recover_crawls():
                     error='Agent herhaaldelijk onderbroken; retrylimiet bereikt.',task_token=None,lease_until=None)
                 expired.filter(attempts__lte=crawl.configuration['max_retries']).update(status='pending',task_token=None,lease_until=None)
                 dispatch_run(crawl_id)
+        except CrawlPaused:
+            continue
         except PermissionDenied:
             stop_crawl(crawl_id,reason='Projecttoegang of domeingrenzen gewijzigd.')
         except CrawlExpired:
