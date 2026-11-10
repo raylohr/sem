@@ -6,6 +6,7 @@ import signal
 import time
 
 from .crawl_renderer import render_page
+from .crawl_content import pack_content
 
 
 def _child(pipe,url,configuration,profile,proxy):
@@ -16,7 +17,7 @@ def _child(pipe,url,configuration,profile,proxy):
             raise RuntimeError
     try:
         capture=render_page(url,configuration,profile,proxy,gate)
-        pipe.send(('result',capture.metadata()))
+        pipe.send(('result',{**capture.metadata(),'artifacts':pack_content(capture)}))
     except Exception:
         try:
             pipe.send(('result',{'error':'render_failed'}))

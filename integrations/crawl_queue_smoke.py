@@ -41,7 +41,19 @@ def main():
     assert all(row['status']=='complete' and row['metadata'].get('rendered_html_bytes',0)>0 for row in pages),rows
     assert len(external)==1 and external[0]['metadata']['reachable'] is True,rows
     assert all(row['status']=='complete' for row in rows),rows
-    assert not ImportBatch.objects.filter(project=project,source='playwright').exists()
+    from sources.models import CrawlPageArtifact
+    from integrations.crawl_content import decompress_document
+    batch=ImportBatch.objects.get(project=project,source='playwright')
+    assert batch.status=='complete' and batch.record_count==4
+    assert CrawlPageArtifact.objects.filter(record__batch=batch).count()==4
+    record=batch.records.get(data__url='http://fixture.invalid/')
+    artifact=record.crawl_artifact
+    assert b'/from-js' in decompress_document(artifact.rendered_html)
+    assert b'<script>' in decompress_document(artifact.server_html)
+    assert b'JS' in decompress_document(artifact.text)
+    assert 'artifacts' not in record.data
+    from sources.url_inventory import project_inventory
+    assert len(project_inventory(project)[1])==4
     assert PlaywrightCrawl.objects.count()==1
     print('Celery → proxy → browser RPC → JavaScript + sitemap + subdomain + external HEAD → completion: OK',flush=True)
 

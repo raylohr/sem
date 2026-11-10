@@ -195,11 +195,15 @@ class CrawlQueueTests(TestCase):
 
     @patch('integrations.crawl_tasks.call_renderer')
     @patch('integrations.crawl_tasks.enqueue_url')
-    def test_agent_handles_rendered_links_and_does_not_store_html_yet(self,enqueue,render):
+    def test_agent_handles_rendered_links_and_keeps_html_out_of_metadata(self,enqueue,render):
         crawl=self.running()
         row=self.queued(crawl)
-        render.return_value={'http_status':200,'render_complete':True,'ttfb_seconds':.1,'error':'',
-            'links':['https://blog.example.test/new','https://outside.test/'], 'rendered_html_sha256':'digest','rendered_html_bytes':123}
+        from .crawl_renderer import PageCapture
+        from .crawl_content import pack_content
+        capture=PageCapture(url=row.url,http_status=200,render_complete=True,ttfb_seconds=.1,
+            server_html=b'<html>Server</html>',rendered_html='<html>DOM</html>',text='DOM',
+            links=['https://blog.example.test/new','https://outside.test/'])
+        render.return_value={**capture.metadata(),'artifacts':pack_content(capture)}
         process_crawl_url(row.pk,str(row.task_token))
         row.refresh_from_db()
         self.assertEqual(row.status,'complete',row.error)

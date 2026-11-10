@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 import requests
 
+from accounts.policy import lock_access_changes
 from sources.models import SourceRecord
 from sources.inventory_index import url_expression
 from .models import PlaywrightCrawl, PlaywrightCrawlURL, PlaywrightDomainBudget
@@ -21,6 +22,8 @@ from .crawl_service import (ACTIVE, access, add_urls, acquire_slot, dispatch_run
                             page_allowed, scope, CrawlExpired)
 from .playwright_config import in_scope, DESKTOP_PROFILES
 from .crawl_renderer import desktop_user_agent, manifest_browser_version
+from .crawl_content import MAX_RENDER_RESPONSE, unpack_content
+from .crawl_archive import archive_page
 
 ERRORS = {'timeout':'Timeout tijdens ophalen of renderen.','navigation_failed':'Pagina kon niet worden geladen.',
           'render_failed':'Browser kon de pagina niet renderen.','render_incomplete':'Rendering niet volledig afgerond.',
@@ -200,7 +203,7 @@ def call_renderer(item,crawl):
                 size=0
                 for chunk in response.iter_content(65536):
                     size+=len(chunk)
-                    if size>2*1024*1024:
+                    if size>MAX_RENDER_RESPONSE:
                         raise CrawlNetworkError('Browserantwoord te groot.')
                     chunks.append(chunk)
                 import json
@@ -245,6 +248,17 @@ def process_crawl_url(self,item_id,token):
                   'retry_after':retry_after_seconds(result.headers.get('retry-after')),
                   'reachable':True if 200<=result.status<400 else False if result.status in (404,410) else None,
                   'error':''}
+        payload=data.pop('artifacts',None)
+        documents=None
+        if item.kind=='page' and payload is not None:
+            try:
+                documents=unpack_content(payload,data)
+            except (ValueError,KeyError,TypeError):
+                data['error']='render_incomplete'
+                data['render_complete']=False
+        if item.kind=='page' and crawl.configuration.get('archive_version') and data.get('render_complete') and documents is None:
+            data['error']='render_incomplete'
+            data['render_complete']=False
         status=data.get('http_status') or 0
         error=data.get('error','')
         retryable=error in ('timeout','navigation_failed','render_failed','render_incomplete','network_failed') or status in (429,500,502,503,504)
@@ -256,6 +270,7 @@ def process_crawl_url(self,item_id,token):
             slow=float(data.get('ttfb_seconds',0))>crawl.configuration['slow_after_seconds']
             report_health(crawl_id,slow=slow,failed=retryable,retry_after=data.get('retry_after',0))
         with transaction.atomic():
+            lock_access_changes()
             current=PlaywrightCrawl.objects.select_for_update().get(pk=crawl_id)
             access(crawl_id)
             row=PlaywrightCrawlURL.objects.select_for_update().get(pk=item_id)
@@ -274,6 +289,8 @@ def process_crawl_url(self,item_id,token):
                 row.error=row.error or 'Tijdelijke fout bleef bestaan na de ingestelde retries.'
             else:
                 row.status='complete'
+            if row.status!='pending':
+                archive_page(current,row,data,documents)
             row.save(update_fields=['status','metadata','error','lease_until','next_attempt_at'])
             if data.get('links_truncated'):
                 current.limit_reached=True

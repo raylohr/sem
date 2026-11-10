@@ -14,7 +14,7 @@ from integrations.seranking import REPORTS as SERANKING_REPORTS
 REPORT_NAMES = {key: label for key, (label, scope) in REPORTS.items()} | {'internal_all':'Internal All', 'gsc_page_indexing':'Page indexing',
                 'search_analytics':'Search performance', 'inspection':'URL Inspection',
                 'ahrefs_site_audit_pages':'Site Audit · Pages',
-                'ahrefs_site_audit_missing_titles':'Site Audit · Missing titles', '@response':'Response', 'rendered_pages':'Gerenderde pagina’s'}
+                'ahrefs_site_audit_missing_titles':'Site Audit · Missing titles', '@response':'Response', 'rendered_pages':'Gerenderde pagina’s', 'playwright_pages':'Gerenderde pagina’s'}
 REPORT_NAMES.update({key: label for key, (label, scope) in SERANKING_REPORTS.items()})
 
 

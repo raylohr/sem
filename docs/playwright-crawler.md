@@ -2,8 +2,8 @@
 
 De Playwright-bron heeft een configuratiescherm onder **Data → Koppelingen
 → Playwright → Crawlinstellingen** en een aparte Celery-uitvoeringsengine.
-Configuratie en uitvoering (stappen 1 en 2) zijn beschikbaar. HTML-archivering,
-startbediening in de UI en periodieke planning volgen in stappen 3 en 4.
+Configuratie, uitvoering en HTML-archivering (stappen 1 t/m 3) zijn beschikbaar.
+Startbediening in de UI en periodieke planning volgen in stap 4.
 Er worden geen screenshots gemaakt. De beschrijving van stap 1 hieronder legt
 ook vast welke onderdelen destijds uitsluitend werden voorbereid.
 
@@ -147,3 +147,47 @@ De release test daarnaast bearer-authenticatie, een harde procesdeadline bij
 vastlopend JavaScript en de volledige Celeryketen met een geïsoleerde database,
 sitemapindex, JavaScript-link, subdomein en externe HEAD-controle. De renderer
 heeft bovenop browsertimeouts een harde procesdeadline en ruimt zijn browserboom op.
+
+# Stap 3 — HTML-archief en bronpublicatie
+
+Iedere nieuwe crawl krijgt één `ImportBatch` (`source=playwright`, `method=crawl`).
+Tijdens uitvoering blijven de waarnemingen ongepubliceerd. Na afloop wordt de
+batch voltooid of onvolledig gepubliceerd, met dekking, meetmomenten, limieten,
+foutmeldingen, profiel en de oorspronkelijke configuratie. Een ingetrokken
+beheerrecht of gewijzigde projectgrens annuleert publicatie. Oude crawls van
+vóór stap 3 hebben geen HTML-archief; hun inhoud kan niet achteraf worden hersteld.
+
+Per afgeronde paginapoging worden URL, uiteindelijke URL, titel, HTTP-status,
+veilige responseheaders, redirects, renderstatus, timings, checksums, aantallen,
+herkomst en meetmoment als bronrecord bewaard. Externe checks worden geen
+paginaobservaties. Hun tellingen blijven in de dekking van de crawl beschikbaar.
+Retries vervangen elkaar niet met meerdere waarnemingen: één URL krijgt één
+record per crawl, met de laatste definitieve poging. Gedeeltelijk gerenderde
+inhoud blijft herkenbaar aan renderstatus, foutmelding en de onvolledige batch.
+
+Server-HTML (responsebody vóór DOM-mutaties), gerenderde DOM-HTML en zichtbare
+tekst worden elk als gzip-compressie in een aparte private databasekolom bewaard.
+HTML/text staat dus niet in de inventaris-JSON en niet op een publieke media-URL.
+Dit houdt bronrecord, document en verwijdering in dezelfde database-transactie;
+de documenten vallen ook onder de bestaande databaseback-up. Er is geen nieuw
+object-storageaccount of gedeeld browservolume nodig. Databaseopslag groeit met
+het aantal crawls; bewaren en verwijderen volgen voorlopig de bestaande handmatige
+bronimportverwijdering. Automatische bewaartermijnen zijn niet toegevoegd.
+
+Elk document is maximaal 5 MiB ongecomprimeerd. Transport gebruikt begrensde,
+gecomprimeerde documenten met SHA-256; de worker controleert grootte en checksum
+vóór opslag. Een opslagfout kan geen half bronrecord publiceren. Screenshots,
+HAR-bestanden, cookies en volledige resourcebestanden worden niet gearchiveerd.
+Ontbrekende of lege documenten krijgen geen downloadlink. Het HTML-bestand is
+geen zelfstandige offline kopie van alle afbeeldingen en scripts.
+
+Op URL-details en het oorspronkelijke bronrecord staan downloads voor server-HTML,
+gerenderde HTML en tekst. Download vereist een actief account met projecttoegang,
+een gepubliceerde batch en een URL binnen de huidige projecthosts. HTML wordt
+als attachment met `application/octet-stream`, `nosniff`, een sandbox-CSP en
+`private, no-store` aangeboden en niet inline gerenderd op het applicatiedomein.
+Verwijderen van een import verwijdert de documenten via databasecascades.
+Dubbele en verouderde Celery-berichten kunnen geen extra archieven maken.
+
+De ketentest controleert nu ook de opgeslagen serverbody, JavaScript-DOM, tekst,
+vier gepubliceerde URL-waarnemingen en hun aanwezigheid in de URL-inventaris.

@@ -208,7 +208,7 @@ uitsluitingen, desktopprofiel en de crawlbelasting opslaan. Standaard staan
 robots.txt-crawlregels uit, sitemaps en URL-ontdekking aan, en de belasting op
 1 paginastart/seconde met 1 agent (maximaal 20). De subdomeinkeuze wordt expliciet
 met de projecthostinstellingen gedeeld. Bekijken wijzigt niets.
-Configuratie en de uitvoeringsengine zijn beschikbaar; HTML-opslag en herhaalplanning volgen afzonderlijk.
+Configuratie, uitvoering en HTML-archivering zijn beschikbaar; UI-startbediening en herhaalplanning volgen in stap 4.
 Er zijn geen screenshots voorzien. Zie [configuratie en afbakening](docs/playwright-crawler.md).
 
 
@@ -219,4 +219,9 @@ Op het configuratiescherm zijn pagina-, diepte-, tijds- en retrygrenzen toegevoe
 De standaardinstelling blijft 1 paginastart/seconde en 1 agent. Een beheerstartpunt
 is beschikbaar via `crawl_playwright`; de schermbediening en periodieke planning
 volgen bij stap 4. HTML wordt nu tijdelijk gerenderd en gevalideerd; blijvende
-HTML-opslag en bronpublicatie volgen bij stap 3. Geen screenshots.
+Stap 3 bewaart server-HTML, gerenderde HTML en zichtbare tekst privé en gecomprimeerd
+in PostgreSQL, met checksums en begrensde documentgrootte. Iedere crawl publiceert
+één Playwright-bronimport met URL-waarnemingen; gedeeltelijke resultaten blijven
+herkenbaar onvolledig. Documenten zijn per waarneming te downloaden vanuit de
+URL-details of het bronrecord. Import verwijderen wist ook deze documenten.
+Geen screenshots.

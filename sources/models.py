@@ -65,7 +65,7 @@ class SourceRecordQuerySet(models.QuerySet):
         from .inventory_index import invalidate
         with transaction.atomic(using=self.db):
             projects = list(self.filter(batch__status__in=('complete', 'incomplete')).values_list('batch__project_id', flat=True).distinct())
-            result = super().delete()
+            result = models.QuerySet.delete(self.only("id", "batch_id"))
             for project_id in projects: invalidate(project_id)
             return result
 
@@ -204,3 +204,12 @@ class InventoryExport(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['project', 'user', 'token'], name='inventory_export_token')]
+
+
+class CrawlPageArtifact(models.Model):
+    """Private gzip documents, removed atomically with their source observation."""
+    record = models.OneToOneField(SourceRecord, on_delete=models.CASCADE, related_name='crawl_artifact')
+    server_html = models.BinaryField()
+    rendered_html = models.BinaryField()
+    text = models.BinaryField()
+    captured_at = models.DateTimeField()

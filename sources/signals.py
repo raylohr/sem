@@ -47,3 +47,13 @@ def export_deleted(sender, instance, **kwargs):
     name = instance.file.name or f'private-exports/{instance.pk}.xlsx'
     storage = instance.file.storage
     transaction.on_commit(lambda: storage.delete(name))
+
+
+from integrations.models import PlaywrightCrawl
+
+
+@receiver(post_save, sender=PlaywrightCrawl)
+def crawl_archive_status(sender, instance, **kwargs):
+    if instance.status not in ('pending','preparing','running'):
+        from integrations.crawl_archive import finish_archive
+        finish_archive(instance)

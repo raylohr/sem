@@ -64,6 +64,9 @@ def main():
             assert result.get('render_complete'),result
             assert result.get('text_length',0)>0,result
             assert 'rendered_html' not in result
+            from .crawl_content import unpack_content, decompress_document
+            documents=unpack_content(result['artifacts'],result)
+            assert b'RPC works' in decompress_document(documents['text'])
             print('Authenticated render RPC and JavaScript metadata: OK',flush=True)
             from .crawl_process import render_bounded
             timed=render_bounded('http://fixture.invalid/hang',configuration,'chrome_windows',

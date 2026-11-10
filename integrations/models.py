@@ -155,6 +155,8 @@ class PlaywrightCrawl(models.Model):
         CANCELLED = 'cancelled', 'Gestopt'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    batch = models.OneToOneField('sources.ImportBatch', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='playwright_crawl')
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='playwright_crawls')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)

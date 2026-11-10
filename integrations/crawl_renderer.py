@@ -1,9 +1,9 @@
 """Browser rendering in the credential-free browser service.
 
-Capture objects contain transient HTML/text. Step 2 returns execution metadata;
-permanent HTML artifacts and inventory publication belong to step 3.
+Capture objects contain HTML/text for bounded compressed transport and archiving.
 """
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from hashlib import sha256
 import re
 import time
@@ -61,6 +61,8 @@ class PageCapture:
         return {name:getattr(self,name) for name in ('final_url','http_status','links','redirects',
             'blocked_resources','failed_resources','render_complete','elapsed_seconds','ttfb_seconds',
             'retry_after','error','user_agent','browser_version','headers','links_truncated','title','blocked_navigation')} | {
+                'captured_at':datetime.now(timezone.utc).isoformat(),
+                'text_bytes':len(self.text.encode()),'text_sha256':sha256(self.text.encode()).hexdigest(),
                 'server_html_bytes':len(self.server_html),
                 'rendered_html_bytes':len(self.rendered_html.encode()), 'text_length':len(self.text),
                 'server_html_sha256':sha256(self.server_html).hexdigest(),
@@ -219,6 +221,9 @@ def render_page(url, configuration, profile_key, proxy, navigation_gate=None):
                     else:
                         capture.rendered_html = html
                         capture.text = page.locator('body').inner_text(timeout=2000)
+                        if len(capture.text.encode())>MAX_HTML_BYTES:
+                            capture.text=''
+                            capture.error='page_too_large'
                         capture.title = page.title()[:1000]
                         links = page.locator('a[href]').evaluate_all('(items)=>items.slice(0,10001).map(a=>a.href)')
                         capture.links_truncated = len(links)>MAX_LINKS

@@ -86,3 +86,33 @@ def retry(request, project_id, batch_id):
             from integrations.tasks import enqueue_gsc
             transaction.on_commit(lambda: enqueue_gsc(batch.id))
     return JsonResponse({"queued": True}, status=202)
+
+
+@login_required
+@require_GET
+def crawl_document(request, project_id, batch_id, record_id, variant):
+    from django.http import Http404, HttpResponse
+    from projects.hosts import allows_url
+    from integrations.crawl_content import VARIANTS, decompress_document
+    from .models import SourceRecord, CrawlPageArtifact
+    if variant not in VARIANTS:
+        raise Http404
+    project=visible_project(request,project_id)
+    record=get_object_or_404(SourceRecord.objects.select_related('batch'),pk=record_id,
+        batch_id=batch_id,batch__project=project,batch__source='playwright',
+        batch__status__in=('complete','incomplete'))
+    if not allows_url(project,record.data.get('url')) or (record.data.get('final_url') and
+            not allows_url(project,record.data['final_url'])) or variant not in record.data.get('archived_documents',[]):
+        raise Http404
+    artifact=get_object_or_404(CrawlPageArtifact.objects.only(variant),record=record)
+    try:
+        body=decompress_document(getattr(artifact,variant))
+    except ValueError:
+        raise Http404
+    extension='txt' if variant=='text' else 'html'
+    response=HttpResponse(body,content_type='application/octet-stream')
+    response['Content-Disposition']=f'attachment; filename="playwright-{record.pk}-{variant}.{extension}"'
+    response['X-Content-Type-Options']='nosniff'
+    response['Content-Security-Policy']="sandbox; default-src 'none'"
+    response['Cache-Control']='private, no-store'
+    return response

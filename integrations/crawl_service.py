@@ -44,6 +44,7 @@ def page_allowed(crawl,url):
 def access(crawl_id, *, token=None):
     crawl = PlaywrightCrawl.objects.select_related('project','created_by').get(pk=crawl_id)
     if (crawl.status not in ACTIVE or not can_manage(crawl.created_by,crawl.project)
+            or crawl.configuration.get('archive_version') and not crawl.batch_id
             or project_domain(crawl.project)!=crawl.domain
             or crawl.project.include_subdomains!=crawl.configuration['include_subdomains']
             or token is not None and crawl.run_token!=token):
@@ -69,10 +70,16 @@ def start_crawl(*, actor, project_id, overrides=None):
         raise ValidationError('Er loopt al een crawl voor dit project.')
     configuration = {name: (str(value) if isinstance(value,Decimal) else value)
                      for name in SETTING_FIELDS for value in [getattr(settings,name)]}
-    configuration.update(domain=project_domain(project),website=project.website,include_subdomains=project.include_subdomains)
+    configuration.update(archive_version=1,domain=project_domain(project),website=project.website,include_subdomains=project.include_subdomains)
     crawl = PlaywrightCrawl.objects.create(project=project,created_by=actor,domain=project_domain(project),
         configuration=configuration,profile=choose_desktop_profile(settings.desktop_profile).key,
         current_agents=settings.parallel_agents)
+    from sources.models import ImportBatch
+    crawl.batch=ImportBatch.objects.create(project=project,created_by=actor,source='playwright',method='crawl',
+        label='Playwright-crawl',status='processing',parser_version='playwright-v1',
+        request_metadata={'type':'playwright_pages','record_scope':'url','crawl_id':str(crawl.pk),
+                          'profile':crawl.profile,'configuration':configuration})
+    crawl.save(update_fields=['batch'])
     from .crawl_tasks import enqueue_bootstrap
     transaction.on_commit(lambda:enqueue_bootstrap(crawl.pk))
     return crawl
@@ -80,14 +87,15 @@ def start_crawl(*, actor, project_id, overrides=None):
 
 @transaction.atomic
 def stop_crawl(crawl_id, *, reason='Gestopt.', incomplete=False):
+    lock_access_changes()
     crawl = PlaywrightCrawl.objects.select_for_update().filter(pk=crawl_id,status__in=ACTIVE).first()
     if not crawl:
         return
     crawl.status = 'incomplete' if incomplete else 'cancelled'
     crawl.finished_at = timezone.now()
     crawl.error = reason
-    crawl.save(update_fields=['status','finished_at','error'])
     crawl.urls.filter(status__in=('pending','queued','processing')).update(status='skipped',error=reason,lease_until=None)
+    crawl.save(update_fields=['status','finished_at','error'])
 
 
 @transaction.atomic
@@ -123,6 +131,7 @@ def add_urls(crawl_id, values, *, depth=0, discovered_from='', provenance='inven
 
 @transaction.atomic
 def dispatch_run(crawl_id):
+    lock_access_changes()
     crawl = PlaywrightCrawl.objects.select_for_update().filter(pk=crawl_id,status='running').first()
     if not crawl:
         return
