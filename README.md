@@ -30,7 +30,7 @@ Bestaande voltooide imports worden niet achteraf gewijzigd.
 Bij opslaan van een project moet het hoofddomein via DNS een A/AAAA-adres opleveren.
 Andere bestandsformaten en algemene spreadsheetimports worden niet ondersteund.
 
-De ingebouwde websitecrawler, sitemapscanner, browseronderzoeken en hun afgeleide
+De eerdere ingebouwde websitecrawler, sitemapscanner, browseronderzoeken en hun afgeleide
 analyses, technologie-/privacyverrijking en onderzoeksdossiers zijn verwijderd.
 De migraties verwijderen bijbehorende scanbatches en databasetabellen.
 De actieve applicatieapps zijn accounts, core, projects, sources en integrations.
@@ -200,3 +200,13 @@ behouden. De koppeling toont de laatste status en het resultaat per rapport.
 Uitschakelen of ontkoppelen annuleert wachtende/lopende automatische controles;
 workers controleren de toestemming opnieuw vóór publicatie. Er worden nooit
 SE Ranking-audits of rankingchecks gestart en andere API’s blijven geblokkeerd.
+
+
+Playwright is als nieuwe projectbron voorbereid. Onder **Data → Koppelingen →
+Playwright → Crawlinstellingen** kunnen projectbeheerders het bereik, sitemaps,
+uitsluitingen, desktopprofiel en de crawlbelasting opslaan. Standaard staan
+robots.txt-crawlregels uit, sitemaps en URL-ontdekking aan, en de belasting op
+1 paginastart/seconde met 1 agent (maximaal 20). De subdomeinkeuze wordt expliciet
+met de projecthostinstellingen gedeeld. Bekijken wijzigt niets.
+Dit is stap 1: nog geen crawl-uitvoering, HTML-opslag of herhaalplanning.
+Er zijn geen screenshots voorzien. Zie [configuratie en afbakening](docs/playwright-crawler.md).

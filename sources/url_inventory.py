@@ -10,7 +10,7 @@ from projects.hosts import allows_url
 from .models import SourceRecord
 from .content_types import content_badge
 
-DEFAULT_SOURCES = {'ahrefs': 'Ahrefs', 'gsc': 'GSC', 'sf': 'SF', 'seranking': 'SE Ranking'}
+DEFAULT_SOURCES = {'ahrefs': 'Ahrefs', 'gsc': 'GSC', 'sf': 'SF', 'seranking': 'SE Ranking', 'playwright': 'Playwright'}
 URL_FIELDS = ('url', 'Address', 'URL', 'Target URL', 'Page URL')
 
 

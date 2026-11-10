@@ -1,10 +1,11 @@
 from django.urls import path
 from . import ui
 from sources import import_ui, export_ui
-from integrations import settings_views, guide_views
+from integrations import settings_views, guide_views, playwright_views
 from projects import ui as project_ui
 app_name='ui'
 urlpatterns=[
+    path("projects/<uuid:project_id>/connections/playwright/", playwright_views.configuration, name="playwright-settings"),
     path("projects/<uuid:project_id>/performance/preferences/", ui.save_performance_preferences, name="performance-preferences"),
     path("projects/<uuid:project_id>/performance/", ui.performance, name="performance"),
     path("projects/<uuid:project_id>/urls/detail/", ui.url_detail, name="url-detail"),

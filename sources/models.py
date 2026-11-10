@@ -20,9 +20,11 @@ class ImportBatch(AtomicInventorySource):
         SF = "sf", "Screaming Frog"
         AHREFS = "ahrefs", "Ahrefs"
         SERANKING = "seranking", "SE Ranking"
+        PLAYWRIGHT = "playwright", "Playwright"
     class Method(models.TextChoices):
         API = "api", "API"
         FILE = "file", "Bestand"
+        CRAWL = "crawl", "Crawl"
     class Status(models.TextChoices):
         PENDING = "pending", "Wacht op verwerking"
         PROCESSING = "processing", "Wordt verwerkt"

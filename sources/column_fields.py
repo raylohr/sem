@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, Context
 from .content_types import content_badge
 
-SOURCE_NAMES = {'sf':'SF', 'gsc':'GSC', 'ahrefs':'AHREFS', 'seranking':'SE Ranking'}
+SOURCE_NAMES = {'sf':'SF', 'gsc':'GSC', 'ahrefs':'AHREFS', 'seranking':'SE Ranking', 'playwright':'Playwright'}
 from .sf_reports import REPORTS
 
 from integrations.seranking import REPORTS as SERANKING_REPORTS
@@ -14,7 +14,7 @@ from integrations.seranking import REPORTS as SERANKING_REPORTS
 REPORT_NAMES = {key: label for key, (label, scope) in REPORTS.items()} | {'internal_all':'Internal All', 'gsc_page_indexing':'Page indexing',
                 'search_analytics':'Search performance', 'inspection':'URL Inspection',
                 'ahrefs_site_audit_pages':'Site Audit · Pages',
-                'ahrefs_site_audit_missing_titles':'Site Audit · Missing titles', '@response':'Response'}
+                'ahrefs_site_audit_missing_titles':'Site Audit · Missing titles', '@response':'Response', 'rendered_pages':'Gerenderde pagina’s'}
 REPORT_NAMES.update({key: label for key, (label, scope) in SERANKING_REPORTS.items()})
 
 

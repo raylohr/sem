@@ -1,6 +1,6 @@
 from django.contrib import admin
 from sources.admin import ReadOnlyPlatformAdmin
-from .models import GSCConnection, SERankingConnection, SERankingRefresh
+from .models import GSCConnection, SERankingConnection, SERankingRefresh, PlaywrightCrawlSettings
 
 
 @admin.register(GSCConnection)
@@ -19,3 +19,8 @@ class SERankingConnectionAdmin(ReadOnlyPlatformAdmin):
 class SERankingRefreshAdmin(ReadOnlyPlatformAdmin):
     fields = ('id', 'connection', 'check_date', 'status', 'started_at', 'finished_at', 'results')
     list_display = ('connection', 'check_date', 'status', 'finished_at')
+
+
+@admin.register(PlaywrightCrawlSettings)
+class PlaywrightCrawlSettingsAdmin(ReadOnlyPlatformAdmin):
+    list_display = ('project', 'respect_robots', 'use_sitemaps', 'parallel_agents', 'pages_per_second', 'updated_at')
