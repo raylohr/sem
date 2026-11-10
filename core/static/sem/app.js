@@ -244,3 +244,10 @@ document.querySelectorAll('[data-seranking-import]').forEach((form) => {
   select.addEventListener('change', update);
   update();
 });
+
+
+document.querySelectorAll('[data-submit-on-change]').forEach((control) => {
+  control.addEventListener('change', () => {
+    if (control.form?.getAttribute('aria-busy') !== 'true') control.form.requestSubmit();
+  });
+});

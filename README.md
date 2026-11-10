@@ -136,7 +136,7 @@ bedoelde doel-URL’s, projectoverzicht, zoekmachines/locaties, gevolgde concurr
 gemonitorde backlinks, GSC-zoekopdrachten, SEO-potentieel en pagina’s uit bestaande
 voltooide audits. Rapporten zijn doorzoekbaar en gepagineerd; de oorspronkelijke
 bronrijen blijven onder `raw` bewaard. Mislukte/wachtende imports kunnen opnieuw
-worden gestart. Er is nog geen automatische dagelijkse SE Ranking-import.
+worden gestart. Automatische dagelijkse controles zijn per koppeling in te schakelen met **Dagelijks automatisch bijwerken**.
 
 De connector is **Project API-only en alleen-lezen**: een vaste HTTPS-host en
 expliciete endpoint-/parameterallowlist blokkeren alle andere API-routes voordat
@@ -181,3 +181,22 @@ rankingdatum; ontbrekende historie wordt in perioden van maximaal 31 dagen opgeh
 Bestaande volledige historie en ongewijzigde auditimports blijven behouden.
 Projectrapporten worden per dag hergebruikt; ontbrekende of geweigerde rapporten
 blijven als fout zichtbaar en verhinderen de overige imports niet.
+
+
+**Dagelijks automatisch bijwerken** is een beheerdersschakelaar onder Data →
+Koppelingen → SE Ranking. Nieuwe verbindingen staan standaard uit. Inschakelen
+plant direct een controle; daarna volgt eenmaal per Amsterdamse kalenderdag een
+controle vanaf 08:00. De scheduler draait ieder uur, de dispatcher herstelt
+wachtende controles iedere minuut na een tijdelijke brokerstoring.
+
+De controle vergelijkt ranking-checkpoints en auditdatums en vergelijkt de inhoud
+van overige rapporten. Alleen ontbrekende historie, nieuwe/gewijzigde audits en
+gewijzigde rapporten worden als bronimport gepubliceerd. Ongewijzigde automatische
+pogingen voegen geen bronrecords toe en starten geen inventarisopbouw. Fouten per
+rapport blijven zichtbaar bij **Laatste controle**, zodat een onbeschikbaar
+GSC-rapport de overige gegevens niet tegenhoudt. Deze vergelijking geldt alleen
+voor automatische controles; handmatige imports en bestaande historie blijven
+behouden. De koppeling toont de laatste status en het resultaat per rapport.
+Uitschakelen of ontkoppelen annuleert wachtende/lopende automatische controles;
+workers controleren de toestemming opnieuw vóór publicatie. Er worden nooit
+SE Ranking-audits of rankingchecks gestart en andere API’s blijven geblokkeerd.

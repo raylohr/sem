@@ -163,9 +163,16 @@ def connections(request, project_id):
     from datetime import timedelta
     from django.utils import timezone
     today = timezone.localdate()
+    from integrations.seranking import REPORTS
+    se_connections = list(context['project'].seranking_connections.all())
+    for connection in se_connections:
+        connection.latest_refresh = connection.refreshes.first()
+        if connection.latest_refresh:
+            connection.latest_results = [{'label': REPORTS.get(key, ('Koppeling', ''))[0], **value}
+                for key, value in connection.latest_refresh.results.items()]
     context.update(connections=context['project'].gsc_connections.defer('encrypted_refresh_token'),gsc_configured=configured(),
         seranking_configured=seranking_configured(), seranking_reports=report_options(),
-        seranking_connections=context['project'].seranking_connections.all(),
+        seranking_connections=se_connections,
         seranking_start=(today-timedelta(days=7)).isoformat(), seranking_end=today.isoformat())
     return render(request,'ui/connections.html',context)
 

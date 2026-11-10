@@ -107,7 +107,10 @@ def disconnect(request, project_id, connection_id):
             return JsonResponse({'error': 'Geen beheerrechten.'}, status=403)
         connection = get_object_or_404(SERankingConnection.objects.select_for_update(), pk=connection_id, project=project)
         connection.active = False
-        connection.save(update_fields=['active'])
+        connection.daily_enabled = False
+        connection.save(update_fields=['active', 'daily_enabled'])
+        from .seranking_refresh import cancel_daily_refreshes
+        cancel_daily_refreshes(connection)
     return redirect('ui:connections', project_id=project.pk)
 
 
@@ -160,3 +163,26 @@ def import_data(request, project_id, connection_id):
                 'audit_id': values.get('audit_id') if report == 'audit_pages' else None, 'api_scope': 'project-only'})
         transaction.on_commit(lambda: enqueue_seranking(batch.pk))
     return JsonResponse(batch_data(batch), status=202)
+
+
+@login_required
+@require_POST
+def schedule(request, project_id, connection_id):
+    from django.core.exceptions import PermissionDenied
+    from .seranking_refresh import set_daily_schedule
+    project = visible_project(request, project_id)
+    if not can_manage(request.user, project):
+        return JsonResponse({'error': 'Geen beheerrechten.'}, status=403)
+    get_object_or_404(SERankingConnection, pk=connection_id, project=project, active=True)
+    enabled = request.POST.get('enabled', '0')
+    if enabled not in ('0', '1'):
+        return JsonResponse({'error': 'Ongeldige instelling.'}, status=400)
+    if enabled == '1' and not configured():
+        return JsonResponse({'error': 'SERANKING_API_KEY is nog niet ingesteld.'}, status=503)
+    try:
+        set_daily_schedule(actor=request.user, project_id=project.pk, connection_id=connection_id, enabled=enabled == '1')
+    except PermissionDenied:
+        return JsonResponse({'error': 'Geen beheerrechten of eigenaar heeft geen projecttoegang meer.'}, status=403)
+    except SERankingConnection.DoesNotExist:
+        return JsonResponse({'error': 'SE Ranking-koppeling is niet actief.'}, status=409)
+    return JsonResponse({'daily_enabled': enabled == '1'})

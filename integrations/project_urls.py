@@ -2,6 +2,7 @@ from django.urls import path
 from . import views, seranking_views
 app_name = "connections"
 urlpatterns = [
+    path("seranking/<uuid:connection_id>/schedule/", seranking_views.schedule, name="seranking-schedule"),
     path("seranking/discover/", seranking_views.discover, name="seranking-discover"),
     path("seranking/connect/", seranking_views.connect, name="seranking-connect"),
     path("seranking/<uuid:connection_id>/disconnect/", seranking_views.disconnect, name="seranking-disconnect"),
