@@ -35,9 +35,9 @@ class PlaywrightCrawlForm(forms.Form):
     slow_pages_per_second = forms.DecimalField(min_value=Decimal('0.05'), max_value=Decimal('20'), decimal_places=2,
         initial=Decimal('0.25'), label='Vertraagde paginastarts per seconde', help_text='Moet lager dan of gelijk aan de normale snelheid zijn.')
 
-    max_pages = forms.IntegerField(required=False, min_value=1, max_value=100000, initial=100000, label='Maximaal aantal pagina’s', help_text='Leeg: 100.000. Een bereikte limiet wordt als onvolledige crawl gemeld.')
+    max_pages = forms.IntegerField(required=False, min_value=1, max_value=100000, initial=100000, label='Waarschuwingsgrens pagina’s', help_text='Standaard 100.000. Bij overschrijding blijft de crawl doorgaan; ontdekte URL’s blijven bewaard.')
     max_depth = forms.IntegerField(required=False, min_value=0, max_value=99, initial=99, label='Maximale linkdiepte', help_text='Leeg: 99. Start-URL’s en sitemap-URL’s hebben diepte 0.')
-    max_duration_minutes = forms.IntegerField(required=False, min_value=1, max_value=1400, initial=1400, label='Maximale looptijd (minuten)', help_text='Leeg: 1400. Er worden daarna geen nieuwe pagina’s gestart.')
+    max_duration_minutes = forms.IntegerField(required=False, min_value=1, max_value=1400, initial=1400, label='Waarschuwingsgrens looptijd (minuten)', help_text='Standaard 1400. Bij overschrijding blijft de crawl doorgaan totdat alle toegestane URL’s zijn verwerkt of je hem stopt.')
     render_timeout_seconds = forms.IntegerField(required=False, min_value=5, max_value=120, initial=30, label='Timeout per pagina (seconden)', help_text='Leeg: 30. Een timeout wordt apart van een HTTP-fout geregistreerd.')
     settle_seconds = forms.IntegerField(required=False, min_value=1, max_value=10, initial=2, label='Extra rendertijd (seconden)', help_text='Leeg: 2. Begrensd wachten op dynamische content na het laden.')
     max_retries = forms.IntegerField(required=False, min_value=0, max_value=3, initial=2, label='Retries bij tijdelijke fouten', help_text='Leeg: 2. Timeouts, 429 en tijdelijke serverfouten worden begrensd opnieuw geprobeerd.')

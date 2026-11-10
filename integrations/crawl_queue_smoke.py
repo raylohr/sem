@@ -23,7 +23,7 @@ def main():
     project=Project.objects.create(name='Fixture',website='http://fixture.invalid/',created_by=user,include_subdomains=True)
     Membership.objects.create(project=project,user=user,role='admin')
     PlaywrightCrawlSettings.objects.create(project=project,desktop_profile='chrome_windows',
-        parallel_agents=2,pages_per_second=2,max_pages=20,max_depth=2,max_duration_minutes=2,
+        parallel_agents=2,pages_per_second=2,max_pages=1,max_depth=2,max_duration_minutes=2,
         render_timeout_seconds=15,settle_seconds=1)
     from django.test import Client
     from django.urls import reverse
@@ -38,6 +38,9 @@ def main():
     crawl.batch.refresh_from_db()
     assert crawl.batch.status=='processing'
     time.sleep(2)
+    from datetime import timedelta
+    from django.utils import timezone
+    PlaywrightCrawl.objects.filter(pk=crawl.pk).update(started_at=timezone.now()-timedelta(minutes=3))
     assert client.post(action,{'action':'resume','crawl_id':crawl.pk}).status_code==302
     print('Real Celery crawl queued:',crawl.pk,flush=True)
     deadline=time.monotonic()+110

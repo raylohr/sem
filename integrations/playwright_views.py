@@ -96,6 +96,16 @@ def crawl_context(project):
         issues=list(run.urls.exclude(error='').order_by('-pk').values('url','error')[:8])
     remaining=max(0,counts['page'].get('total',0)-counts['page'].get('done',0))
     eta=None
+    warnings=[]
+    if run:
+        if counts['page'].get('total',0)>=run.configuration['max_pages']:
+            warnings.append('Paginagrens bereikt; de crawl loopt door en bewaart nieuwe URL’s.')
+        if run.started_at:
+            elapsed=(timezone.now()-run.started_at).total_seconds()-run.paused_seconds
+            if run.paused_at:
+                elapsed-=(timezone.now()-run.paused_at).total_seconds()
+            if elapsed>=run.configuration['max_duration_minutes']*60:
+                warnings.append('Tijdsgrens bereikt; de crawl loopt door.')
     if run and run.status!='paused':
         work_left=remaining+max(0,counts['external'].get('total',0)-counts['external'].get('done',0))
         done=sum(counts[kind].get('done',0) for kind in counts)
@@ -105,7 +115,7 @@ def crawl_context(project):
             elapsed=max(0,(timezone.now()-run.started_at).total_seconds()-run.paused_seconds)
             if elapsed>0:
                 eta=ceil(work_left*elapsed/done/60)
-    return {'crawl_pages_remaining':remaining,'crawl_eta_minutes':eta,'crawl_run':run,'active_crawl':current,'crawl_counts':counts,'crawl_issues':issues,
+    return {'crawl_limit_warnings':warnings,'crawl_pages_remaining':remaining,'crawl_eta_minutes':eta,'crawl_run':run,'active_crawl':current,'crawl_counts':counts,'crawl_issues':issues,
             'crawl_history':project.playwright_crawls.select_related('batch','created_by')[:10]}
 
 

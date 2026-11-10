@@ -55,8 +55,6 @@ def access(crawl_id, *, token=None):
         raise PermissionDenied
     if crawl.status=='paused':
         raise CrawlPaused
-    if crawl.started_at and timezone.now() >= crawl.started_at+timedelta(minutes=crawl.configuration['max_duration_minutes'],seconds=crawl.paused_seconds):
-        raise CrawlExpired
     return crawl
 
 
@@ -125,17 +123,22 @@ def add_urls(crawl_id, values, *, run_token=None, depth=0, discovered_from='', p
             break
     existing = set(crawl.urls.filter(kind=kind,url_hash__in=candidates).values_list('url_hash',flat=True))
     pending = [(key,url) for key,url in candidates.items() if key not in existing]
-    maximum = crawl.configuration['max_pages'] if kind=='page' else 1000
-    remaining = max(0,maximum-crawl.urls.filter(kind=kind).count())
-    if kind=='page' and depth>crawl.configuration['max_depth']:
-        remaining = 0
-    if len(pending)>remaining:
-        crawl.limit_reached = True
+    # Page count and total duration are warning thresholds, never discovery filters.
+    remaining=len(pending) if kind=='page' else max(0,1000-crawl.urls.filter(kind=kind).exclude(status='skipped').count())
+    over_depth=kind=='page' and depth>crawl.configuration['max_depth']
+    if over_depth or len(pending)>remaining:
+        crawl.limit_reached=True
         crawl.save(update_fields=['limit_reached'])
-    crawl.urls.bulk_create([PlaywrightCrawlURL(crawl=crawl,url=url,url_hash=key,kind=kind,depth=depth,
-        discovered_from=discovered_from,provenance=provenance) for key,url in pending[:remaining]],batch_size=100,
-        ignore_conflicts=True)
-    return min(remaining,len(pending))
+    rows=[]
+    for index,(key,url) in enumerate(pending):
+        skipped=over_depth or index>=remaining
+        error=('Maximale linkdiepte bereikt; URL bewaard.' if over_depth else
+               'Bereikbaarheidslimiet externe links bereikt; URL bewaard.' if skipped else '')
+        rows.append(PlaywrightCrawlURL(crawl=crawl,url=url,url_hash=key,kind=kind,depth=depth,
+            discovered_from=discovered_from,provenance=provenance,status='skipped' if skipped else 'pending',error=error))
+    crawl.urls.bulk_create(rows,batch_size=100,ignore_conflicts=True)
+    return len(pending)
+
 
 
 @transaction.atomic
@@ -167,6 +170,11 @@ def dispatch_run(crawl_id):
         item.save(update_fields=['status','task_token','lease_until'])
         transaction.on_commit(lambda pk=item.pk,token=item.task_token:enqueue_url(pk,token))
     if not crawl.urls.filter(status__in=('pending','queued','processing')).exists():
+        from django.utils.dateparse import parse_datetime
+        recovery=crawl.configuration.get('discovery_recovery',{})
+        lease=parse_datetime(recovery.get('until','')) if recovery.get('until') else None
+        if lease and lease>now:
+            return
         crawl.status = 'incomplete' if crawl.limit_reached or any(note.get('type')=='sitemap_missing' for note in crawl.notes) or crawl.urls.filter(status='failed').exists() else 'complete'
         crawl.finished_at = now
         crawl.save(update_fields=['status','finished_at'])

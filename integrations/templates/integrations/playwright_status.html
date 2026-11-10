@@ -7,6 +7,8 @@
 <p class="small text-muted">Schatting op basis van de nu bekende pagina’s, externe linkcontroles en het gemeten tempo, zonder pauzetijd. Nieuwe URL’s, retries en vertraging kunnen de schatting veranderen.</p>
 {% if active_crawl %}<p class="small text-muted">Maximaal {{ crawl_run.configuration.parallel_agents }} agents · {{ crawl_run.configuration.pages_per_second }} paginastarts/sec volgens de opgeslagen configuratie van deze crawl. Bij problemen wordt automatisch vertraagd.</p>{% endif %}
 {% if crawl_run.status == 'paused' %}<p class="small">Gepauzeerd sinds {{ crawl_run.paused_at|date:'d-m-Y H:i' }}. Lopende requests kunnen nog afronden; hun ongepubliceerde resultaten worden opnieuw opgehaald bij hervatten. De pauzetijd telt niet mee voor de maximale looptijd.</p>{% endif %}
+<p class="small text-muted">Pagina- en tijdgrenzen zijn waarschuwingen. De crawl loopt door tot alle toegestane URL’s zijn verwerkt of je hem stopt.</p>
+{% for warning in crawl_limit_warnings %}<p class="small text-warning-emphasis">{{ warning }}</p>{% endfor %}
 {% if crawl_run.error %}<p class="small text-danger">{{ crawl_run.error }}</p>{% endif %}
 {% if crawl_run.batch.status == 'complete' or crawl_run.batch.status == 'incomplete' %}<p><a href="{% url 'ui:batch' project.id crawl_run.batch_id %}">Bekijk bronimport en resultaten</a></p>{% endif %}
 {% if crawl_issues %}<details class="mb-3"><summary class="small">Foutmeldingen (maximaal 8)</summary><ul class="small mt-2">{% for issue in crawl_issues %}<li><span class="text-break">{{ issue.url }}</span>: {{ issue.error }}</li>{% endfor %}</ul></details>{% endif %}

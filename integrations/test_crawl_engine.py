@@ -144,8 +144,8 @@ class CrawlQueueTests(TestCase):
         self.assertEqual(crawl.urls.count(),2)
         add_urls(crawl.pk,['https://example.test/c'])
         crawl.refresh_from_db()
-        self.assertTrue(crawl.limit_reached)
-        self.assertEqual(crawl.urls.count(),2)
+        self.assertFalse(crawl.limit_reached)
+        self.assertEqual(crawl.urls.count(),3)
         add_urls(crawl.pk,['https://external.test/'],kind='external')
         self.assertEqual(crawl.urls.filter(kind='external').count(),1)
 
@@ -204,7 +204,11 @@ class CrawlQueueTests(TestCase):
             server_html=b'<html>Server</html>',rendered_html='<html>DOM</html>',text='DOM',
             links=['https://blog.example.test/new','https://outside.test/'])
         render.return_value={**capture.metadata(),'artifacts':pack_content(capture)}
-        process_crawl_url(row.pk,str(row.task_token))
+        def discover_before_completion(*args,**kwargs):
+            self.assertEqual(type(row).objects.get(pk=row.pk).status,'processing')
+            return add_urls(*args,**kwargs)
+        with patch('integrations.crawl_tasks.add_urls',side_effect=discover_before_completion):
+            process_crawl_url(row.pk,str(row.task_token))
         row.refresh_from_db()
         self.assertEqual(row.status,'complete',row.error)
         self.assertTrue(crawl.urls.filter(url='https://blog.example.test/new',kind='page').exists())
@@ -253,17 +257,19 @@ class CrawlQueueTests(TestCase):
         self.assertEqual(crawl.urls.count(),2)
         self.assertEqual(crawl.urls.filter(kind='external').count(),0)
 
-    def test_deadline_stops_work_and_scope_changes_revoke_old_snapshot(self):
+    @patch('integrations.crawl_tasks.enqueue_url')
+    def test_time_threshold_does_not_stop_work_and_scope_changes_still_revoke_access(self,enqueue):
         crawl=self.running(max_duration_minutes=1)
         crawl.started_at=timezone.now()-timedelta(minutes=2)
         crawl.save()
+        add_urls(crawl.pk,['https://example.test/a'])
         recover_crawls()
         crawl.refresh_from_db()
-        self.assertEqual(crawl.status,'incomplete')
-        another=self.running()
+        self.assertEqual(crawl.status,'running')
+        self.assertEqual(access(crawl.pk).pk,crawl.pk)
         Project.objects.filter(pk=self.project.pk).update(include_subdomains=False)
         with self.assertRaises(PermissionDenied):
-            access(another.pk)
+            access(crawl.pk)
 
     def test_all_crawl_tasks_are_routed_to_dedicated_queue(self):
         self.assertEqual(settings.CELERY_TASK_ROUTES['integrations.crawl_tasks.process_crawl_url']['queue'],'crawler')

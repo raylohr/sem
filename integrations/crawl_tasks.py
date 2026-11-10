@@ -294,21 +294,21 @@ def process_crawl_url(self,item_id,token):
                 row.status='complete'
             if row.status!='pending':
                 archive_page(current,row,data,documents)
+            links=data.get('links',[]) if item.kind=='page' else []
+            blocked=data.get('blocked_navigation')
+            if blocked:
+                links=[*links,blocked]
+            internal=[url for url in links if page_allowed(crawl,url)]
+            external=[url for url in links if isinstance(url,str) and not in_scope(scope(crawl),url)]
+            if crawl.configuration['discover_urls']:
+                add_in_chunks(crawl_id,internal,depth=item.depth+1,discovered_from=item.url,provenance='discovered')
+            elif blocked and page_allowed(crawl,blocked):
+                add_urls(crawl_id,[blocked],depth=item.depth,discovered_from=item.url,provenance='redirect')
+            add_in_chunks(crawl_id,external,kind='external',depth=item.depth,discovered_from=item.url,provenance='external')
             row.save(update_fields=['status','metadata','error','lease_until','next_attempt_at'])
             if data.get('links_truncated'):
                 current.limit_reached=True
                 current.save(update_fields=['limit_reached'])
-        links=data.get('links',[]) if item.kind=='page' else []
-        blocked=data.get('blocked_navigation')
-        if blocked:
-            links=[*links,blocked]
-        internal=[url for url in links if page_allowed(crawl,url)]
-        external=[url for url in links if isinstance(url,str) and not in_scope(scope(crawl),url)]
-        if crawl.configuration['discover_urls']:
-            add_in_chunks(crawl_id,internal,depth=item.depth+1,discovered_from=item.url,provenance='discovered')
-        elif blocked and page_allowed(crawl,blocked):
-            add_urls(crawl_id,[blocked],depth=item.depth,discovered_from=item.url,provenance='redirect')
-        add_in_chunks(crawl_id,external,kind='external',depth=item.depth,discovered_from=item.url,provenance='external')
     except PlaywrightCrawlURL.DoesNotExist:
         return
     except PlaywrightCrawl.DoesNotExist:

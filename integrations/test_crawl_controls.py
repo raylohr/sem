@@ -72,6 +72,53 @@ class CrawlControlTests(TestCase):
     def control(self,crawl,action):
         return control_crawl(actor=self.owner,project_id=self.project.pk,crawl_id=crawl.pk,action=action)
 
+    def test_recovery_restores_saved_links_in_same_run_and_is_idempotent(self):
+        from .crawl_recovery import recover_urls
+        crawl=self.start()
+        crawl.configuration={**crawl.configuration,'max_pages':1}
+        crawl.save()
+        add_urls(crawl.pk,['https://example.test/old'])
+        parent=crawl.urls.get()
+        parent.status='complete'
+        parent.metadata={'links':['https://example.test/missed','https://example.test/missed#fragment',
+                                  'https://unrelated.test/private']}
+        parent.save()
+        with patch('integrations.crawl_tasks.enqueue_url'):
+            result=recover_urls(actor=self.owner,crawl_id=crawl.pk)
+            repeat=recover_urls(actor=self.owner,crawl_id=crawl.pk)
+        self.assertGreaterEqual(result['added'],1)
+        self.assertEqual(repeat['added'],0)
+        self.assertTrue(crawl.urls.filter(url='https://example.test/missed').exists())
+        self.assertFalse(crawl.urls.filter(url__contains='unrelated.test').exists())
+        parent.refresh_from_db()
+        self.assertEqual(parent.status,'complete')
+        self.assertEqual(PlaywrightCrawl.objects.count(),1)
+        crawl.batch.refresh_from_db()
+        self.assertEqual(crawl.batch.status,'processing')
+        with self.assertRaises(PermissionDenied):
+            recover_urls(actor=self.reader,crawl_id=crawl.pk)
+
+    def test_depth_rejected_discovery_is_retained(self):
+        crawl=self.start()
+        crawl.configuration={**crawl.configuration,'max_depth':0}
+        crawl.save()
+        add_urls(crawl.pk,['https://example.test/deep'],depth=1)
+        row=crawl.urls.get()
+        self.assertEqual(row.status,'skipped')
+        self.assertIn('URL bewaard',row.error)
+
+    def test_recovery_lease_prevents_premature_completion(self):
+        from .crawl_service import dispatch_run
+        crawl=self.start()
+        crawl.configuration={**crawl.configuration,'discovery_recovery':{'token':'test',
+            'until':(timezone.now()+timedelta(minutes=5)).isoformat()}}
+        crawl.save()
+        dispatch_run(crawl.pk)
+        crawl.refresh_from_db()
+        self.assertEqual(crawl.status,'running')
+        crawl.batch.refresh_from_db()
+        self.assertEqual(crawl.batch.status,'processing')
+
     def test_default_migration_updates_baselines_and_preserves_enabled_schedules(self):
         from django.apps import apps
         from importlib import import_module

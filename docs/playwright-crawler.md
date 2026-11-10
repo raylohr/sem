@@ -90,9 +90,9 @@ browserruntime; alle pagina’s in de run gebruiken dezelfde profielkeuze.
 
 Startpunten komen uit projectwebsite, extra start-URL’s, gepubliceerde bron-URL’s en
 sitemaps (ook sitemapindexen en gzip). Links worden ontdubbeld, binnen de actuele
-projectgrenzen gehouden en begrensd op diepte, aantallen en looptijd. Een gewijzigde
-projectgrens of ingetrokken toegang stopt de oude run. Standaardlimieten: 100.000
-pagina’s (ook het maximum), diepte 99 (ook het maximum), 1400 minuten (ook het maximum), 30 seconden per rendering, 2 seconden extra
+projectgrenzen gehouden en begrensd op diepte; aantallen en totale looptijd geven waarschuwingen. Een gewijzigde
+projectgrens of ingetrokken toegang stopt de oude run. Standaardwaarschuwingsgrenzen: 100.000 pagina’s en 1400 minuten. De maximale
+volgdiepte is standaard 99; verder gelden 30 seconden per rendering, 2 seconden extra
 rendertijd en 2 retries. De grenzen zijn configureerbaar. Er worden maximaal 100
 sitemapbestanden en 1.000 unieke externe links per run verwerkt.
 
@@ -118,7 +118,7 @@ opnieuw gecontroleerd. Per externe host geldt een gedeeld budget van 1 request/s
 Run- en URL-statussen, leases en uitvoeringstokens staan in PostgreSQL. De bestaande
 worker controleert elke 15 seconden onderbroken/aangevraagde crawls; hij maakt
 geen nieuwe periodieke crawls aan. Oude taakberichten kunnen een nieuwe poging
-niet overschrijven. Retries en totale looptijd zijn begrensd. Een bereikte limiet,
+niet overschrijven. Retries en paginatimeouts zijn begrensd. Een bereikte harde limiet,
 aanhoudende fout of ontbrekende sitemapdekking levert een onvolledige status op.
 
 De renderer leest server-HTML, DOM na JavaScript, tekst, redirects, links en timing.
@@ -270,3 +270,28 @@ diepte 10 en 720 minuten) naar de nieuwe defaults en begrenst looptijden boven
 (dagelijks/03:00) vervangen door wekelijks/20:00. Ingeschakelde planningen behouden
 hun gekozen tijd en frequentie. Configuratiesnapshots van bestaande crawls wijzigen
 niet. Herhaling blijft standaard uit.
+
+## Doorlopen bij pagina- en tijdgrenzen; herstel van oude discovery
+
+`max_pages` en `max_duration_minutes` zijn waarschuwingsgrenzen. De crawler
+blijft na overschrijding doorwerken totdat de wachtrij leeg is of een beheerder
+pauzeert/stopt. Deze grenzen verwijderen geen gevonden pagina-URL’s en tellen
+niet als onvolledige dekking. De UI toont de overschrijding als waarschuwing.
+Hostgrenzen, uitsluitingen, robotskeuze, paginatimeouts en snelheidslimieten
+blijven gelden. De ingestelde linkdiepte blijft begrenzend; een URL daarbuiten
+wordt nu met een expliciete overgeslagen-status bewaard in plaats van weggegooid.
+Ook externe URL’s boven het bereikbaarheidsbudget worden bewaard met die status.
+Paginaresultaat, discovery en URL-eindstatus worden in één transactie opgeslagen,
+zodat een andere agent de crawl niet kan afronden vóór nieuwe links zijn ingepland.
+
+Oude crawls konden URL’s boven de vroegere paginalimiet weigeren. Gebruik voor
+een lopende crawl `python manage.py recover_crawl_urls --crawl UUID --actor USER_ID`.
+Dit vereist actuele projectbeheerrechten. Het commando leest bewaarde linklijsten
+opnieuw, herstelt inventaris/startpunten en leest sitemaps opnieuw onder dezelfde
+scope en limiter. Het gebruikt dezelfde crawl en ontdubbelt URL’s; afgeronde
+pagina’s worden niet opnieuw gerenderd. Voortgang, aantallen en eventuele
+sitemapfouten worden geregistreerd in de importmetadata en auditlog. Een
+herstellease voorkomt afronding terwijl discovery opnieuw wordt ingepland.
+De herstelbronnen zijn de bewaarde linklijsten en de nu beschikbare sitemaps;
+URL’s die nergens zijn bewaard en niet meer in deze bronnen voorkomen, kunnen
+niet met zekerheid worden gereconstrueerd.
