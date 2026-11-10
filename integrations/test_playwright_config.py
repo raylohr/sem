@@ -84,7 +84,7 @@ class ConfigurationTests(TestCase):
         self.assertFalse(PlaywrightCrawlSettings.objects.exists())
         self.project.refresh_from_db()
         self.assertFalse(self.project.include_subdomains)
-        self.assertContains(response,'In voorbereiding')
+        self.assertContains(response,'Uitvoering gereed')
         self.assertContains(response,'Geen screenshots.')
 
     @patch('requests.sessions.Session.request')

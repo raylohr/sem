@@ -84,7 +84,7 @@ class SERankingRefresh(models.Model):
 
 
 class PlaywrightCrawlSettings(models.Model):
-    """Step 1: saved configuration only; execution is introduced separately."""
+    """Project crawl configuration; each run receives an immutable snapshot."""
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='playwright_settings')
     respect_robots = models.BooleanField(default=False)
     use_sitemaps = models.BooleanField(default=True)
@@ -102,6 +102,13 @@ class PlaywrightCrawlSettings(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(120)])
     slow_pages_per_second = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('0.25'),
         validators=[MinValueValidator(Decimal('0.05')), MaxValueValidator(Decimal('20.00'))])
+    max_pages = models.PositiveIntegerField(default=10000, validators=[MinValueValidator(1), MaxValueValidator(100000)])
+    max_depth = models.PositiveSmallIntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(50)])
+    max_duration_minutes = models.PositiveIntegerField(default=720, validators=[MinValueValidator(1), MaxValueValidator(1440)])
+    render_timeout_seconds = models.PositiveSmallIntegerField(default=30, validators=[MinValueValidator(5), MaxValueValidator(120)])
+    settle_seconds = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(1), MaxValueValidator(10)])
+    max_retries = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(0), MaxValueValidator(3)])
+    scroll_for_lazy_content = models.BooleanField(default=False)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -135,3 +142,77 @@ class PlaywrightCrawlSettings(models.Model):
                     errors[field] = ['Deze lijst bevat een URL die door de uitsluitingen wordt geblokkeerd.']
         if errors:
             raise ValidationError(errors)
+
+
+class PlaywrightCrawl(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Wacht op uitvoering'
+        PREPARING = 'preparing', 'Start-URL’s verzamelen'
+        RUNNING = 'running', 'Wordt gecrawld'
+        COMPLETE = 'complete', 'Voltooid'
+        INCOMPLETE = 'incomplete', 'Onvolledig'
+        FAILED = 'failed', 'Mislukt'
+        CANCELLED = 'cancelled', 'Gestopt'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='playwright_crawls')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    domain = models.CharField(max_length=253)
+    configuration = models.JSONField(default=dict)
+    profile = models.CharField(max_length=32)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    run_token = models.UUIDField(null=True, blank=True)
+    current_agents = models.PositiveSmallIntegerField(default=1)
+    limit_reached = models.BooleanField(default=False)
+    error = models.CharField(max_length=255, blank=True)
+    notes = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [models.UniqueConstraint(fields=['project'], condition=models.Q(status__in=['pending','preparing','running']), name='one_active_playwright_crawl')]
+
+
+class PlaywrightCrawlURL(models.Model):
+    class Kind(models.TextChoices):
+        PAGE = 'page', 'Pagina'
+        EXTERNAL = 'external', 'Externe link'
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Wacht'
+        QUEUED = 'queued', 'In wachtrij'
+        PROCESSING = 'processing', 'Wordt verwerkt'
+        COMPLETE = 'complete', 'Voltooid'
+        FAILED = 'failed', 'Mislukt'
+        SKIPPED = 'skipped', 'Overgeslagen'
+
+    crawl = models.ForeignKey(PlaywrightCrawl, on_delete=models.CASCADE, related_name='urls')
+    url = models.TextField()
+    url_hash = models.CharField(max_length=64)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PAGE)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    depth = models.PositiveSmallIntegerField(default=0)
+    discovered_from = models.TextField(blank=True)
+    provenance = models.CharField(max_length=24, default='inventory')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    task_token = models.UUIDField(null=True, blank=True)
+    metadata = models.JSONField(default=dict)
+    error = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['crawl','url_hash','kind'],name='unique_playwright_crawl_url')]
+        indexes = [models.Index(fields=['crawl','status','kind'],name='playwright_pending_urls')]
+
+
+class PlaywrightDomainBudget(models.Model):
+    domain = models.CharField(max_length=253, primary_key=True)
+    next_start_at = models.DateTimeField(null=True, blank=True)
+    slow_until = models.DateTimeField(null=True, blank=True)
+    rate_factor = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('1'))
+    healthy_samples = models.PositiveSmallIntegerField(default=0)
+    failures = models.PositiveSmallIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)

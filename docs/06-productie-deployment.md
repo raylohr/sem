@@ -42,6 +42,7 @@ met `python3 ops/backup-production.py`.
 
 ```sh
 export SEM_PROD_IMAGE=$(docker inspect sem-prod-web-1 --format '{{.Config.Image}}')
+export SEM_PROD_BROWSER_IMAGE=$(docker inspect sem-prod-crawl-browser-1 --format '{{.Config.Image}}')
 export SEM_PROD_GATEWAY_IMAGE=$(docker inspect sem-prod-gateway-1 --format '{{.Config.Image}}')
 docker compose ps
 ```
@@ -61,3 +62,12 @@ De applicatie en databasehost blijven dezelfde gedeelde infrastructuur gebruiken
 
 Controleer na een release `http://127.0.0.1:8002/ready/`, login en belangrijke
 gebruikersacties. De eerste beheerder moet bij aanmelden 2FA instellen.
+
+
+De Playwright-uitvoering gebruikt aanvullende services `crawl-worker`,
+`crawl-browser` en `crawl-egress`. De browser draait uitsluitend op het interne
+netwerk `sem-prod_crawl_browser` en krijgt geen database- of API-credentials.
+Het interne RPC-token staat als `CRAWLER_RENDER_TOKEN` in `.env`. De release bouwt
+ook `sem-browser:prod-COMMIT` en voert netwerkloze browsertests uit vóór productie
+wordt gestopt. Browser-binaries en systeembibliotheken worden hergebruikt zolang
+`ops/browser-requirements.txt` niet verandert.

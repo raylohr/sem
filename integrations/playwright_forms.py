@@ -34,6 +34,14 @@ class PlaywrightCrawlForm(forms.Form):
     slow_pages_per_second = forms.DecimalField(min_value=Decimal('0.05'), max_value=Decimal('20'), decimal_places=2,
         initial=Decimal('0.25'), label='Vertraagde paginastarts per seconde', help_text='Moet lager dan of gelijk aan de normale snelheid zijn.')
 
+    max_pages = forms.IntegerField(required=False, min_value=1, max_value=100000, initial=10000, label='Maximaal aantal pagina’s', help_text='Leeg: 10.000. Een bereikte limiet wordt als onvolledige crawl gemeld.')
+    max_depth = forms.IntegerField(required=False, min_value=0, max_value=50, initial=10, label='Maximale linkdiepte', help_text='Leeg: 10. Start-URL’s en sitemap-URL’s hebben diepte 0.')
+    max_duration_minutes = forms.IntegerField(required=False, min_value=1, max_value=1440, initial=720, label='Maximale looptijd (minuten)', help_text='Leeg: 720. Er worden daarna geen nieuwe pagina’s gestart.')
+    render_timeout_seconds = forms.IntegerField(required=False, min_value=5, max_value=120, initial=30, label='Timeout per pagina (seconden)', help_text='Leeg: 30. Een timeout wordt apart van een HTTP-fout geregistreerd.')
+    settle_seconds = forms.IntegerField(required=False, min_value=1, max_value=10, initial=2, label='Extra rendertijd (seconden)', help_text='Leeg: 2. Begrensd wachten op dynamische content na het laden.')
+    max_retries = forms.IntegerField(required=False, min_value=0, max_value=3, initial=2, label='Retries bij tijdelijke fouten', help_text='Leeg: 2. Timeouts, 429 en tijdelijke serverfouten worden begrensd opnieuw geprobeerd.')
+    scroll_for_lazy_content = forms.BooleanField(required=False, initial=False, label='Scrollen voor lazy loading', help_text='Optioneel, maximaal tien schermhoogtes binnen de paginatimeout.')
+
     def __init__(self, *args, project, instance=None, **kwargs):
         initial = kwargs.pop('initial', {})
         if instance:
@@ -49,6 +57,9 @@ class PlaywrightCrawlForm(forms.Form):
 
     def clean(self):
         data = super().clean()
+        for name, default in {'max_pages':10000,'max_depth':10,'max_duration_minutes':720,'render_timeout_seconds':30,'settle_seconds':2,'max_retries':2}.items():
+            if name not in self.errors and data.get(name) is None:
+                data[name] = default
         subdomains = data.get('include_subdomains', False)
         for field, cleaner in (
             ('start_urls', lambda values: clean_urls(values, self.project, include_subdomains=subdomains)),

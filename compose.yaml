@@ -52,6 +52,68 @@ services:
   worker:
     <<: *app
     command: celery -A config worker --loglevel=INFO --concurrency=1 --queues=celery
+  crawl-worker:
+    <<: *app
+    command: celery -A config worker --loglevel=INFO --autoscale=20,1 --prefetch-multiplier=1 --max-tasks-per-child=100 --queues=crawler --hostname=crawler@%h
+    environment:
+      DB_NAME: sem_prod
+      DB_USER: sem_prod_app
+      DB_PASSWORD: ${PG_PASSWORD_PROD_APP}
+      DB_SSLROOTCERT: /app/ops/database/certs/db-pg.crt
+      DJANGO_SECRET_KEY: crawler-worker-no-public-sessions
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CRAWLER_RENDER_URL: http://crawl-browser:8081/render/
+      CRAWLER_RENDER_TOKEN: ${CRAWLER_RENDER_TOKEN:?Configure CRAWLER_RENDER_TOKEN}
+      CRAWLER_EGRESS_PROXY: http://crawl-egress:8765
+    volumes: []
+    networks: [default, crawl_browser]
+    mem_limit: 1g
+    pids_limit: 256
+    cpus: 2
+    depends_on:
+      redis:
+        condition: service_healthy
+      crawl-browser:
+        condition: service_healthy
+  crawl-browser:
+    image: ${SEM_PROD_BROWSER_IMAGE:?Run ops/deploy-production.sh}
+    restart: unless-stopped
+    init: true
+    environment:
+      CRAWLER_RENDER_TOKEN: ${CRAWLER_RENDER_TOKEN:?Configure CRAWLER_RENDER_TOKEN}
+      CRAWLER_EGRESS_PROXY: http://crawl-egress:8765
+    networks: [crawl_browser]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,mode=1777,size=512m
+      - /home/sem:rw,uid=1000,gid=1000,mode=700,size=64m
+    shm_size: 512m
+    mem_limit: 4g
+    pids_limit: 4096
+    cpus: 2
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      crawl-egress:
+        condition: service_started
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health/', timeout=3)"]
+      interval: 30s
+      start_period: 30s
+      start_interval: 1s
+      timeout: 5s
+      retries: 3
+  crawl-egress:
+    image: ${SEM_PROD_IMAGE:?Run ops/deploy-production.sh}
+    command: python -m integrations.crawl_proxy
+    restart: unless-stopped
+    init: true
+    networks: [default, crawl_browser]
+    read_only: true
+    mem_limit: 128m
+    cpus: 0.5
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
   beat:
     <<: *app
     command: celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
@@ -92,3 +154,7 @@ services:
 volumes:
   media:
   redis_data:
+
+networks:
+  crawl_browser:
+    internal: true

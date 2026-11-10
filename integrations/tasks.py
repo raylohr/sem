@@ -108,3 +108,5 @@ def schedule_daily_gsc():
 
 # Register Project API tasks with Celery autodiscovery.
 from .seranking_tasks import process_seranking, dispatch_seranking_imports, process_seranking_refresh, schedule_daily_seranking  # noqa: F401,E402
+
+from .crawl_tasks import bootstrap_crawl, process_crawl_url, recover_crawls  # noqa: F401,E402

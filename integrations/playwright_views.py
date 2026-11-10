@@ -61,8 +61,9 @@ def configuration(request, project_id):
     groups = [
         ('Bereik en URL’s', ['include_subdomains','discover_urls','use_sitemaps','respect_robots',
                             'start_urls','sitemap_urls','excluded_hosts','excluded_paths']),
-        ('Desktopprofiel', ['desktop_profile']),
+        ('Desktopprofiel', ['desktop_profile','scroll_for_lazy_content']),
         ('Snelheid en paralleliteit', ['pages_per_second','parallel_agents','slow_after_seconds','slow_pages_per_second']),
+        ('Begrenzing', ['max_pages','max_depth','max_duration_minutes','render_timeout_seconds','settle_seconds','max_retries']),
     ]
     context.update(form=form, form_groups=[(label, [form[name] for name in fields]) for label, fields in groups],
                    crawler_settings=settings, crawler_domain=project_domain(context['project']),

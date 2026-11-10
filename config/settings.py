@@ -120,6 +120,7 @@ FILE_UPLOAD_PERMISSIONS = 0o600
 GSC_CLIENT_ID = os.environ.get("GSC_CLIENT_ID", "")
 GSC_CLIENT_SECRET = os.environ.get("GSC_CLIENT_SECRET", "")
 CELERY_BEAT_SCHEDULE = {
+    "playwright-crawl-recovery": {"task": "integrations.crawl_tasks.recover_crawls", "schedule": 15.0},
     "seranking-daily-check": {"task": "integrations.seranking_tasks.schedule_daily_seranking", "schedule": 3600.0},
     "seranking-import-dispatch": {"task": "integrations.seranking_tasks.dispatch_seranking_imports", "schedule": 60.0},
     "inventory-export-dispatch": {"task": "sources.tasks.dispatch_inventory_exports", "schedule": 30.0},
@@ -131,7 +132,13 @@ CELERY_BEAT_SCHEDULE = {
 GSC_REDIRECT_URI = os.environ.get("GSC_REDIRECT_URI", "https://sem.lohr.nl/integrations/gsc/callback/")
 INTEGRATION_TOKEN_KEY = os.environ.get("INTEGRATION_TOKEN_KEY", "")
 
-CELERY_TASK_ROUTES = {}
+CELERY_TASK_ROUTES = {
+    'integrations.crawl_tasks.bootstrap_crawl': {'queue':'crawler'},
+    'integrations.crawl_tasks.process_crawl_url': {'queue':'crawler'},
+}
+CRAWLER_RENDER_URL = os.environ.get('CRAWLER_RENDER_URL','http://crawl-browser:8081/render/')
+CRAWLER_RENDER_TOKEN = os.environ.get('CRAWLER_RENDER_TOKEN','')
+CRAWLER_EGRESS_PROXY = os.environ.get('CRAWLER_EGRESS_PROXY','http://crawl-egress:8765')
 
 CACHES = {"default": {"BACKEND":"django.core.cache.backends.redis.RedisCache",
     "LOCATION":os.environ.get("AUTH_CACHE_URL","redis://redis:6379/2"),
