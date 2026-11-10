@@ -35,9 +35,9 @@ class PlaywrightCrawlForm(forms.Form):
     slow_pages_per_second = forms.DecimalField(min_value=Decimal('0.05'), max_value=Decimal('20'), decimal_places=2,
         initial=Decimal('0.25'), label='Vertraagde paginastarts per seconde', help_text='Moet lager dan of gelijk aan de normale snelheid zijn.')
 
-    max_pages = forms.IntegerField(required=False, min_value=1, max_value=100000, initial=10000, label='Maximaal aantal pagina’s', help_text='Leeg: 10.000. Een bereikte limiet wordt als onvolledige crawl gemeld.')
-    max_depth = forms.IntegerField(required=False, min_value=0, max_value=50, initial=10, label='Maximale linkdiepte', help_text='Leeg: 10. Start-URL’s en sitemap-URL’s hebben diepte 0.')
-    max_duration_minutes = forms.IntegerField(required=False, min_value=1, max_value=1440, initial=720, label='Maximale looptijd (minuten)', help_text='Leeg: 720. Er worden daarna geen nieuwe pagina’s gestart.')
+    max_pages = forms.IntegerField(required=False, min_value=1, max_value=100000, initial=100000, label='Maximaal aantal pagina’s', help_text='Leeg: 100.000. Een bereikte limiet wordt als onvolledige crawl gemeld.')
+    max_depth = forms.IntegerField(required=False, min_value=0, max_value=99, initial=99, label='Maximale linkdiepte', help_text='Leeg: 99. Start-URL’s en sitemap-URL’s hebben diepte 0.')
+    max_duration_minutes = forms.IntegerField(required=False, min_value=1, max_value=1400, initial=1400, label='Maximale looptijd (minuten)', help_text='Leeg: 1400. Er worden daarna geen nieuwe pagina’s gestart.')
     render_timeout_seconds = forms.IntegerField(required=False, min_value=5, max_value=120, initial=30, label='Timeout per pagina (seconden)', help_text='Leeg: 30. Een timeout wordt apart van een HTTP-fout geregistreerd.')
     settle_seconds = forms.IntegerField(required=False, min_value=1, max_value=10, initial=2, label='Extra rendertijd (seconden)', help_text='Leeg: 2. Begrensd wachten op dynamische content na het laden.')
     max_retries = forms.IntegerField(required=False, min_value=0, max_value=3, initial=2, label='Retries bij tijdelijke fouten', help_text='Leeg: 2. Timeouts, 429 en tijdelijke serverfouten worden begrensd opnieuw geprobeerd.')
@@ -45,9 +45,9 @@ class PlaywrightCrawlForm(forms.Form):
 
     schedule_enabled = forms.BooleanField(required=False,initial=False,label='Automatisch herhalen',
         help_text='Standaard uit. Uitschakelen stopt toekomstige starts; een lopende crawl kun je apart pauzeren of stoppen.')
-    schedule_frequency = forms.ChoiceField(required=False,choices=[('daily','Dagelijks'),('weekly','Wekelijks')],initial='daily',label='Herhaling')
-    schedule_time = forms.TimeField(required=False,initial=time(3,0),widget=forms.TimeInput(format='%H:%M',attrs={'type':'time'}),label='Starttijd (Nederlandse tijd)',
-        help_text='Europe/Amsterdam, inclusief zomer- en wintertijd. Standaard 03:00. Na uitval volgt maximaal één verlate start; geen reeks inhaal-crawls.')
+    schedule_frequency = forms.ChoiceField(required=False,choices=[('daily','Dagelijks'),('weekly','Wekelijks')],initial='weekly',label='Herhaling')
+    schedule_time = forms.TimeField(required=False,initial=time(20,0),widget=forms.TimeInput(format='%H:%M',attrs={'type':'time'}),label='Starttijd (Nederlandse tijd)',
+        help_text='Europe/Amsterdam, inclusief zomer- en wintertijd. Standaard 20:00. Na uitval volgt maximaal één verlate start; geen reeks inhaal-crawls.')
     schedule_weekday = forms.TypedChoiceField(required=False,coerce=int,choices=list(enumerate(['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag','Zondag'])),initial=0,label='Weekdag bij wekelijkse herhaling')
 
     def __init__(self, *args, project, instance=None, **kwargs):
@@ -65,10 +65,10 @@ class PlaywrightCrawlForm(forms.Form):
 
     def clean(self):
         data = super().clean()
-        for name, default in {'max_pages':10000,'max_depth':10,'max_duration_minutes':720,'render_timeout_seconds':30,'settle_seconds':2,'max_retries':2}.items():
+        for name, default in {'max_pages':100000,'max_depth':99,'max_duration_minutes':1400,'render_timeout_seconds':30,'settle_seconds':2,'max_retries':2}.items():
             if name not in self.errors and data.get(name) is None:
                 data[name] = default
-        for name,default in {'schedule_frequency':'daily','schedule_time':time(3,0),'schedule_weekday':0}.items():
+        for name,default in {'schedule_frequency':'weekly','schedule_time':time(20,0),'schedule_weekday':0}.items():
             if name not in self.errors and data.get(name) in (None,''):
                 data[name]=default
         subdomains = data.get('include_subdomains', False)

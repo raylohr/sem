@@ -72,6 +72,55 @@ class CrawlControlTests(TestCase):
     def control(self,crawl,action):
         return control_crawl(actor=self.owner,project_id=self.project.pk,crawl_id=crawl.pk,action=action)
 
+    def test_default_migration_updates_baselines_and_preserves_enabled_schedules(self):
+        from django.apps import apps
+        from importlib import import_module
+        self.config.max_pages=10000
+        self.config.max_depth=10
+        self.config.max_duration_minutes=720
+        self.config.schedule_frequency='daily'
+        self.config.schedule_time=time(3)
+        self.config.save()
+        other=Project.objects.create(name='Custom',website='https://custom.test/',created_by=self.owner)
+        custom=PlaywrightCrawlSettings.objects.create(project=other,max_pages=500,max_depth=7,
+            max_duration_minutes=900,schedule_enabled=True,schedule_frequency='daily',schedule_time=time(3))
+        migrate=import_module('integrations.migrations.0011_refresh_playwright_defaults').refresh_defaults
+        migrate(apps,SimpleNamespace(connection=SimpleNamespace(alias='default')))
+        self.config.refresh_from_db()
+        custom.refresh_from_db()
+        self.assertEqual((self.config.max_pages,self.config.max_depth,self.config.max_duration_minutes),(100000,99,1400))
+        self.assertEqual((self.config.schedule_frequency,self.config.schedule_time),('weekly',time(20)))
+        self.assertEqual((custom.max_pages,custom.max_depth,custom.max_duration_minutes),(500,7,900))
+        self.assertEqual((custom.schedule_frequency,custom.schedule_time),('daily',time(3)))
+
+    def test_remaining_work_and_eta_account_for_pause_and_external_checks(self):
+        from .playwright_views import crawl_context
+        crawl=self.start()
+        now=timezone.now()
+        crawl.started_at=now-timedelta(minutes=10)
+        crawl.paused_seconds=300
+        crawl.save()
+        add_urls(crawl.pk,[f'https://example.test/{index}' for index in range(10)])
+        completed=list(crawl.urls.values_list('pk',flat=True)[:5])
+        crawl.urls.filter(pk__in=completed).update(status='complete')
+        add_urls(crawl.pk,['https://external.test/a','https://external.test/b'],kind='external')
+        with patch('integrations.playwright_views.timezone.now',return_value=now):
+            context=crawl_context(self.project)
+        self.assertEqual(context['crawl_pages_remaining'],5)
+        self.assertEqual(context['crawl_eta_minutes'],7)
+        self.control(crawl,'pause')
+        self.assertIsNone(crawl_context(self.project)['crawl_eta_minutes'])
+        self.assertContains(self.client.get(self.status),'pagina’s te gaan')
+        self.assertContains(self.client.get(self.status),'Geschatte resterende tijd')
+
+    def test_eta_waits_for_progress_instead_of_showing_false_precision(self):
+        from .playwright_views import crawl_context
+        crawl=self.start()
+        add_urls(crawl.pk,['https://example.test/a'])
+        context=crawl_context(self.project)
+        self.assertEqual(context['crawl_pages_remaining'],1)
+        self.assertIsNone(context['crawl_eta_minutes'])
+
     def test_ui_start_pause_resume_stop_and_partial_publication(self):
         response=self.client.get(self.page)
         self.assertContains(response,'Crawl starten')

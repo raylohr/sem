@@ -87,6 +87,22 @@ class ConfigurationTests(TestCase):
         self.assertContains(response,'Uitvoering gereed')
         self.assertContains(response,'Geen screenshots.')
 
+    def test_updated_defaults_and_new_limits(self):
+        from datetime import time
+        form=PlaywrightCrawlForm(project=self.project)
+        for name,value in {'max_pages':100000,'max_depth':99,'max_duration_minutes':1400,
+                           'schedule_frequency':'weekly','schedule_time':time(20,0)}.items():
+            self.assertEqual(form[name].value(),value)
+        saved,bound=save_configuration(actor=self.owner,project_id=self.project.pk,
+            data=self.data(max_pages='100000',max_depth='99',max_duration_minutes='1400'))
+        self.assertTrue(saved,bound.errors)
+        self.assertEqual((saved.max_pages,saved.max_depth,saved.max_duration_minutes),(100000,99,1400))
+        self.assertEqual((saved.schedule_frequency,saved.schedule_time),('weekly',time(20,0)))
+        invalid=PlaywrightCrawlForm(self.data(max_pages='100001',max_depth='100',max_duration_minutes='1401'),project=self.project)
+        self.assertFalse(invalid.is_valid())
+        for field in ('max_pages','max_depth','max_duration_minutes'):
+            self.assertIn(field,invalid.errors)
+
     @patch('requests.sessions.Session.request')
     @patch('celery.app.task.Task.apply_async')
     def test_save_persists_only_configuration_and_explicitly_updates_shared_subdomain_scope(self, enqueue, request):

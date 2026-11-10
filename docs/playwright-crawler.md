@@ -91,8 +91,8 @@ browserruntime; alle pagina’s in de run gebruiken dezelfde profielkeuze.
 Startpunten komen uit projectwebsite, extra start-URL’s, gepubliceerde bron-URL’s en
 sitemaps (ook sitemapindexen en gzip). Links worden ontdubbeld, binnen de actuele
 projectgrenzen gehouden en begrensd op diepte, aantallen en looptijd. Een gewijzigde
-projectgrens of ingetrokken toegang stopt de oude run. Standaardlimieten: 10.000
-pagina’s, diepte 10, 720 minuten, 30 seconden per rendering, 2 seconden extra
+projectgrens of ingetrokken toegang stopt de oude run. Standaardlimieten: 100.000
+pagina’s (ook het maximum), diepte 99 (ook het maximum), 1400 minuten (ook het maximum), 30 seconden per rendering, 2 seconden extra
 rendertijd en 2 retries. De grenzen zijn configureerbaar. Er worden maximaal 100
 sitemapbestanden en 1.000 unieke externe links per run verwerkt.
 
@@ -226,7 +226,7 @@ hervat door de planning of herstelroutine.
 ## Kalenderplanning
 
 **Automatisch herhalen** staat standaard uit, ook bij bestaande configuraties.
-Keuze: dagelijks of wekelijks, tijdstip (standaard 03:00) en bij wekelijks een
+Keuze: dagelijks of wekelijks (standaard wekelijks), tijdstip (standaard 20:00) en bij wekelijks een
 weekdag (standaard maandag). De tijdzone is Europe/Amsterdam. Een niet-bestaand
 lokaal tijdstip bij de lenteovergang verschuift vooruit; een dubbel tijdstip in
 de herfst wordt slechts eenmaal ingepland. De volgende start is zichtbaar.
@@ -255,3 +255,18 @@ oude taakberichten, behoud van ongepubliceerde resultaten, runtime na pauze,
 dag/weekplanning, beide DST-overgangen, herhaalde schedulerberichten, overlap,
 uitgeschakelde planning en ingetrokken rechten. De echte Celeryketentest start,
 pauzeert en hervat via de UI-routes vóór HTML-archivering en bronpublicatie.
+
+De status toont ook **pagina’s te gaan** (bekende pagina’s die nog wachten, in de
+queue staan of verwerkt worden) en **geschatte resterende tijd in minuten**.
+De tijdschatting omvat het bekende resterende werk inclusief externe linkchecks,
+op basis van het gemeten gemiddelde verwerkingstempo zonder pauzetijd. Vóór de
+eerste voortgang en tijdens pauzes is er geen tijdschatting. Nieuwe links en
+retries kunnen de schatting veranderen; het is geen voorspelling van nog
+onontdekte URL’s. De bestaande automatische statusverversing werkt deze mee bij.
+
+Migratie 0011 verhoogt opgeslagen oude standaardlimieten (10.000 pagina’s,
+diepte 10 en 720 minuten) naar de nieuwe defaults en begrenst looptijden boven
+1400 minuten. Bij uitgeschakelde herhaling worden de oude standaardkeuzes
+(dagelijks/03:00) vervangen door wekelijks/20:00. Ingeschakelde planningen behouden
+hun gekozen tijd en frequentie. Configuratiesnapshots van bestaande crawls wijzigen
+niet. Herhaling blijft standaard uit.

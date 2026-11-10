@@ -1,3 +1,5 @@
+from math import ceil
+from django.utils import timezone
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -92,7 +94,18 @@ def crawl_context(project):
             counts[kind]['total']=sum(counts[kind].values())
             counts[kind]['done']=sum(counts[kind].get(state,0) for state in ('complete','failed','skipped'))
         issues=list(run.urls.exclude(error='').order_by('-pk').values('url','error')[:8])
-    return {'crawl_run':run,'active_crawl':current,'crawl_counts':counts,'crawl_issues':issues,
+    remaining=max(0,counts['page'].get('total',0)-counts['page'].get('done',0))
+    eta=None
+    if run and run.status!='paused':
+        work_left=remaining+max(0,counts['external'].get('total',0)-counts['external'].get('done',0))
+        done=sum(counts[kind].get('done',0) for kind in counts)
+        if run.status not in ('pending','preparing') and work_left==0:
+            eta=0
+        elif run.status=='running' and run.started_at and done:
+            elapsed=max(0,(timezone.now()-run.started_at).total_seconds()-run.paused_seconds)
+            if elapsed>0:
+                eta=ceil(work_left*elapsed/done/60)
+    return {'crawl_pages_remaining':remaining,'crawl_eta_minutes':eta,'crawl_run':run,'active_crawl':current,'crawl_counts':counts,'crawl_issues':issues,
             'crawl_history':project.playwright_crawls.select_related('batch','created_by')[:10]}
 
 
